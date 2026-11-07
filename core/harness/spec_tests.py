@@ -10,6 +10,11 @@ reasoning or tests — and writes:
     (source="property"), expressed as small Python predicates over (args, result)
   - literals: for string params with a closed set of valid values, the valid values,
     so the fuzzer can draw them (a random string never hits "book" or "dvd")
+  - modules: hidden pytest files against the repo's public API (the verdict on a real repo);
+    split ~40% visible / rest hidden at the test-function level, same `visible_ids`
+
+Function-level cases and properties are the oracle for pure subtasks; pytest modules are
+the oracle for anything that touches a real repo. Both may be present.
 
 Generated once per subtask and cached under runs/spec_tests/<content-hash>.json, keyed by
 (title, spec, interface) rather than the subtask's random id, so every run of that subtask,
@@ -19,6 +24,7 @@ The author identity must not be one of the implementers for that subtask.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -55,6 +61,7 @@ class SpecTests(BaseModel):
     properties: list[SpecProperty]
     visible_ids: list[str] = []  # ~40% of cases agents may run live; the rest + properties decide the verdict
     literals: dict[str, dict[str, list]] = {}  # function -> param -> valid literal values (str params)
+    modules: dict[str, str] = {}  # pytest filename -> source; node ids are "<filename>::<test_fn>"
     author_id: str = ""
 
     @property
@@ -64,6 +71,46 @@ class SpecTests(BaseModel):
     @property
     def hidden(self) -> list[TestCase]:
         return [c for c in self.cases if c.id not in self.visible_ids]
+
+    @property
+    def test_node_ids(self) -> list[str]:
+        return spec_node_ids(self.modules)
+
+    @property
+    def hidden_test_ids(self) -> list[str]:
+        return [t for t in self.test_node_ids if t not in self.visible_ids]
+
+
+def spec_node_ids(modules: dict[str, str]) -> list[str]:
+    """`<filename>::<test_fn>` for every top-level test function (and class-less test) in each module."""
+    out: list[str] = []
+    for fname in sorted(modules):
+        try:
+            tree = ast.parse(modules[fname])
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
+                out.append(f"{fname}::{node.name}")
+    return out
+
+
+def visible_module_sources(spec: SpecTests) -> dict[str, str]:
+    """The modules with hidden test functions removed: what `run_spec_tests` may hand to an agent."""
+    visible = set(spec.visible_ids)
+    out: dict[str, str] = {}
+    for fname, src in spec.modules.items():
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        keep = [
+            n for n in tree.body
+            if not (isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test") and f"{fname}::{n.name}" not in visible)
+        ]
+        if any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test") for n in keep):
+            out[fname] = ast.unparse(ast.Module(body=keep, type_ignores=[]))
+    return out
 
 
 AUTHOR_PROMPT = """You are writing acceptance tests for a subtask BEFORE anyone implements it.
@@ -79,11 +126,16 @@ You see only the spec, the pinned interface and the existing code. Do not guess 
 {code}
 
 Return JSON:
-{{"cases": [{{"function": str, "args": [...], "expected": <value> | {{"raises": "ExceptionName"}}, "why": str}}],
+{{"modules": {{"test_<slug>.py": "<pytest source>"}},
+  "cases": [{{"function": str, "args": [...], "expected": <value> | {{"raises": "ExceptionName"}}, "why": str}}],
   "properties": [{{"name": str, "function": str, "predicate": "lambda args, result: <bool expr>", "description": str}}],
   "literals": {{"<function>": {{"<str param name>": ["valid", "values"]}}}}}}
 
 Rules:
+- `modules`: one or two pytest files, 8 to 20 small top-level test functions named test_*, one assertion
+  each, importing the code by its repo path (pricing/tiers.py -> `from pricing.tiers import tier_for`).
+  Use only pytest and the standard library. Each test must follow from the spec literally.
+- `cases`/`properties` only when the pinned interface is pure functions; otherwise return empty lists.
 - 10 to 25 cases. Cover every boundary the spec names (inclusive vs exclusive, equality, zero, empty, negative).
 - Expected values must follow from the spec literally. If the spec is ambiguous for a case, omit the case and
   add a property instead. Use JSON numbers for numeric results (2 decimals where the spec rounds), JSON null for None.
@@ -158,15 +210,16 @@ def parse_author_output(subtask: Subtask, data: dict, author_id: str = "") -> Sp
     for fn, params in (data.get("literals") or {}).items():
         if fn in known and isinstance(params, dict):
             literals[fn] = {k: list(v) for k, v in params.items() if isinstance(v, list) and v}
-    visible = _split_visible(cases, VISIBLE_SHARE)
-    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible, literals=literals, author_id=author_id)
+    modules = {str(k): v for k, v in (data.get("modules") or {}).items() if isinstance(v, str) and str(k).endswith(".py") and v.strip()}
+    visible = _split_visible([c.id for c in cases], VISIBLE_SHARE) + _split_visible(spec_node_ids(modules), VISIBLE_SHARE)
+    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible, literals=literals, modules=modules, author_id=author_id)
 
 
-def _split_visible(cases: list[TestCase], share: float) -> list[str]:
-    """Deterministic split so the same subtask always exposes the same visible cases."""
-    ranked = sorted(cases, key=lambda c: hashlib.sha256(c.id.encode()).hexdigest())
+def _split_visible(ids: list[str], share: float) -> list[str]:
+    """Deterministic split so the same subtask always exposes the same visible cases/tests."""
+    ranked = sorted(ids, key=lambda i: hashlib.sha256(i.encode()).hexdigest())
     n = max(1, int(len(ranked) * share)) if ranked else 0
-    return [c.id for c in ranked[:n]]
+    return ranked[:n]
 
 
 _PREDICATE_BUILTINS = {

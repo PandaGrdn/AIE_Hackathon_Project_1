@@ -35,11 +35,8 @@ step {idx}: {step}
 ## What the passing agents were reasoning at the same phase
 {consensus}
 
-## Breaking input and outcomes
-function: {function}
-input: {breaking}
-failed agent returned: {failed_out}
-{reference_label} returned: {reference_out}
+## Breaking evidence
+{evidence}
 
 Return JSON: {{"lesson": str, "tags": [str], "confidence": float}}
 Rules for the lesson:
@@ -59,11 +56,7 @@ def reflect(spec: str, failed: AgentRun, div: Divergence, store: Store, result: 
         idx=div.step_index,
         step=div.step_text,
         consensus="\n".join(f"- {t}" for t in div.consensus_step_texts) or "(none)",
-        function=div.breaking_case.function if div.breaking_case else "(unknown)",
-        breaking=json.dumps(div.breaking_case.args if div.breaking_case else None, default=str),
-        failed_out=fmt_outcome(failed_out),
-        reference_label=reference_label,
-        reference_out=fmt_outcome(reference_out),
+        evidence=_evidence(div, failed_out, reference_out, reference_label),
     )
 
     data = _ask(prompt, failed, div)
@@ -110,6 +103,19 @@ def _ask(prompt: str, failed: AgentRun, div: Divergence) -> dict:
             "tags": ["reflector-error", type(e).__name__],
             "confidence": FALLBACK_CONFIDENCE,
         }
+
+
+def _evidence(div: Divergence, failed_out: Outcome | None, reference_out: Outcome | None, reference_label: str) -> str:
+    bc = div.breaking_case
+    if bc is None:
+        return "(no breaking case recorded)"
+    if bc.source in ("pytest", "regression"):
+        which = "hidden spec test written from the spec" if bc.source == "pytest" else "existing test in the repository"
+        return f"failing test: {bc.args[0] if bc.args else bc.function} ({which})\nresult in the failed agent's sandbox: {fmt_outcome(failed_out)}\nexpected: passes"
+    return (
+        f"function: {bc.function}\ninput: {json.dumps(bc.args, default=str)}\n"
+        f"failed agent returned: {fmt_outcome(failed_out)}\n{reference_label} returned: {fmt_outcome(reference_out)}"
+    )
 
 
 def _failed_outcome(failed: AgentRun, div: Divergence, result: CrossTestResult | None) -> Outcome | None:
