@@ -44,6 +44,10 @@ ReflectFn = Callable[..., Lesson]  # (spec, failed, div, store, result=CrossTest
 LocateFn = Callable[[str, AgentRun, list[AgentRun], Any, Any], Divergence | None]
 
 SPEC_AMBIGUITY_MIN_CONFIDENCE = 0.6  # SubQ kind=spec_ambiguity above this → flag, no lesson charged to the agent
+# A SubQ root-step probability at or above this counts as confirmation of the divergence (counterfactual
+# replay is the other confirmation path; it is not wired into the loop yet). Confirmed lessons create
+# their failure region immediately; unconfirmed ones wait for a second hit (core/reflect/dedup.py).
+SUBQ_CONFIRM_P = 0.7
 
 
 def default_locate(spec: str, failed: AgentRun, verified: list[AgentRun], breaking=None, failed_outcome=None) -> Divergence | None:
@@ -142,6 +146,8 @@ def run_subtask(
             continue
         if bc and div.breaking_case is None:
             div.breaking_case, div.majority_outcome = bc
+        if "subq" in div.signals and div.step_probabilities.get(f"S{div.step_index}", 0.0) >= SUBQ_CONFIRM_P:
+            div.confirmed = True
         divergences.append(div)
         if failed_out is not None:  # the "actual" outcome for the UI card
             fo = getattr(store, "failed_outcomes", None) or {}
