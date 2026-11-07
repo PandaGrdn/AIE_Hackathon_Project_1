@@ -102,8 +102,12 @@ def run_subtask(
     store.save_manifest(RunManifest(task_id=task.id, subtask_id=subtask.id, agent_ids=[a.id for a in agents], lessons_used=lesson_ids))
 
     # 4–5. cross-test
-    # `spec` carries the hidden pytest modules + expectations; `repo` supplies the regression suite.
-    result = cross_test(subtask, runs, weights_for(runs, store), spec=spec, repo=repo, n_fuzz=n_fuzz)
+    # Real path: `spec` carries hidden pytest modules + expectations and `repo` the regression suite.
+    # Function-level specs (pure subtasks, offline fakes) keep the case-based verdict.
+    if getattr(spec, "modules", None):
+        result = cross_test(subtask, runs, weights_for(runs, store), spec=spec, repo=repo, n_fuzz=n_fuzz)
+    else:
+        result = cross_test(subtask, runs, weights_for(runs, store), spec_cases=spec.cases, n_fuzz=n_fuzz)
     console.print(f"verified: {len(result.verified_runs)}  failed: {len(result.failed_runs)}  cases: {len(result.cases)}")
     report.update(
         verified=len(result.verified_runs), failed=len(result.failed_runs),
