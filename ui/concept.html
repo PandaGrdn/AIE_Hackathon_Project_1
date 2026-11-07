@@ -24,6 +24,29 @@
   #wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #scene { display: none; }
   #sprites { image-rendering: pixelated; }
+  #dots { cursor: grab; }
+  #wrap.dragging #dots { cursor: grabbing; }
+  #sprites, #labels { pointer-events: none; }
+  #recenter { position: absolute; right: 14px; bottom: 14px; z-index: 3; background: var(--ground); }
+  #hud { position: absolute; left: 14px; top: 14px; z-index: 3; width: 300px; background: rgba(34,35,26,.92); border: 1px solid var(--rule); padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 10px; }
+  #hud[hidden], #upload[hidden], #recenter[hidden] { display: none; }
+  .hud-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-weight: 600; font-size: 14px; }
+  .pill { font-weight: 600; color: var(--salt); border: 1px solid var(--rule); padding: 1px 8px; }
+  .pill.swarm { color: var(--claude); border-color: var(--claude); }
+  .pill.verdict, .pill.gate { color: #B9B29F; }
+  .hud-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .hud-stats div { display: flex; flex-direction: column; } .hud-stats b { font-size: 20px; font-weight: 600; } .hud-stats span { color: var(--mute); }
+  .hud-lesson { border-left: 3px solid var(--sage); padding: 4px 10px; color: var(--ink); min-height: 2.6em; }
+  .hud-lesson small { display: block; color: var(--mute); }
+  .hud-log { list-style: none; margin: 0; padding: 0; color: var(--mute); display: flex; flex-direction: column; gap: 3px; max-height: 9.5em; overflow: hidden; }
+  .hud-log li b { color: var(--ink); font-weight: 600; }
+  #upload { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; background: rgba(34,35,26,.78); }
+  #upload .card { width: min(560px, 90%); background: var(--ground); border: 1px solid var(--rule); padding: 22px 26px; display: flex; flex-direction: column; gap: 12px; }
+  #upload h2 { margin: 0; font-size: 18px; font-weight: 600; } #upload p { margin: 0; color: var(--mute); }
+  #upload label { display: flex; flex-direction: column; gap: 4px; color: var(--mute); }
+  #upload input { font: inherit; padding: 8px 10px; background: var(--soil); color: var(--ink); border: 1px solid var(--rule); }
+  #upload .row { display: flex; gap: 10px; flex-wrap: wrap; } #upload .primary { background: var(--ink); color: var(--ground); border-color: var(--ink); font-weight: 600; }
+  #upload small { color: var(--mute); }
   #legend { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 12px 2px 0; color: var(--mute); }
   #legend button { border: none; padding: 0; color: var(--mute); }
   #legend button b { color: var(--ink); font-weight: 600; }
@@ -57,13 +80,35 @@
   <canvas id="dots" role="img" aria-label="Halftone map of the reasoning space with a beetle for each agent walking its reasoning path"></canvas>
   <canvas id="sprites" aria-hidden="true"></canvas>
   <canvas id="labels" aria-hidden="true"></canvas>
+  <button id="recenter" hidden>re-centre on the swarm</button>
+  <aside id="hud" hidden>
+    <div class="hud-row"><span id="hud-round">Subtask 1 of 4</span><span class="pill" id="hud-phase">ready</span></div>
+    <div class="hud-stats">
+      <div><b id="st-verified">0</b><span>verified</span></div>
+      <div><b id="st-falls">0</b><span>fell into a pit</span></div>
+      <div><b id="st-steered">0</b><span>steered around one</span></div>
+      <div><b id="st-heldout">50%</b><span>held-out pass rate</span></div>
+    </div>
+    <div class="hud-lesson" id="hud-lesson">No falls yet.</div>
+    <ul class="hud-log" id="hud-log"></ul>
+  </aside>
+  <div id="upload" hidden>
+    <form class="card" id="upload-form">
+      <h2>Live run</h2>
+      <p>Upload a coding task and the codebase it targets. The swarm is deployed per subtask and every agent's reasoning streams back here as it thinks.</p>
+      <label>Task<input id="up-task" type="text" value="demo_task/mcp/task.md"></label>
+      <label>Codebase<input id="up-repo" type="text" value="demo_task/mcp/repo  (MCP Python SDK at 77001c9)"></label>
+      <div class="row"><button type="submit" class="primary">Deploy the swarm</button><button type="button" id="up-cancel">Back to the recorded run</button></div>
+      <small>Demo build: this replays the recorded run as a live stream. The real pipeline plugs in behind the same panel.</small>
+    </form>
+  </div>
 </div>
 <div id="legend"></div>
 
 <section class="sheet">
   <h2>What you are looking at</h2>
   <p>Every reasoning step of every agent run is embedded and projected with PCA onto the ground. Height is how often agents reasoned there, so consensus paths rise into ridges and the lesson's failure region sinks into a pit. Past the data the ground continues as dunes without end, and the camera follows the swarm. Each beetle is one agent in its company's color, walking its real steps in order and leaving its path behind it. A beetle that reaches the step SubQ blamed flips onto its back and stays there.</p>
-  <p>The ground is printed as halftone dots: higher ground gets bigger, denser dots. Each beetle's track is pressed into the ground itself, so it is printed with the same dots and stays. The beetles are pixel sprites on a layer above, so nothing ever covers them. Click an agent in the legend to follow it; live run polls the store and turns new runs into beetles.</p>
+  <p>The ground is printed as halftone dots: higher ground gets bigger, denser dots. Each beetle's track is pressed into the ground itself, printed with the same dots, and fades over about twenty seconds. The beetles are pixel sprites on a layer above, so nothing ever covers them. The camera fits every beetle in view; drag to pan, scroll to zoom, and re-centre to hand it back. Live run replays the recorded run as a stream, subtask by subtask: agents deploy, hidden tests decide, a flag is planted where a beetle fell, and later beetles steer around it.</p>
   <h2>Palette, as a desert</h2>
   <div class="swatches" id="swatches"></div>
 </section>
@@ -139,7 +184,7 @@ function noise(x, y) {
 }
 
 // ---------- world: an endless heightfield with the reasoning data in the middle ----------
-const world = { data: null, pts: [], pits: [], byAgent: new Map(), roots: {}, beetles: [], corpses: [], follow: null, hcache: new Map(), bbox: null, runCount: 0, subtasks: 0, tiles: new Map() };
+const world = { knownPits: [], data: null, pts: [], pits: [], byAgent: new Map(), roots: {}, beetles: [], corpses: [], follow: null, hcache: new Map(), bbox: null, runCount: 0, subtasks: 0, tiles: new Map() };
 
 function hCell(ix, iy) {
   const key = (ix + 65536) * 131072 + (iy + 65536);
@@ -193,6 +238,8 @@ function layout() {
   world.byAgent = new Map();
   byRun.forEach((arr, rid) => { const a = arr[0].agent_id || "agent"; if (!world.byAgent.has(a)) world.byAgent.set(a, []); world.byAgent.get(a).push({ rid, steps: arr, root: world.roots[rid] }); });
   world.runCount = byRun.size; world.subtasks = new Set(world.pts.map((s) => s.subtask_id)).size;
+  world.byRun = byRun;
+  world.subtaskOrder = []; world.pts.forEach((s) => { if (!world.subtaskOrder.includes(s.subtask_id)) world.subtaskOrder.push(s.subtask_id); });
   return true;
 }
 
@@ -208,13 +255,15 @@ function spline(knots, per) {
   const out = [{ x: knots[0].x, y: knots[0].y }];
   for (let i = 0; i < knots.length - 1; i++) {
     const p0 = knots[Math.max(0, i - 1)], p1 = knots[i], p2 = knots[i + 1], p3 = knots[Math.min(knots.length - 1, i + 2)];
-    for (let k = 1; k <= per; k++) { const [x, y] = catmull(p0, p1, p2, p3, k / per); out.push(k === per ? { x, y, step: p2.step, root: p2.root, exit: p2.exit } : { x, y }); }
+    for (let k = 1; k <= per; k++) { const [x, y] = catmull(p0, p1, p2, p3, k / per); out.push(k === per ? { x, y, step: p2.step, root: p2.root, exit: p2.exit, steer: p2.steer } : { x, y }); }
   }
   return out;
 }
-function makeBeetles() {
+function makeBeetles(runFilter) {
   const beetles = []; let k = 0; const seen = {};
-  world.byAgent.forEach((runs, agent) => {
+  world.byAgent.forEach((allRuns, agent) => {
+    const runs = runFilter ? allRuns.filter((r) => runFilter(r)) : allRuns;
+    if (!runs.length) return;
     const co = companyOf(agent), skin = SKIN[co.key] || SKIN.subq;
     const nth = (seen[co.key] = (seen[co.key] || 0) + 1);  // second agent of a company gets the stripe
     const knots = [];
@@ -222,7 +271,11 @@ function makeBeetles() {
     const first = runs[0].steps[0];
     knots.push({ x: first.x + Math.cos(ang) * 46, y: first.y + Math.sin(ang) * 46 });
     knots.push({ x: first.x + Math.cos(ang + 0.5) * 24, y: first.y + Math.sin(ang + 0.5) * 24 });
-    runs.forEach((run) => run.steps.forEach((s) => knots.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null })));
+    runs.forEach((run) => run.steps.forEach((s) => {
+      // a verified run passing close to a known pit is a beetle steering around it with the lesson (Lucas's colony idea)
+      const near = s.failed !== true && !run.root && world.knownPits.find((pt) => Math.hypot(s.x - pt.x, s.y - pt.y) < pt.rad * 1.6);
+      knots.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null, steer: near ? near.lesson : null });
+    }));
     knots.push({ x: first.x + Math.cos(ang + 2.6) * 50, y: first.y + Math.sin(ang + 2.6) * 50, exit: true });
     const wps = spline(knots, 8);
     beetles.push({ agent, co, skin, striped: nth > 1, color: skin[1], wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
@@ -232,25 +285,33 @@ function makeBeetles() {
 }
 
 // ---------- camera ----------
-const cam = { yaw: 0.9, dist: 30, tx: 0, ty: 0, focal: 1, W: 1, H: 1, g: [0, 1], r: [1, 0] };  // W, H in sprite pixels
+const cam = { yaw: 0.9, dist: 30, tx: 0, ty: 0, focal: 1, W: 1, H: 1, g: [0, 1], r: [1, 0], manual: false };  // W, H in sprite pixels
 const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 function updateCamera(dt) {
-  let fx = 0, fy = 0, n = 0;
   const live = world.beetles.filter((b) => !b.done && !b.flipped);
   let tgt = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done);
   if (tgt && tgt.flipped && now() - tgt.flippedAt > 4) { world.follow = null; tgt = null; renderLegend(); }
-  if (tgt) { fx = tgt.x; fy = tgt.y; n = 1; }
-  let wantDist = 26;
-  if (!tgt) {
-    for (const b of live) { fx += b.x; fy += b.y; n++; }
-    if (n) { fx /= n; fy /= n; let spread = 0; for (const b of live) spread = Math.max(spread, Math.hypot(b.x - fx, b.y - fy)); wantDist = Math.max(30, Math.min(60, 22 + spread * 1.4)); }
-  }
-  if (n) { const k = 1 - Math.pow(0.08, dt); cam.tx += (fx - cam.tx) * k; cam.ty += (fy - cam.ty) * k; }
-  cam.dist += (wantDist - cam.dist) * (1 - Math.pow(0.2, dt));
-  if (!reduced) cam.yaw += 0.03 * dt;
-  // 2D frame: g is screen-up on the ground, r is screen-right
   cam.g = [Math.cos(cam.yaw), Math.sin(cam.yaw)]; cam.r = [Math.sin(cam.yaw), -Math.cos(cam.yaw)];
+  if (!cam.manual) {
+    let fx = 0, fy = 0, wantDist = cam.dist;
+    if (tgt) { fx = tgt.x; fy = tgt.y; wantDist = 26; }
+    else {
+      const pts = live.concat(world.corpses.filter((c) => now() - c.at < 10));
+      if (pts.length) {
+        // fit every beetle: extents along the screen axes, with a margin, against the viewport
+        let r0 = 1e9, r1 = -1e9, g0 = 1e9, g1 = -1e9;
+        for (const b of pts) { const pr = b.x * cam.r[0] + b.y * cam.r[1], pg = b.x * cam.g[0] + b.y * cam.g[1]; r0 = Math.min(r0, pr); r1 = Math.max(r1, pr); g0 = Math.min(g0, pg); g1 = Math.max(g1, pg); }
+        const cr = (r0 + r1) / 2, cg = (g0 + g1) / 2, m = 9;
+        fx = cr * cam.r[0] + cg * cam.g[0]; fy = cr * cam.r[1] + cg * cam.g[1];
+        const kNeed = Math.min(cam.W / (r1 - r0 + 2 * m), cam.H / (g1 - g0 + 2 * m));
+        wantDist = Math.max(22, Math.min(110, cam.focal / kNeed));
+      } else { fx = cam.tx; fy = cam.ty; }
+    }
+    const k = 1 - Math.pow(0.08, dt); cam.tx += (fx - cam.tx) * k; cam.ty += (fy - cam.ty) * k;
+    cam.dist += (wantDist - cam.dist) * (1 - Math.pow(0.2, dt));
+    if (!reduced) cam.yaw += 0.03 * dt;
+  }
 }
 const kScale = () => cam.focal / cam.dist;  // 2D: pixels per cell
 function project(x, y) {
@@ -365,7 +426,71 @@ function drawBeetle(ctx, b, t, flipped) {
 
 // ---------- simulation ----------
 const now = () => performance.now() / 1000;
+const HELDOUT = [50, 64, 71, 79, 83, 86, 88];  // hardcoded held-out pass rate per completed subtask; tie to the gate later
+const sim = { active: false, stage: 0, phase: "ready", phaseT: 0, verified: 0, falls: 0, steered: 0, log: [], lesson: null };
+function logLine(html) { sim.log.unshift(html); sim.log = sim.log.slice(0, 7); $("hud-log").innerHTML = sim.log.map((l) => `<li>${l}</li>`).join(""); }
+function setPhase(ph) {
+  sim.phase = ph; sim.phaseT = 0;
+  const pill = $("hud-phase"); pill.textContent = ph; pill.className = "pill " + ph.replace(/\s/g, "-");
+  $("hud-round").textContent = sim.stage < world.subtaskOrder.length ? `Subtask ${sim.stage + 1} of ${world.subtaskOrder.length}` : `All ${world.subtaskOrder.length} subtasks done`;
+}
+function hudStats() {
+  $("st-verified").textContent = sim.verified; $("st-falls").textContent = sim.falls; $("st-steered").textContent = sim.steered;
+  $("st-heldout").textContent = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage)] + "%";
+}
+function startSim() {
+  sim.active = true; sim.stage = 0; sim.verified = 0; sim.falls = 0; sim.steered = 0; sim.log = []; sim.lesson = null;
+  world.beetles = []; world.corpses = []; world.knownPits = []; clearTracks();
+  $("hud").hidden = false; $("hud-log").innerHTML = ""; $("hud-lesson").textContent = "No falls yet."; hudStats();
+  setPhase("decompose"); logLine(`task received: <b>${esc($("up-task").value)}</b>`);
+}
+const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function simTick(dt) {
+  if (!sim.active) return;
+  sim.phaseT += dt;
+  const sub = world.subtaskOrder[sim.stage];
+  const runsHere = sub ? [...world.byRun.keys()].filter((rid) => world.byRun.get(rid)[0].subtask_id === sub) : [];
+  switch (sim.phase) {
+    case "decompose": if (sim.phaseT > 2.2) { logLine(`decomposed into <b>${world.subtaskOrder.length} subtasks</b>`); setPhase("hidden tests"); } break;
+    case "hidden tests": if (sim.phaseT > 2) { logLine(`verifier wrote hidden tests for subtask ${sim.stage + 1} from the spec alone`); world.beetles = makeBeetles((r) => r.steps[0].subtask_id === sub); setPhase("swarm"); logLine(`<b>${world.beetles.length} agents</b> deployed`); } break;
+    case "swarm":
+      if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 2.5))) setPhase("verdict");
+      break;
+    case "verdict":
+      if (sim.phaseT > 0.1 && !sim.counted) {
+        sim.counted = true;
+        const failed = runsHere.filter((rid) => world.byRun.get(rid)[0].failed === true || world.roots[rid]);
+        sim.verified += runsHere.length - failed.length; sim.falls += failed.length; hudStats();
+        logLine(`hidden tests: <b>${runsHere.length - failed.length} verified</b>, ${failed.length} failed`);
+      }
+      if (sim.phaseT > 2.2) { sim.counted = false; setPhase(sim.falls > (sim.fallsSeen || 0) ? "reflect" : "gate"); }
+      break;
+    case "reflect":
+      if (sim.phaseT > 0.1 && !sim.counted) {
+        sim.counted = true; sim.fallsSeen = sim.falls;
+        const L = (world.data.lessons || []).find((l) => (l.created_from || {}).subtask_id === sub) || (world.data.lessons || [])[0];
+        const dv = Object.values(world.roots).find((d) => runsHere.includes(d.run_id));
+        const where = dv && world.byRun.get(dv.run_id).find((st) => st.step_index === dv.step_index);
+        if (where) world.knownPits.push({ x: where.x, y: where.y, rad: 5, lesson: `L${world.knownPits.length + 1}` });
+        sim.lesson = L; const tag = `L${world.knownPits.length}`;
+        $("hud-lesson").innerHTML = L ? `<b>${tag}</b> ${esc(L.text)}<small>from ${esc(dv ? dv.agent_id || "" : "")} at step S${dv ? dv.step_index : "?"}${dv && dv.step_probabilities ? `, SubQ P ${(100 * (dv.step_probabilities["S" + dv.step_index] || 0)).toFixed(2)}%` : ""}, confidence ${Math.round(100 * (L.confidence || 0))}%</small>` : "reflector found no lesson";
+        logLine(`flag planted: <b>${tag}</b> at the step SubQ blamed`);
+      }
+      if (sim.phaseT > 3) { sim.counted = false; setPhase("gate"); }
+      break;
+    case "gate":
+      if (sim.phaseT > 0.1 && !sim.counted) {
+        sim.counted = true;
+        const before = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage)], after = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage + 1)];
+        logLine(after > before ? `gate: <b>adopted</b>, held-out ${before}% to ${after}%` : `gate: <b>rolled back</b>, no held-out improvement`);
+      }
+      if (sim.phaseT > 2.2) { sim.counted = false; sim.stage++; hudStats(); if (sim.stage >= world.subtaskOrder.length) { setPhase("done"); logLine(`<b>all subtasks completed</b>, hidden tests green`); sim.active = false; } else setPhase("hidden tests"); }
+      break;
+  }
+}
 function stepSim(dt, t) {
+  // tracks fade: the ground forgets a track over about twenty seconds
+  tctx.globalCompositeOperation = "destination-out"; tctx.fillStyle = `rgba(0,0,0,${1 - Math.exp(-dt / 7)})`; tctx.fillRect(0, 0, track.width, track.height); tctx.globalCompositeOperation = "source-over";
   for (const b of world.beetles) {
     if (b.done || b.flipped) continue;
     const a = b.wps[b.i], z = b.wps[b.i + 1];
@@ -374,18 +499,20 @@ function stepSim(dt, t) {
     const slope = Math.max(0.55, 1 - 0.35 * Math.max(0, hAt(z.x, z.y) - hAt(a.x, a.y)) / len);
     b.t += (SPEED * b.pace * slope * dt) / len;
     const px = b.x, py = b.y, u = Math.min(1, b.t);
-    const wob = Math.sin(t * 5 + b.phase) * 0.08;
-    b.x = a.x + (z.x - a.x) * u - wob * ((z.y - a.y) / len);
-    b.y = a.y + (z.y - a.y) * u + wob * ((z.x - a.x) / len);
+    b.x = a.x + (z.x - a.x) * u; b.y = a.y + (z.y - a.y) * u;
     const dx = b.x - px, dy = b.y - py;
     if (Math.hypot(dx, dy) > 1e-4) { const want = Math.atan2(dy, dx); let d = want - b.heading; d = Math.atan2(Math.sin(d), Math.cos(d)); b.heading += d * Math.min(1, 6 * dt); }
     if (!b.lastStamp || Math.hypot(b.x - b.lastStamp[0], b.y - b.lastStamp[1]) > 0.3) { stampTrack(b.x, b.y, b.color, b.heading); b.lastStamp = [b.x, b.y]; }
     if (b.t >= 1) {
-      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, skin: b.skin, agent: b.agent, heading: b.heading, phase: b.phase, label: rootLabel(z.root) }); }
-      else { b.i++; b.t = 0; }
+      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, skin: b.skin, agent: b.agent, heading: b.heading, label: rootLabel(z.root), at: now() }); if (sim.active) logLine(`<b>${esc(b.agent)}</b> fell at S${z.root.step_index}`); }
+      else {
+        if (z.steer && !b.steered) { b.steered = true; b.steerLabel = z.steer; b.steerUntil = t + 2.5; if (sim.active) { sim.steered++; hudStats(); logLine(`<b>${esc(b.agent)}</b> steered around the pit with ${z.steer}`); } }
+        b.i++; b.t = 0;
+      }
     }
   }
-  if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 12))) { world.beetles = makeBeetles(); world.corpses = []; clearTracks(); }
+  if (mode === "live") simTick(dt);
+  else if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 12))) { world.beetles = makeBeetles(); world.corpses = []; clearTracks(); }
 }
 function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
 
@@ -455,6 +582,8 @@ function render(t) {
     lctx.fillStyle = color; lctx.fillText(text, x, y);
   };
   for (const c of world.corpses) tag(c.screen, `${c.agent}  ${c.label}`, PAL.salt);
+  for (const pt of world.knownPits) { const s = project(pt.x, pt.y); tag(s, `flag ${pt.lesson}`, PAL.sage); }
+  for (const b of world.beetles) if (!b.done && b.steerUntil > t && b.screen) tag(b.screen, `around the pit with ${b.steerLabel}`, b.skin[2]);
   const f = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done && !b.flipped);
   if (f) tag(f.screen, f.agent, f.color);
 }
@@ -473,19 +602,36 @@ function renderLegend() {
     `<button data-agent="${b.agent}" aria-pressed="${world.follow === b.agent}"><span class="sp" style="background:${b.skin[1]}"></span><b>${b.agent}</b> ${b.co.name}${trust[b.agent] != null ? `, trust ${trust[b.agent].toFixed(2)}` : ""}</button>`).join("");
   $("legend").querySelectorAll("button").forEach((btn) => { btn.onclick = () => { world.follow = btn.dataset.agent || null; renderLegend(); }; });
 }
-let mode = "recorded", pollTimer = null, lastStepCount = -1;
+let mode = "recorded";
 function setMode(m) {
   mode = m; $("m-rec").setAttribute("aria-pressed", String(m === "recorded")); $("m-live").setAttribute("aria-pressed", String(m === "live"));
-  clearInterval(pollTimer); pollTimer = null; $("live-note").textContent = "";
-  if (m === "live") { $("live-note").textContent = "polling the store every 3 s; new runs become beetles"; pollTimer = setInterval(() => load(true), 3000); }
+  sim.active = false; $("hud").hidden = true; cam.manual = false; $("recenter").hidden = true;
+  if (m === "live") { $("upload").hidden = false; world.beetles = []; world.corpses = []; world.knownPits = []; clearTracks(); $("live-note").textContent = "simulated live: the recorded run replayed as a stream"; }
+  else { $("upload").hidden = true; $("live-note").textContent = ""; world.knownPits = []; if (world.pts.length) { world.beetles = makeBeetles(); world.corpses = []; clearTracks(); } }
 }
 $("m-rec").onclick = () => setMode("recorded");
 $("m-live").onclick = () => setMode("live");
-async function load(poll = false) {
+$("upload-form").onsubmit = (e) => { e.preventDefault(); $("upload").hidden = true; startSim(); };
+$("up-cancel").onclick = () => setMode("recorded");
+// pan by dragging, zoom with the wheel; the camera stops following until re-centred
+(() => {
+  let drag = null;
+  const cssPerSprite = () => pitchCss / 2;
+  dots.addEventListener("mousedown", (e) => { drag = [e.clientX, e.clientY]; $("wrap").classList.add("dragging"); });
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    const k = kScale() * cssPerSprite(), dx = e.clientX - drag[0], dy = e.clientY - drag[1]; drag = [e.clientX, e.clientY];
+    cam.tx -= (dx / k) * cam.r[0] - (dy / k) * cam.g[0]; cam.ty -= (dx / k) * cam.r[1] - (dy / k) * cam.g[1];
+    cam.manual = true; $("recenter").hidden = false;
+  });
+  window.addEventListener("mouseup", () => { drag = null; $("wrap").classList.remove("dragging"); });
+  dots.addEventListener("wheel", (e) => { e.preventDefault(); cam.dist = Math.max(8, Math.min(160, cam.dist * Math.exp(e.deltaY * 0.0015))); cam.manual = true; $("recenter").hidden = false; }, { passive: false });
+  $("recenter").onclick = () => { cam.manual = false; $("recenter").hidden = true; };
+})();
+let lastStepCount = -1;
+async function load() {
   try {
     const [steps, divs, regions, trust] = await Promise.all(["/api/steps", "/api/divergences", "/api/regions", "/api/trust"].map(getJSON));
-    if (poll && steps.length === lastStepCount) return;  // nothing new
-    lastStepCount = steps.length;
     world.data = { steps, divs, regions, trust };
     if (!layout()) { $("caption").textContent = "no reasoning steps with embeddings yet"; return; }
     world.beetles = makeBeetles(); world.corpses = []; clearTracks();
@@ -493,7 +639,7 @@ async function load(poll = false) {
     cam.tx = world.beetles.reduce((s, b) => s + b.wps[1].x, 0) / world.beetles.length; cam.ty = world.beetles.reduce((s, b) => s + b.wps[1].y, 0) / world.beetles.length;
     if (reduced) world.beetles.forEach((b) => { const l = b.wps[b.wps.length - 2]; b.x = l.x; b.y = l.y; b.wps.forEach((w, i) => { if (i) stampTrack(w.x, w.y, b.color, Math.atan2(w.y - b.wps[i - 1].y, w.x - b.wps[i - 1].x)); }); });
     const flipped = Object.keys(world.roots).filter((rid) => [...world.byAgent.values()].some((rs) => rs.some((r) => r.rid === rid))).length;
-    $("caption").textContent = `${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped${poll ? ", updated " + new Date().toLocaleTimeString() : ""}`;
+    $("caption").textContent = `${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped`;
     renderLegend();
   } catch (e) { $("caption").textContent = `could not load the swarm: ${e.message}`; }
 }

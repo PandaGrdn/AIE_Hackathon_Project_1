@@ -168,8 +168,18 @@ How it works, top to bottom of the script:
   `TRACK_PPC` px per cell) that beetles stamp as they walk: two footprints and a faint centre in a
   lighter tint of the company colour. `drawMap2D` draws it over the tiles before the halftone, so
   a track is bigger, coloured dots in the ground itself, and it stays until the loop restarts.
-- **Modes**: `recorded run` loads once; `live run` polls the four endpoints every 3 s and rebuilds
-  beetles when the step count changes (`setMode`, `load(poll)`).
+- **Tracks fade**: `stepSim` erodes the track canvas each frame (`destination-out`, about a
+  20 s memory), so a track is a recent trail, not a permanent line.
+- **Camera**: fits every live beetle in view (extents along the screen axes plus a margin) or
+  follows one agent; drag pans and the wheel zooms, which sets `cam.manual` until re-centre.
+- **Modes**: `recorded run` shows the whole run at once. `live run` is a simulated stream (Lucas's
+  colony idea): an upload card (task, codebase; hardcoded), then per subtask the phases decompose,
+  hidden tests, swarm (only that subtask's runs become beetles), verdict, reflect (a flag is
+  planted at the SubQ root-cause step, `world.knownPits`), gate (held-out pass rate from the
+  hardcoded `HELDOUT` ramp). Later verified beetles passing a known pit get a "steered around"
+  label and count. `sim` holds the state, `simTick` advances it, the HUD (`#hud`) shows round,
+  phase, counters, latest lesson and a run log. Wire the real pipeline by driving `sim` from the
+  orchestrator's events instead of timers.
 - **Camera** `updateCamera()`: follows one agent (`world.follow`, from the legend; by default the
   beetle that will flip, then the swarm) or the swarm centroid, backing off with its spread
   (`wantDist`). Top-down, with a slow yaw drift.
