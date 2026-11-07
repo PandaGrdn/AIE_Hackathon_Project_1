@@ -1,0 +1,226 @@
+{
+  "subtask_id": "bfc55fd16974",
+  "cases": [
+    {
+      "id": "b53e412da8b6",
+      "function": "shipping_fee",
+      "args": [
+        0.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "cc3672dbf7c5",
+      "function": "shipping_fee",
+      "args": [
+        0.5
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "a8cedcb6783e",
+      "function": "shipping_fee",
+      "args": [
+        1.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "8d5d7d0b97c8",
+      "function": "shipping_fee",
+      "args": [
+        1.01
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "cb8af090e9be",
+      "function": "shipping_fee",
+      "args": [
+        3.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "48230b5a81af",
+      "function": "shipping_fee",
+      "args": [
+        5.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "68424271f8ea",
+      "function": "shipping_fee",
+      "args": [
+        5.01
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "7af2c99190dd",
+      "function": "shipping_fee",
+      "args": [
+        10.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5f1018b9360e",
+      "function": "shipping_fee",
+      "args": [
+        19.99
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "41738e8b8e4f",
+      "function": "shipping_fee",
+      "args": [
+        20.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "65bbedf5512c",
+      "function": "shipping_fee",
+      "args": [
+        20.5
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "6e7dc42420e6",
+      "function": "shipping_fee",
+      "args": [
+        24.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "8624cf2dca54",
+      "function": "shipping_fee",
+      "args": [
+        100.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "4c9c08a3a199",
+      "function": "shipping_fee",
+      "args": [
+        1000.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "e7be1f5528ad",
+      "function": "shipping_fee",
+      "args": [
+        -0.01
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "2f834e062375",
+      "function": "shipping_fee",
+      "args": [
+        -5.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "16041f06b255",
+      "function": "shipping_fee",
+      "args": [
+        1000.01
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "b53e412da8b6": 5.0,
+    "cc3672dbf7c5": 5.0,
+    "a8cedcb6783e": 5.0,
+    "8d5d7d0b97c8": 9.0,
+    "cb8af090e9be": 9.0,
+    "48230b5a81af": 9.0,
+    "68424271f8ea": 15.0,
+    "7af2c99190dd": 15.0,
+    "5f1018b9360e": 15.0,
+    "41738e8b8e4f": 20.0,
+    "65bbedf5512c": 20.12,
+    "6e7dc42420e6": 21.0,
+    "8624cf2dca54": 40.0,
+    "4c9c08a3a199": 265.0,
+    "e7be1f5528ad": {
+      "raises": "ValueError"
+    },
+    "2f834e062375": {
+      "raises": "ValueError"
+    },
+    "16041f06b255": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "fee_lower_bound",
+      "function": "shipping_fee",
+      "predicate_src": "lambda args, result: result >= 5.0",
+      "description": "Shipping fee is at least 5.00 USD for any valid non-negative weight"
+    },
+    {
+      "name": "fee_upper_bound",
+      "function": "shipping_fee",
+      "predicate_src": "lambda args, result: result <= 265.0",
+      "description": "Shipping fee cannot exceed the maximum allowed parcel fee (265.00 USD at 1000 kg)"
+    },
+    {
+      "name": "two_decimal_places",
+      "function": "shipping_fee",
+      "predicate_src": "lambda args, result: round(result, 2) == result",
+      "description": "Shipping fee is always rounded to at most two decimal places"
+    },
+    {
+      "name": "return_type_is_float",
+      "function": "shipping_fee",
+      "predicate_src": "lambda args, result: isinstance(result, float)",
+      "description": "The function returns a float"
+    }
+  ],
+  "visible_ids": [
+    "41738e8b8e4f",
+    "e7be1f5528ad",
+    "16041f06b255",
+    "8624cf2dca54",
+    "68424271f8ea",
+    "cc3672dbf7c5",
+    "test_shipping.py::test_zero_weight",
+    "test_shipping.py::test_band_four_maximum",
+    "test_shipping.py::test_band_three_just_below_twenty",
+    "test_shipping.py::test_exceeding_max_weight_raises"
+  ],
+  "literals": {},
+  "modules": {
+    "test_shipping.py": "import pytest\nfrom shipping import shipping_fee\n\ndef test_zero_weight():\n    assert shipping_fee(0.0) == 5.00\n\ndef test_band_one_boundary():\n    assert shipping_fee(1.0) == 5.00\n\ndef test_band_two_just_above_one():\n    assert shipping_fee(1.01) == 9.00\n\ndef test_band_two_boundary():\n    assert shipping_fee(5.0) == 9.00\n\ndef test_band_three_just_above_five():\n    assert shipping_fee(5.01) == 15.00\n\ndef test_band_three_middle():\n    assert shipping_fee(12.5) == 15.00\n\ndef test_band_three_just_below_twenty():\n    assert shipping_fee(19.99) == 15.00\n\ndef test_band_four_boundary():\n    assert shipping_fee(20.0) == 20.00\n\ndef test_band_four_fractional_round_half_to_even():\n    assert shipping_fee(20.5) == 20.12\n\ndef test_band_four_maximum():\n    assert shipping_fee(1000.0) == 265.00\n\ndef test_negative_weight_raises():\n    with pytest.raises(ValueError):\n        shipping_fee(-0.1)\n\ndef test_exceeding_max_weight_raises():\n    with pytest.raises(ValueError):\n        shipping_fee(1000.01)\n"
+  },
+  "author_id": "spec-author-gemini"
+}
