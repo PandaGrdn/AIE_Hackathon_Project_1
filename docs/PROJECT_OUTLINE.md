@@ -7,7 +7,7 @@
 
 ## 1. One-liner
 
-An autonomous coding system that completes a long, tightly coupled software task as a sequence of subtasks. For each subtask a swarm of independent agents implements it, cross-testing picks the verified majority, and that result is committed. Every agent that failed is reflected on: its **reasoning path is compared with the swarm's consensus path in embedding space** to find the exact step where its reasoning went wrong, and a **lesson** is written to fix that reasoning error. Lessons, trust-based routing and generated tools are **versioned changes** that must prove themselves on held-out subtasks or get rolled back.
+An autonomous coding system that completes a long, tightly coupled software task as a sequence of subtasks. For each subtask an independent test author (Gemini) first writes acceptance tests and properties from **the initial spec, the pinned interface and the base repo only**, never from any implementation; SubQ Snap, a decision model that only judges and never writes, settles author-vs-swarm disagreements from the spec alone, confirms the reasoning step behind each failure and scores each lesson. A swarm of independent agents then implements the subtask; a run is **verified** when it passes every hidden spec test and property, and the highest-trust verified implementation is committed. Agents' own tests are not part of the verdict, and implementations are never cross-tested against each other's tests. Every agent that failed is reflected on: its **reasoning path is compared with the swarm's consensus path in embedding space** to find the exact step where its reasoning went wrong, and a **lesson** is written to fix that reasoning error. Lessons, trust-based routing and generated tools are **versioned changes** that must prove themselves on held-out subtasks or get rolled back.
 
 **It finds where the reasoning broke, writes the fix, and keeps it only if held-out work proves it.**
 
@@ -33,7 +33,7 @@ An autonomous coding system that completes a long, tightly coupled software task
 | **Consensus path** | The region in embedding space where the majority agents' paths cluster at each phase of the subtask |
 | **Spec tests** | Hidden **pytest modules** against the repo's public API, written by an independent model from the spec, the pinned interface and the codebase at the base commit, before any implementation exists. Function-level cases and properties are used only for subtasks that happen to be pure |
 | **Verification** | A run is **verified** when the hidden spec tests pass **and the repository's existing test suite still passes** in its sandbox (no regressions). The trust-weighted majority on fuzz inputs is a secondary oracle for pure subtasks only. Agents' own tests play no role |
-| **Verified majority** | The implementation(s) agreeing with the majority on every input; one is committed and the long task advances |
+| **Verified run** | An implementation that passes every hidden spec test and every property; the highest-trust verified run is committed and the long task advances. When the spec author and the swarm majority disagree on a case, that case is an ambiguity flag for the reflector and decomposer, charged to no one |
 | **Divergence point** | For a failed agent, the first reasoning step that leaves the consensus path: the suspected reasoning error |
 | **Reflector** | Reads the failed agent's path, its divergence point, the breaking input and the consensus steps at that phase; writes a lesson that resolves the reasoning error |
 | **Lesson** | A short rule tied to the divergence point's embedding, e.g. *"'over $100' means strictly greater; always test the boundary."* |
@@ -131,7 +131,7 @@ Four test sources, in order of weight:
 
 | Source | Who writes it | Sees | Weight |
 | --- | --- | --- | --- |
-| **Spec tests** | A dedicated test-author model, never one of the implementers for that subtask | Spec, pinned interface, existing repo at the base commit | Highest: hidden pytest modules run inside each sandbox; the verdict |
+| **Spec tests** | A dedicated test-author model (Gemini, identity `spec-author-gemini`), never one of the implementers for that subtask | Spec, pinned interface, existing repo at the base commit | Highest: hidden pytest modules run inside each sandbox; the verdict |
 | **Regression suite** | The repository's own existing tests | n/a | Highest: must still pass; a run that breaks existing behavior is failed regardless of spec tests |
 | **Spec properties** | Same author | Same | High: metamorphic rules that hold regardless of the exact answer, e.g. "`tier_for` is monotonic in amount", "`quote` total never exceeds subtotal", "`summarize([])` is all zeros" |
 | **Fuzz** | `hypothesis` strategies from the type hints + boundary seeds from the types | Interface only | Medium: no expected value; the majority is the oracle |
@@ -146,11 +146,11 @@ Agents' own tests are **not used**: they are derived from the agent's implementa
 - Every implementation runs on every input in an isolated subprocess with a timeout.
 - Equivalence rules: float tolerance, unordered collections as sets, same exception type.
 - Trust-weighted majority per input; agents outside the majority on any input are "failed" for this subtask.
-- **Two oracles.** When the spec test's expected value disagrees with the swarm majority, that is a spec-ambiguity flag sent to the reflector and the decomposer, not a failure charged to any agent. When they agree, the case counts double.
+- **Two oracles, one judge.** When the spec test's expected value disagrees with a real swarm majority (> 50% trust weight), SubQ reads the spec, the call and both answers (no code) and says who follows the spec: if the author, the dissenting runs are charged; if the swarm, the case is dropped from the verdict; without SubQ the case is flagged and charged to nobody. Every flag is recorded with SubQ's probability for the reflector and the decomposer. A tie or a lone dissenter is never an ambiguity: the author's expectation stands.
 - Properties catch what majority voting cannot: a bug the whole swarm shares still violates a spec property.
 
 ### 5.6 Commit + Advance
-- The highest-trust implementation in the majority group is committed; its tests and the shrunk counterexamples join the repo's test suite.
+- The highest-trust verified implementation is committed. The spec tests for that subtask (visible and hidden) and any ambiguity flags are recorded with the run; agents' own tests are not promoted.
 - Agreement ≤50% → subtask flagged ambiguous; decomposer splits it or the system asks for clarification. The long task never silently advances on a non-verified step.
 
 ### 5.7 Reflector
@@ -163,7 +163,8 @@ Agents' own tests are **not used**: they are derived from the agent's implementa
 
 **Confirmation (counterfactual replay).** Re-run the failed agent from the chosen step with the consensus assumption injected into its context. If the hidden failing case now passes, the step is a confirmed root cause and the lesson is written. If not, try the next candidate (at most 2 retries); if none confirms, write the lesson anyway but mark it `confidence ≤ 0.3` and it does not create a failure region until a second hit confirms it. Confirmed lessons create regions immediately.
 
-- Input to the reflector model: the failed path, the confirmed divergence step, the consensus steps at that phase, the minimal breaking input, the agent's output vs. the majority's / expected output.
+- SubQ first answers a `choice` question over the failed run's logged steps ("which step states the assumption that caused the failing test?"): agreement with the embedding divergence step confirms it; a confident disagreement (confidence ≥ 0.6) moves the divergence point. Then Gemini writes the lesson, and SubQ answers "would following this lesson have prevented the failure?"; that probability is the lesson's confidence.
+- Input to the lesson writer: the failed path, the confirmed divergence step, the consensus steps at that phase, the minimal breaking input or failing test, the agent's output vs. the expected output.
 - Output: `{lesson_text, divergence_embedding, tags, breaking_input, confidence}`. A rule that resolves the reasoning error, not a description of the bug.
 - Dedup: near-identical lesson (vector similarity above threshold) → increment `hit_count`, widen the failure region.
 
@@ -193,7 +194,8 @@ Agents' own tests are **not used**: they are derived from the agent's implementa
 
 | Layer | Tool | Why |
 | --- | --- | --- |
-| Reflector + long-context review | **Subquadratic SubQ Snap 1.1** (console.subq.ai, 100M free tokens) | Needs the failed path, consensus paths, results and lesson history in one call |
+| Verifier / judge | **Subquadratic SubQ Snap 1.1** (console.subq.ai, 100M free tokens) — Decisions API (`/v1/systemone`): calibrated yes/no, choice and score answers over a 384K-token state; it is not a text generator | Judges with the whole spec + path + results in one call: author-vs-swarm ambiguity, root-cause step (`choice` over steps), lesson quality (`noul`). Can't be talked into agreeing with code it is shown; it only answers questions |
+| Spec-test author + lesson writer | **Gemini** (`gemini-3.8-flash`) | Text generation: hidden pytest modules, cases, properties from the spec alone; lesson text from the failed path |
 | Swarm agents | **Meta Model API — Muse Code, Muse Spark** (dev.meta.ai, $100 credits) | Independent implementers; Best Use of Meta |
 | Swarm agents + embeddings | **Gemini** (Google DeepMind guide) | Another family; embedding model for steps and lessons |
 | Swarm agents | Claude, 1–2 open models (optional) | Diversity |
@@ -242,7 +244,7 @@ project/
 | 3:30–4:30 | Run full long task; collect numbers | Cache a full run as demo fallback | Fix bugs | UI: map, changelog, leaderboard; rehearse |
 | 4:30–5:00 | Record 1-min video | Repo public, README | Final fixes | Submit, add all teammates |
 
-**Cut order if short on time:** Fetch.ai → tool generation → UI polish → trust-based routing (fall back to fixed N) → live failure-region check (fall back to retrieval at subtask start). Never cut: decomposer, swarm, cross-test, reflector with divergence detection, held-out gate with rollback, changelog.
+**Cut order if short on time:** Fetch.ai → tool generation → UI polish → trust-based routing (fall back to fixed N) → live failure-region check (fall back to retrieval at subtask start). Never cut: decomposer, SubQ spec-test verdict, swarm, reflector with divergence detection, held-out gate with rollback, changelog.
 
 ---
 

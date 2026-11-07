@@ -2,7 +2,7 @@
 
 **AIE Code Summit Hackathon, Nov 7 2026 · Track: The System That Gets Better**
 
-An autonomous coding system that completes a long, tightly coupled task subtask by subtask. For each subtask a swarm of independent agents implements it, cross-testing picks the verified majority, and that result is committed. Each failed agent's reasoning path is compared with the swarm's consensus path in embedding space to find where its reasoning went wrong; a reflector writes a lesson for that error. Lessons, trust-based routing and generated tools are versioned changes that must prove themselves on held-out subtasks or get rolled back.
+An autonomous coding system that completes a long, tightly coupled task subtask by subtask. Before any agent runs, an independent test author (Gemini) reads only the subtask spec, the pinned interface and the base repo and writes hidden acceptance tests and properties. SubQ Snap, a decision model, is the judge: it resolves disagreements between the test author and the swarm from the spec alone, confirms which reasoning step caused each failure, and scores every lesson. A swarm of independent agents then implements the subtask; a run is verified when it passes every hidden test and property, and the highest-trust verified implementation is committed. Agents' own tests play no role in the verdict. Each failed agent's reasoning path is compared with the swarm's consensus path in embedding space to find where its reasoning went wrong; a reflector writes a lesson for that error. Lessons, trust-based routing and generated tools are versioned changes that must prove themselves on held-out subtasks or get rolled back.
 
 Full design: [docs/PROJECT_OUTLINE.md](docs/PROJECT_OUTLINE.md)
 
@@ -38,11 +38,12 @@ core/
   context/     lesson retrieval, failure-region live check        Ethan Li
   swarm/       router, runner, sandbox, prompts, log_step tool    Lucas Chen
   paths/       step embedder, path alignment, divergence          Ethan Li
-  harness/     hypothesis strategies, cross-test, majority        Ethan Li
+  harness/     SubQ spec tests + properties (verdict), fuzz, majority   Ethan Li
   reflect/     reflector, lesson schema, dedup                    Ethan Li
   changes/     change proposer, held-out gate, trust              Ethan Li
   store/       MongoDB + in-memory store                          Ethan Li
   llm/         thin clients for SubQ, Meta, Gemini, Anthropic     Lucas Chen
+  harness/subq_judge.py   SubQ Decisions API: ambiguity, root cause, lesson score   Ethan Li
   orchestrator.py   the per-subtask loop                          Ethan Liu
   cli.py                                                          Ethan Liu
   models.py, config.py   shared schemas and settings              Ethan Liu (ask for changes)
