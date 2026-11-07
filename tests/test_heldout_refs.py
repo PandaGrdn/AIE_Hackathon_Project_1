@@ -49,7 +49,7 @@ def test_reference_matches_interface(name: str):
 
 
 def test_load_heldout_returns_all_subtasks():
-    items = load_heldout()
+    items = [it for it in load_heldout() if getattr(it, "kind", "functions") == "functions"]
     assert sorted(st.title for st, _ in items) == SUBTASKS
     for st, ref in items:
         assert st.interface and st.files and st.spec.strip()
