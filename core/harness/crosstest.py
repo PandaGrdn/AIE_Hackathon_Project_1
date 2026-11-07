@@ -418,8 +418,20 @@ def cross_test(
                     fuzz_dis[r.id].append(c.id)
                 if o.ok and c.source in ("spec", "seed", "fuzz"):
                     for p in props_by_fn.get(c.function, []):
-                        if not check_property(p, c.args, o.value):
+                        if check_property(p, c.args, o.value) is False:
                             prop_viol[r.id].append([c.id, p.name])
+        # a property every run violates is the author's problem (a wrong or unevaluable predicate), not six
+        # independent agents' problem: flag it once and charge nobody — the same two-oracle rule as for cases
+        if len(runs) >= 2:
+            unanimous: set[tuple[str, str]] = set()
+            for cid, pname in prop_viol[runs[0].id]:
+                if all([cid, pname] in prop_viol[r.id] for r in runs[1:]):
+                    unanimous.add((cid, pname))
+            for pname in sorted({pn for _, pn in unanimous}):
+                flags.append(AmbiguityFlag(case_id="", function=f"property:{pname}", args=[], expected="property holds for every input",
+                                           majority=Outcome(ok=False, exception="violated by every run"), agreement=1.0, resolution="majority"))
+            for r in runs:
+                prop_viol[r.id] = [v for v in prop_viol[r.id] if (v[0], v[1]) not in unanimous]
         failed = sorted(r.id for r in runs if spec_misses[r.id] or regression[r.id] or prop_viol[r.id])
     elif runs and regression_ids:
         # no spec tests but a repo suite: regressions still fail a run; fuzz majority decides the rest
