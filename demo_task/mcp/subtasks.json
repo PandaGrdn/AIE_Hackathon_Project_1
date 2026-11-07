@@ -1,0 +1,423 @@
+{
+  "task_title": "Per-tool rate limits and quotas for MCPServer",
+  "subtasks": [
+    {
+      "title": "Limit policy model and pure decision logic",
+      "spec": "Create the new module src/mcp/server/mcpserver/limits.py (import path mcp.server.mcpserver.limits). It must import only the standard library and pydantic, nothing from mcp.server.mcpserver, because tools/base.py will import it in the next subtask and a back-import would be circular. Models (pydantic BaseModel subclasses; invalid values raise pydantic.ValidationError, which is a ValueError subclass): class RateLimit with max_calls: int, which must be > 0 (0 and negatives are rejected), and per_seconds: float, which must be > 0 and finite (0, negatives, inf and nan are rejected); it means a sliding window of at most max_calls calls per per_seconds seconds. class Quota with max_calls: int, which must be > 0; it is a lifetime cap on calls for the scope. class LimitPolicy with rate_limit: RateLimit | None = None, quota: Quota | None = None, scope: Literal[\"server\", \"session\"] = \"server\" (any other scope string is rejected). LimitPolicy() with neither limit is valid and means unlimited. class LimitDecision with allowed: bool (required), retry_after: float | None = None, remaining: int | None = None, reason: Literal[\"rate_limit\", \"quota\"] | None = None. Pure function evaluate(policy: LimitPolicy, call_times: list[float], now: float) -> LimitDecision decides whether ONE more call at time now is allowed, given the timestamps of previous allowed calls (seconds on any monotonic clock, in any order, duplicates count separately). It never mutates call_times. Validation, checked first and for every policy including the empty one: now < 0 raises ValueError; now that is nan, inf or -inf raises ValueError; any entry of call_times that is greater than now raises ValueError (an entry equal to now is fine); any non-finite entry raises ValueError. now == 0 is valid. Rate window: the in-window count is the number of t in call_times with now - t < per_seconds, strictly less. Boundary, stated exactly: a call exactly per_seconds old (now - t == per_seconds) has LEFT the window and does not count; a call per_seconds - 0.001 old still counts; a call at t == now counts. The rate limit allows when in_window < max_calls (so in_window == max_calls denies). Quota: used = len(call_times) (all entries, regardless of age). The quota allows when used < max_calls (used == max_calls denies). Result when every applicable limit allows: allowed=True, retry_after=None, reason=None, and remaining = calls left AFTER this call is made: max_calls - in_window - 1 for the rate limit, max_calls - used - 1 for the quota, the smaller of the two when both apply, and None when the policy has neither limit (the empty policy always allows with remaining=None, whatever call_times holds). Result when the quota denies (whether or not the rate limit also denies): allowed=False, reason=\"quota\", retry_after=None (waiting cannot help), remaining=0. If both deny, reason is \"quota\". Result when only the rate limit denies: allowed=False, reason=\"rate_limit\", remaining=0, and retry_after = the seconds from now until enough in-window calls have left the window for one more call to fit: sort the in-window timestamps ascending, take the one at index in_window - max_calls (the oldest when in_window == max_calls), and retry_after = that_t + per_seconds - now. It is always > 0, and evaluating again at now + retry_after allows (because at that instant the blocking call is exactly per_seconds old and has left the window). Examples: RateLimit(max_calls=2, per_seconds=10), call_times=[0.0, 5.0]: at now=9.999 denied with retry_after ~= 0.001; at now=10.0 allowed with remaining=0 (the call at 0.0 has left). Quota(max_calls=3), call_times=[1, 2] at now=100: allowed, remaining=0; call_times=[1, 2, 3]: denied, reason quota, retry_after None. Both RateLimit(5, 60) and Quota(10) with 2 calls in the window and 2 total: remaining = min(5-2-1, 10-2-1) = 2. class LimitState, an in-memory tracker for one policy and one scope: __init__(self, policy: LimitPolicy) stores the policy on a public attribute policy; check(self, now: float) -> LimitDecision returns exactly what evaluate(policy, <every timestamp recorded since construction or the last reset>, now) would return, and records nothing; record(self, now: float) -> None records one call at now unconditionally (it does not check whether the call was allowed); reset(self) -> None forgets everything, after which check equals evaluate(policy, [], now). Memory: when the policy has a rate limit, record drops stored timestamps that are outside the window relative to the recorded now (now - t >= per_seconds); quota history is never pruned but is kept as an integer counter, not a list, so check must still count pruned calls toward the quota. Without a rate limit no timestamps need to be kept at all. check and record raise ValueError when now is negative or non-finite, or earlier than the most recent recorded call (time must not go backwards between reset points), mirroring evaluate's rule that no call time may be after now. This subtask is pure-function testable: evaluate and LimitState need no server, no I/O and no clock. Do not touch any other file.",
+      "files": [
+        "src/mcp/server/mcpserver/limits.py"
+      ],
+      "depends_on_titles": [],
+      "interface": [
+        {
+          "name": "evaluate",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "policy: LimitPolicy",
+            "call_times: list[float]",
+            "now: float"
+          ],
+          "returns": "LimitDecision"
+        },
+        {
+          "name": "LimitState.__init__",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "policy: LimitPolicy"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "LimitState.check",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "now: float"
+          ],
+          "returns": "LimitDecision"
+        },
+        {
+          "name": "LimitState.record",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "now: float"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "LimitState.reset",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [],
+          "returns": "None"
+        }
+      ],
+      "tags": [
+        "limits",
+        "pure",
+        "boundary",
+        "sliding-window",
+        "validation"
+      ]
+    },
+    {
+      "title": "Attach policies to tools",
+      "spec": "Let a tool carry a LimitPolicy (from src/mcp/server/mcpserver/limits.py, added in the previous subtask). No enforcement yet: calls behave exactly as before. In src/mcp/server/mcpserver/tools/base.py, the pydantic model Tool gets a new field limits: LimitPolicy | None = None (Field with default None and a short description), alongside the existing annotations, icons and meta fields. Tool.from_function (a classmethod whose existing parameters are fn, name, title, description, context_kwarg, annotations, icons, meta, structured_output, all keeping their current positions and defaults) gains a keyword-only parameter limits: LimitPolicy | None = None, placed after the existing ones, and passes it into the constructed Tool so tool.limits is the given policy object (or None). In src/mcp/server/mcpserver/tools/tool_manager.py, ToolManager.add_tool (existing parameters fn, name, title, description, annotations, icons, meta, structured_output) gains a keyword-only parameter limits: LimitPolicy | None = None and passes it to Tool.from_function. Keep the existing duplicate behaviour: when a tool with the same name already exists, add_tool logs the existing warning (if warn_on_duplicate_tools) and returns the existing Tool unchanged, so the new limits argument is ignored and the existing tool keeps its policy. Tools passed to ToolManager(tools=[...]) keep whatever limits they were built with. New method ToolManager.get_limits(self, name: str) -> LimitPolicy | None returns the named tool's policy, or None when the tool has no policy or no tool has that name (it never raises). New method ToolManager.set_limits(self, name: str, policy: LimitPolicy | None) -> None replaces the named tool's policy in place (None removes it, so the tool becomes unlimited); afterwards get_limits(name) returns the new value and get_tool(name).limits is the same object. When no tool has that name it raises ToolError (from mcp.server.mcpserver.exceptions) with the message f\"Unknown tool: {name}\", the same message remove_tool uses. Do not change MCPServer in this subtask, and do not change list_tools output: Tool.limits must not leak into MCPServer.list_tools() yet. Integration subtask: test through Tool.from_function and ToolManager directly. Keep tests/server/mcpserver/test_tool_manager.py and the rest of the suite green.",
+      "files": [
+        "src/mcp/server/mcpserver/tools/base.py",
+        "src/mcp/server/mcpserver/tools/tool_manager.py"
+      ],
+      "depends_on_titles": [
+        "Limit policy model and pure decision logic"
+      ],
+      "interface": [
+        {
+          "name": "Tool.from_function",
+          "file": "src/mcp/server/mcpserver/tools/base.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "context_kwarg: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "limits: LimitPolicy | None"
+          ],
+          "returns": "Tool"
+        },
+        {
+          "name": "ToolManager.add_tool",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "limits: LimitPolicy | None"
+          ],
+          "returns": "Tool"
+        },
+        {
+          "name": "ToolManager.get_limits",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "name: str"
+          ],
+          "returns": "LimitPolicy | None"
+        },
+        {
+          "name": "ToolManager.set_limits",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "name: str",
+            "policy: LimitPolicy | None"
+          ],
+          "returns": "None"
+        }
+      ],
+      "tags": [
+        "limits",
+        "integration",
+        "registration"
+      ]
+    },
+    {
+      "title": "Enforcement on call",
+      "spec": "Enforce each tool's LimitPolicy when it is called. In src/mcp/server/mcpserver/limits.py add class LimitEnforcer, still importing nothing from mcp.server.mcpserver: __init__(self, clock: Callable[[], float] = time.monotonic) stores the clock; every method below takes now: float | None = None and calls the clock exactly when now is None. State keys: a policy with scope \"server\" is tracked under the key tool_name; a policy with scope \"session\" and a non-None scope_key is tracked under (tool_name, scope_key); a session-scope policy with scope_key None falls back to the server key tool_name. A server-scope policy ignores scope_key. Each key owns one LimitState created lazily on first use. If the policy passed for a key is not equal (==) to the policy of the stored LimitState (for example after ToolManager.set_limits), the stored state is discarded and a fresh LimitState for the new policy is used, so a changed policy starts from an empty history. decide(self, tool_name: str, policy: LimitPolicy, scope_key: str | None, now: float | None = None) -> LimitDecision returns that key's LimitState.check(now) and records nothing. record(self, tool_name: str, policy: LimitPolicy, scope_key: str | None, now: float | None = None) -> None records one call at now for that key. remaining(self, tool_name: str, policy: LimitPolicy, scope_key: str | None, now: float | None = None) -> int | None returns how many calls could be made right now, BEFORE any further call: None when the policy has neither a rate limit nor a quota, 0 when decide would deny, otherwise decide(...).remaining + 1 (e.g. a fresh Quota(max_calls=3) gives 3, after one recorded call 2). reset(self, tool_name: str | None = None) -> None with None forgets all state; with a name it forgets that tool's server state and all of its session states, leaving other tools untouched. In src/mcp/server/mcpserver/tools/tool_manager.py add a module-level function session_scope_key(context: Context) -> str | None giving the scope key of the calling client session: return None when the Context has no request context (context._request_context is None, as for Context(mcp_server=...) built by a direct MCPServer.call_tool call); otherwise take the Connection that the request's ServerSession wraps (ServerSession stores it as _connection; see src/mcp/server/session.py and src/mcp/server/connection.py; read it defensively, returning None if absent). Do NOT use id() of the ServerSession or of the request context: ServerRunner._make_context in src/mcp/server/runner.py builds a new ServerSession for every request, so that identity changes on every call. If connection.protocol_version is in mcp_types.version.MODERN_PROTOCOL_VERSIONS (the 2026-07-28 stateless era, where every request gets a fresh Connection and there is no session) return None. Otherwise return connection.session_id when it is a str (streamable HTTP sessions), else f\"connection:{id(connection)}\" (stdio and in-memory handshake connections, whose Connection object lives for the whole client connection). ToolManager.__init__ keeps its signature (warn_on_duplicate_tools: bool = True, *, tools: list[Tool] | None = None) and gains a keyword-only enforcer: LimitEnforcer | None = None; it stores the given enforcer, or a new LimitEnforcer() when None, on the public attribute self.enforcer. Every later use reads self.enforcer at call time, so tests may replace it (e.g. server._tool_manager.enforcer = LimitEnforcer(clock=fake)). ToolManager.call_tool(name, arguments, context, convert_result=False) keeps its signature. Unknown tool still raises ToolError(f\"Unknown tool: {name}\"). When tool.limits is None the call is unchanged. Otherwise: compute scope_key = session_scope_key(context); decide with the enforcer BEFORE running the tool; on denial raise ToolError (not UnexpectedToolError) and do not run the tool body. The message is exactly f\"Tool '{name}' {reason_text}\" where reason_text is f\"rate limit exceeded; retry after {retry_after:.3f}s\" for reason rate_limit and \"quota exhausted\" for reason quota. Examples: Tool 'search' rate limit exceeded; retry after 0.500s and Tool 'search' quota exhausted. These messages are not prefixed with 'Error executing tool'. Recording: only AFTER tool.run(...) returns normally, call enforcer.record(name, tool.limits, scope_key) with now=None so the completion time comes from the enforcer's clock. If tool.run raises anything (ToolError for invalid arguments or a deliberate tool error, UnexpectedToolError for a crash, MCPError), nothing is recorded and the exception propagates unchanged, so a failing call does not consume budget. A call whose result is an InputRequiredResult (the multi-round input_required flow; convert_result passes it through) is not recorded either, because the tool has not completed; only its final round counts. Concurrent in-flight calls are not reserved (a known limitation of record-after-success). ToolManager.remove_tool additionally calls self.enforcer.reset(name) after removing the tool, so re-adding a tool with the same name starts with a fresh budget. In src/mcp/server/mcpserver/server.py, MCPServer.tool(...) (the decorator; existing parameters name, title, description, annotations, icons, meta, structured_output) and MCPServer.add_tool(fn, ...) (same parameters after fn) each gain a keyword-only limits: LimitPolicy | None = None, documented in the Args section, passed through to self._tool_manager.add_tool. MCPServer.__init__ keeps creating its ToolManager the same way (it gets a default enforcer). Protocol behaviour must stay as the SDK already handles ToolError: MCPServer._handle_call_tool catches a ToolError that is not an UnexpectedToolError, logs it at INFO, and returns CallToolResult(content=[TextContent(text=str(exc))], is_error=True), so a client calling an over-budget tool gets is_error=True with exactly the message above and no protocol error. MCPServer.call_tool called directly raises the ToolError to the caller. Integration subtask: test with a fake clock injected through LimitEnforcer(clock=...) and with Client(server) from mcp (in-process). Keep the existing suite green.",
+      "files": [
+        "src/mcp/server/mcpserver/limits.py",
+        "src/mcp/server/mcpserver/tools/tool_manager.py",
+        "src/mcp/server/mcpserver/server.py"
+      ],
+      "depends_on_titles": [
+        "Limit policy model and pure decision logic",
+        "Attach policies to tools"
+      ],
+      "interface": [
+        {
+          "name": "LimitEnforcer.__init__",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "clock: Callable[[], float]"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "LimitEnforcer.decide",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "tool_name: str",
+            "policy: LimitPolicy",
+            "scope_key: str | None",
+            "now: float | None"
+          ],
+          "returns": "LimitDecision"
+        },
+        {
+          "name": "LimitEnforcer.record",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "tool_name: str",
+            "policy: LimitPolicy",
+            "scope_key: str | None",
+            "now: float | None"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "LimitEnforcer.remaining",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "tool_name: str",
+            "policy: LimitPolicy",
+            "scope_key: str | None",
+            "now: float | None"
+          ],
+          "returns": "int | None"
+        },
+        {
+          "name": "LimitEnforcer.reset",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "tool_name: str | None"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "session_scope_key",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "context: Context"
+          ],
+          "returns": "str | None"
+        },
+        {
+          "name": "ToolManager.__init__",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "warn_on_duplicate_tools: bool",
+            "tools: list[Tool] | None",
+            "enforcer: LimitEnforcer | None"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "ToolManager.call_tool",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "name: str",
+            "arguments: dict[str, Any]",
+            "context: Context",
+            "convert_result: bool"
+          ],
+          "returns": "Any"
+        },
+        {
+          "name": "MCPServer.tool",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "limits: LimitPolicy | None"
+          ],
+          "returns": "Callable[[_CallableT], _CallableT]"
+        },
+        {
+          "name": "MCPServer.add_tool",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "limits: LimitPolicy | None"
+          ],
+          "returns": "None"
+        }
+      ],
+      "tags": [
+        "limits",
+        "integration",
+        "enforcement",
+        "error-message",
+        "clock"
+      ]
+    },
+    {
+      "title": "Client-visible limit metadata and context helpers",
+      "spec": "Expose limit policies to clients and to tool code. In src/mcp/server/mcpserver/server.py, MCPServer.list_tools() (which builds mcp_types.Tool objects from self._tool_manager.list_tools(), passing _meta=info.meta) must, for every tool whose limits is not None, set the tool's _meta (the meta field on the mcp_types Tool type) to a new dict made of the tool's existing meta entries (if any) plus the key \"limits\" whose value is exactly policy.model_dump(mode=\"json\"), e.g. {\"limits\": {\"rate_limit\": {\"max_calls\": 5, \"per_seconds\": 60.0}, \"quota\": null, \"scope\": \"server\"}}. None-valued fields are kept (do not use exclude_none). The \"limits\" key overrides a user meta key of the same name. The Tool's own meta dict must not be mutated (calling list_tools twice gives the same result). An empty LimitPolicy() still counts as a policy and is published. Tools without a policy are unchanged: their _meta stays exactly info.meta, including None. Clients see this in tools/list via _meta. In src/mcp/server/mcpserver/context.py, class Context gains two methods. tool_limits(self, name: str) -> LimitPolicy | None returns self.mcp_server._tool_manager.get_limits(name) (None for an unknown tool or a tool without a policy). remaining_calls(self, name: str) -> int | None returns None for an unknown tool or a tool without a policy, otherwise self.mcp_server._tool_manager.enforcer.remaining(name, policy, session_scope_key(self)) using session_scope_key from src/mcp/server/mcpserver/tools/tool_manager.py, i.e. the same scope key a call from this context would use. Both raise the existing ValueError(\"Context is not available outside of a request\") from the mcp_server property when the Context has no server. Import LimitPolicy and the helper so no import cycle appears (context.py is imported by server.py; a local import or TYPE_CHECKING import is fine). Semantics: remaining_calls reports calls that could be made now. Inside a tool body, the current call has not been recorded yet (recording happens after the tool returns), so a tool with Quota(max_calls=3) calling ctx.remaining_calls on itself during its first call sees 3, during its second call 2. Integration subtask: test through await server.list_tools(), Client(server).list_tools(), and a tool that takes ctx: Context. Keep the existing suite green (tests that compare list_tools output for unlimited tools must not change).",
+      "files": [
+        "src/mcp/server/mcpserver/server.py",
+        "src/mcp/server/mcpserver/context.py"
+      ],
+      "depends_on_titles": [
+        "Attach policies to tools",
+        "Enforcement on call"
+      ],
+      "interface": [
+        {
+          "name": "MCPServer.list_tools",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [],
+          "returns": "list[MCPTool]"
+        },
+        {
+          "name": "Context.tool_limits",
+          "file": "src/mcp/server/mcpserver/context.py",
+          "params": [
+            "name: str"
+          ],
+          "returns": "LimitPolicy | None"
+        },
+        {
+          "name": "Context.remaining_calls",
+          "file": "src/mcp/server/mcpserver/context.py",
+          "params": [
+            "name: str"
+          ],
+          "returns": "int | None"
+        }
+      ],
+      "tags": [
+        "limits",
+        "integration",
+        "metadata",
+        "context"
+      ]
+    },
+    {
+      "title": "Session scope",
+      "spec": "Make scope=\"session\" budgets correct end to end and clean them up. Guarantees: for a tool registered with LimitPolicy(..., scope=\"session\"), two different client sessions never share budget (exhausting the quota in one leaves the other's full), and many calls in the same session share one budget. Session identity is session_scope_key(context) from src/mcp/server/mcpserver/tools/tool_manager.py, derived from the connection the request's ServerSession wraps, never id() of the per-request ServerSession (ServerRunner._make_context in src/mcp/server/runner.py creates one per request). Two Client(server, mode=\"legacy\") connections are two sessions; a call with no session (session_scope_key returns None: direct MCPServer.call_tool without a request, or a 2026-07-28 stateless request such as the default Client(server) mode) uses the tool's server-scope budget. Server-scope policies are unchanged by this subtask and still share one budget across all sessions. In src/mcp/server/mcpserver/limits.py add LimitEnforcer.forget_scope(self, scope_key: str) -> None: drop every state tracked under (tool_name, scope_key) for any tool; server-scope state and other sessions are untouched; an unknown scope_key is a no-op. Session end hook: the SDK's Connection (src/mcp/server/connection.py) has an exit_stack (AsyncExitStack) that the runner unwinds when the client connection closes (aclose_shielded in src/mcp/server/runner.py). The first time ToolManager.call_tool computes a non-None scope key from a connection for a session-scope policy, it registers a callback on that connection's exit_stack that calls self.enforcer.forget_scope(scope_key), at most once per connection (remember it, e.g. in connection.state). After the client disconnects, that session's budgets are gone, so a later connection that happens to reuse the same id() starts fresh. In src/mcp/server/mcpserver/server.py add MCPServer.forget_session_limits(self, scope_key: str) -> None, which calls self._tool_manager.enforcer.forget_scope(scope_key); it is the manual way to drop a session's budgets (e.g. for transports that end sessions out of band). Integration subtask: test with two Client(server, mode=\"legacy\") instances (each its own connection) and a fake clock, and with LimitEnforcer directly for forget_scope. Keep the existing suite green.",
+      "files": [
+        "src/mcp/server/mcpserver/tools/tool_manager.py",
+        "src/mcp/server/mcpserver/server.py",
+        "src/mcp/server/mcpserver/limits.py"
+      ],
+      "depends_on_titles": [
+        "Enforcement on call",
+        "Client-visible limit metadata and context helpers"
+      ],
+      "interface": [
+        {
+          "name": "LimitEnforcer.forget_scope",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "scope_key: str"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "MCPServer.forget_session_limits",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "scope_key: str"
+          ],
+          "returns": "None"
+        }
+      ],
+      "tags": [
+        "limits",
+        "integration",
+        "session",
+        "lifecycle"
+      ]
+    },
+    {
+      "title": "Usage status resource",
+      "spec": "Report current usage as a JSON resource. In src/mcp/server/mcpserver/limits.py add LimitEnforcer.snapshot(self, tools: dict[str, LimitPolicy], scope_key: str | None, now: float | None = None) -> dict returning {\"tools\": {name: {\"policy\": policy.model_dump(mode=\"json\"), \"remaining\": self.remaining(name, policy, scope_key, now), \"scope\": policy.scope}}} with one entry per item of tools, in the dict's order. remaining uses LimitEnforcer.remaining semantics (calls that could be made now; None for a policy with neither limit; 0 when exhausted) and follows the same key rules as decide (a session policy with scope_key None reports the server-scope budget). snapshot records nothing. An empty tools dict gives {\"tools\": {}}. The result must be JSON-serializable with json.dumps. In src/mcp/server/mcpserver/server.py add MCPServer.enable_limits_resource(self, uri: str = \"limits://status\") -> None. It registers a static resource at uri (visible in list_resources with that uri, name \"limits_status\", mime_type \"application/json\") whose content is json.dumps of enforcer.snapshot for every registered tool whose limits is not None (self._tool_manager.list_tools() order), computed at READ time, so tools added or limits changed after enabling are reflected, and computed for the calling session: scope_key = session_scope_key(context) from src/mcp/server/mcpserver/tools/tool_manager.py. Calling it again with the same uri adds nothing new (the ResourceManager keeps the first registration). Integration with existing code: a static resource cannot receive a Context (MCPServer.resource rejects a Context parameter on a URI without template variables, and FunctionResource.read() in src/mcp/server/mcpserver/resources/types.py takes no arguments), so the per-session computation must be done where the context is available, in MCPServer.read_resource(uri, context): when the requested uri equals the uri passed to enable_limits_resource, return [ReadResourceContents(content=<json text>, mime_type=\"application/json\", meta=<the resource's meta>)] computed with that context's scope key. With no context (read_resource(uri) called directly) the scope key is None. Reading any other resource behaves exactly as before. Over the protocol, a client's read_resource(\"limits://status\") returns one TextResourceContents whose text parses with json.loads to the snapshot dict. Example: a tool search with LimitPolicy(quota=Quota(max_calls=3), scope=\"session\") called once in a legacy-mode session reads back {\"tools\": {\"search\": {\"policy\": {\"rate_limit\": null, \"quota\": {\"max_calls\": 3}, \"scope\": \"session\"}, \"remaining\": 2, \"scope\": \"session\"}}} in that session and remaining 3 from another session. Integration subtask: test with Client(server).read_resource and await server.read_resource. Keep the existing suite green.",
+      "files": [
+        "src/mcp/server/mcpserver/server.py",
+        "src/mcp/server/mcpserver/limits.py"
+      ],
+      "depends_on_titles": [
+        "Enforcement on call",
+        "Session scope"
+      ],
+      "interface": [
+        {
+          "name": "LimitEnforcer.snapshot",
+          "file": "src/mcp/server/mcpserver/limits.py",
+          "params": [
+            "tools: dict[str, LimitPolicy]",
+            "scope_key: str | None",
+            "now: float | None"
+          ],
+          "returns": "dict"
+        },
+        {
+          "name": "MCPServer.enable_limits_resource",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "uri: str"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "MCPServer.read_resource",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "uri: AnyUrl | str",
+            "context: Context[LifespanResultT, Any] | None"
+          ],
+          "returns": "Iterable[ReadResourceContents] | InputRequiredResult"
+        }
+      ],
+      "tags": [
+        "limits",
+        "integration",
+        "resource",
+        "json"
+      ]
+    },
+    {
+      "title": "CLI inspection",
+      "spec": "Add a CLI command that prints every tool's limits. New module src/mcp/cli/limits.py (import path mcp.cli.limits) with the pure function format_limits_table(tools: list[tuple[str, LimitPolicy | None]]) -> str. One line per (name, policy) pair, in input order, joined with \"\\n\", no trailing newline; an empty list returns \"\". Each line is exactly f\"{name}  rate={rate}  quota={quota}  scope={scope}\" with exactly two spaces between fields and no column padding, where rate is f\"{max_calls}/{per_seconds}s\" or \"-\" when there is no rate limit, quota is the quota's max_calls or \"-\" when there is no quota, and scope is the policy's scope (\"server\" or \"session\"). per_seconds is printed without a trailing .0 when it is a whole number (60.0 -> 60, 1.0 -> 1) and otherwise as Python's str(float) (0.5 -> 0.5, 1.25 -> 1.25). A tool whose policy is None prints rate=- quota=- and scope=server; LimitPolicy() prints rate=- quota=- with its scope. Examples: [(\"search\", LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=60), quota=Quota(max_calls=100), scope=\"session\")), (\"echo\", None)] formats to the two lines search  rate=5/60s  quota=100  scope=session and echo  rate=-  quota=-  scope=server. LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=0.5)) gives rate=2/0.5s  quota=-  scope=server. In src/mcp/cli/cli.py add a typer subcommand on the existing app named limits, def limits(file_spec: str = typer.Argument(..., help=...)) -> None, so that `mcp limits FILE[:object]` works. It resolves the server exactly like mcp run: file, server_object = _parse_file_path(file_spec) then server = _import_server(file, server_object) (which tries mcp, server, app when no object is given and handles module:object). It then prints format_limits_table([(t.name, t.limits) for t in server._tool_manager.list_tools()]) with typer.echo (registration order; print nothing when the server has no tools) and exits with code 0. A missing file, a non-file, or a missing or non-MCPServer object uses the CLI's existing error path (logger.error then sys.exit(1)) unchanged. It does not run the server. format_limits_table is pure-function testable; the command is tested with typer.testing.CliRunner against a temporary server file. Keep tests/cli and the rest of the suite green.",
+      "files": [
+        "src/mcp/cli/cli.py",
+        "src/mcp/cli/limits.py"
+      ],
+      "depends_on_titles": [
+        "Limit policy model and pure decision logic",
+        "Attach policies to tools"
+      ],
+      "interface": [
+        {
+          "name": "format_limits_table",
+          "file": "src/mcp/cli/limits.py",
+          "params": [
+            "tools: list[tuple[str, LimitPolicy | None]]"
+          ],
+          "returns": "str"
+        },
+        {
+          "name": "limits",
+          "file": "src/mcp/cli/cli.py",
+          "params": [
+            "file_spec: str"
+          ],
+          "returns": "None"
+        }
+      ],
+      "tags": [
+        "limits",
+        "cli",
+        "pure",
+        "formatting"
+      ]
+    }
+  ]
+}

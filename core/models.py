@@ -140,8 +140,13 @@ class Divergence(BaseModel):
     consensus_step_texts: list[str]
     breaking_case: TestCase | None = None
     majority_outcome: Outcome | None = None
-    signals: list[str] = []  # which of path|locality|live_timing pointed at this step
+    signals: list[str] = []  # which of path|locality|live_timing|subq pointed at this step
     confirmed: bool = False  # counterfactual replay fixed the failing case
+    # SubQ Snap decision outputs (see core/llm/decisions.py)
+    step_probabilities: dict[str, float] = {}  # "S<idx>" -> probability this step is the root cause
+    kind: str | None = None  # bug | spec_ambiguity | acceptable_variation
+    kind_confidence: float | None = None
+    generalizes: float | None = None  # P(a lesson from this would help on other subtasks)
 
 
 # ---------- self-improvement ----------

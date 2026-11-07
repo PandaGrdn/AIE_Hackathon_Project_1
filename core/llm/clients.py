@@ -96,7 +96,16 @@ def get_client(identity: AgentIdentity) -> LLMClient:
 
 
 def reflector_identity() -> AgentIdentity:
-    return AgentIdentity(id="reflector-subq", provider="subq", model=settings.subq_model, temperature=0.0)
+    """Text-generating roles (decomposer, spec-test author, reflector lesson text).
+
+    SubQ Snap cannot generate text (Decisions API only, see core/llm/decisions.py), so these run on
+    the configured text provider (Gemini by default).
+    """
+    if settings.text_provider == "gemini":
+        return AgentIdentity(id="text-gemini", provider="gemini", model=settings.gemini_model, temperature=0.0)
+    if settings.text_provider == "anthropic":
+        return AgentIdentity(id="text-anthropic", provider="anthropic", model=settings.anthropic_model, temperature=0.0)
+    return AgentIdentity(id="text-meta", provider="meta", model=settings.meta_model_spark, temperature=0.0)
 
 
 def swarm_identities() -> list[AgentIdentity]:

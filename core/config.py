@@ -23,6 +23,8 @@ class Settings:
     subq_api_key: str = field(default_factory=lambda: _env("SUBQ_API_KEY"))
     subq_base_url: str = field(default_factory=lambda: _env("SUBQ_BASE_URL", "https://api.subq.ai/v1"))
     subq_model: str = field(default_factory=lambda: _env("SUBQ_MODEL", "subq-snap-1.1"))
+    # SubQ Snap is a Decisions API (POST /v1/systemone): probabilities over choices, no text generation.
+    subq_decisions_url: str = field(default_factory=lambda: _env("SUBQ_DECISIONS_URL", "https://api.subq.ai/v1/systemone"))
 
     meta_api_key: str = field(default_factory=lambda: _env("META_API_KEY"))
     meta_base_url: str = field(default_factory=lambda: _env("META_BASE_URL", "https://api.dev.meta.ai/v1"))
@@ -30,8 +32,11 @@ class Settings:
     meta_model_spark: str = field(default_factory=lambda: _env("META_MODEL_SPARK", "muse-spark"))
 
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
-    gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-2.5-pro"))
-    gemini_embed_model: str = field(default_factory=lambda: _env("GEMINI_EMBED_MODEL", "gemini-embedding-001"))
+    gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash"))
+    gemini_embed_model: str = field(default_factory=lambda: _env("GEMINI_EMBED_MODEL", "gemini-embedding-2"))
+    # Text-generating roles (decomposer, spec-test author, reflector lesson text) run on Gemini;
+    # SubQ Snap answers the decision questions (root-cause step, failure kind, generalizes).
+    text_provider: str = field(default_factory=lambda: _env("TEXT_PROVIDER", "gemini"))
 
     anthropic_api_key: str = field(default_factory=lambda: _env("ANTHROPIC_API_KEY"))
     anthropic_model: str = field(default_factory=lambda: _env("ANTHROPIC_MODEL", "claude-sonnet-5-5"))
