@@ -19,8 +19,10 @@ def summarize(store: Store) -> dict:
     adopted = [c for c in decided if c.status == ChangeStatus.adopted]
     rolled = [c for c in decided if c.status == ChangeStatus.rolled_back]
     lessons = store.list_lessons()
-    first = decided[0] if decided else None
-    last = adopted[-1] if adopted else None
+    # held-out first→last must come from GATED changes (routing changes are applied directly, no scores)
+    gated = [c for c in decided if c.heldout_after]
+    first = gated[0] if gated else None
+    last = next((c for c in reversed(adopted) if c.heldout_after), None)
     return {
         "changes_total": len(changes),
         "changes_adopted": len(adopted),

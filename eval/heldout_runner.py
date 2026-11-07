@@ -151,6 +151,8 @@ def make_heldout_runner(
     n_fuzz: int = DEFAULT_N_FUZZ,
     swarm_size: int | None = None,
     runs_dir: str | Path | None = None,
+    parallel: bool = True,
+    max_parallel: int = 4,
 ):
     cache: dict[tuple[str, tuple[str, ...]], dict[str, float]] = {}
     warned: set[str] = set()
@@ -167,14 +169,28 @@ def make_heldout_runner(
             items.append(item)
         if not items:
             return {"accuracy": 0.0, "repeat_mistake_rate": 0.0, "false_block_rate": 0.0}
-        correct, repeats, total = 0.0, 0.0, 0
-        for item in items:
-            key = (str(item.folder), key_ids)
-            if key not in cache:
-                cache[key] = _run_one(
+        # Slices are independent: run the uncached ones in parallel (each _run_one calls asyncio.run in
+        # its own thread). A live sweep is then one swarm wall-time, not <slices> × swarm wall-time.
+        todo = [item for item in items if (str(item.folder), key_ids) not in cache]
+        if todo:
+            from concurrent.futures import ThreadPoolExecutor
+
+            def _one(item):
+                return _run_one(
                     item, list(key_ids), store,
                     swarm_fn=swarm_fn, spec_fn=spec_fn, n_fuzz=n_fuzz, swarm_size=swarm_size, runs_dir=runs_dir,
                 )
+
+            if parallel and len(todo) > 1:
+                with ThreadPoolExecutor(max_workers=min(len(todo), max_parallel)) as ex:
+                    for item, m in zip(todo, ex.map(_one, todo)):
+                        cache[(str(item.folder), key_ids)] = m
+            else:
+                for item in todo:
+                    cache[(str(item.folder), key_ids)] = _one(item)
+        correct, repeats, total = 0.0, 0.0, 0
+        for item in items:
+            key = (str(item.folder), key_ids)
             m = cache[key]
             correct += m["correct"]
             repeats += m["repeats"]
