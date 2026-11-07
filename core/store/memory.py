@@ -11,7 +11,6 @@ from core.models import (
     ChangeStatus,
     FailureRegion,
     Lesson,
-    ReasoningStep,
     RunManifest,
     TrustScore,
 )

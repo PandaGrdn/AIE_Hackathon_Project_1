@@ -1,0 +1,251 @@
+{
+  "subtask_id": "b00132a4f508",
+  "cases": [
+    {
+      "id": "c17d0b301eb6",
+      "function": "quote",
+      "args": [
+        -1.0,
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "4b142af61d83",
+      "function": "quote",
+      "args": [
+        -0.01,
+        1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "e2ce6aac3d72",
+      "function": "quote",
+      "args": [
+        -10.0,
+        5
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "8b9178bf449f",
+      "function": "quote",
+      "args": [
+        -100.5,
+        10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "39b9174e862a",
+      "function": "quote",
+      "args": [
+        -0.001,
+        2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "502af726e96c",
+      "function": "quote",
+      "args": [
+        -500.0,
+        20
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "d29d840db732",
+      "function": "quote",
+      "args": [
+        0.0,
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "42c0e44dfc7b",
+      "function": "quote",
+      "args": [
+        1.0,
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "0f60a42eb3f0",
+      "function": "quote",
+      "args": [
+        10.5,
+        -5
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "65e498d79a8c",
+      "function": "quote",
+      "args": [
+        100.0,
+        -2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "9a088705cad2",
+      "function": "quote",
+      "args": [
+        0.01,
+        -10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "1ca6ff8b712e",
+      "function": "quote",
+      "args": [
+        50.0,
+        -100
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "f74ff87270c7",
+      "function": "quote",
+      "args": [
+        -1.0,
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "42042e3eb1ad",
+      "function": "quote",
+      "args": [
+        -0.5,
+        -2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "c17d0b301eb6": {
+      "raises": "ValueError"
+    },
+    "4b142af61d83": {
+      "raises": "ValueError"
+    },
+    "e2ce6aac3d72": {
+      "raises": "ValueError"
+    },
+    "8b9178bf449f": {
+      "raises": "ValueError"
+    },
+    "39b9174e862a": {
+      "raises": "ValueError"
+    },
+    "502af726e96c": {
+      "raises": "ValueError"
+    },
+    "d29d840db732": {
+      "raises": "ValueError"
+    },
+    "42c0e44dfc7b": {
+      "raises": "ValueError"
+    },
+    "0f60a42eb3f0": {
+      "raises": "ValueError"
+    },
+    "65e498d79a8c": {
+      "raises": "ValueError"
+    },
+    "9a088705cad2": {
+      "raises": "ValueError"
+    },
+    "1ca6ff8b712e": {
+      "raises": "ValueError"
+    },
+    "f74ff87270c7": {
+      "raises": "ValueError"
+    },
+    "42042e3eb1ad": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "exact_keys",
+      "function": "quote",
+      "predicate_src": "lambda args, result: set(result.keys()) == {'tier', 'rate', 'subtotal', 'total'}",
+      "description": "quote returns a dict with exactly tier, rate, subtotal, and total keys"
+    },
+    {
+      "name": "total_lte_subtotal",
+      "function": "quote",
+      "predicate_src": "lambda args, result: result['total'] <= result['subtotal']",
+      "description": "total is always less than or equal to subtotal"
+    },
+    {
+      "name": "zero_discount_equality",
+      "function": "quote",
+      "predicate_src": "lambda args, result: (result['rate'] != 0.0) or (result['total'] == result['subtotal'])",
+      "description": "total equals subtotal when discount rate is 0.0"
+    },
+    {
+      "name": "zero_units_zeros",
+      "function": "quote",
+      "predicate_src": "lambda args, result: (args[1] != 0) or (result['subtotal'] == 0.0 and result['total'] == 0.0)",
+      "description": "when units is 0, subtotal and total are 0.0"
+    },
+    {
+      "name": "subtotal_total_are_floats",
+      "function": "quote",
+      "predicate_src": "lambda args, result: isinstance(result['subtotal'], float) and isinstance(result['total'], float)",
+      "description": "subtotal and total are always float values"
+    },
+    {
+      "name": "subtotal_rounding",
+      "function": "quote",
+      "predicate_src": "lambda args, result: result['subtotal'] == round(args[0] * args[1], 2)",
+      "description": "subtotal is amount * units rounded to 2 decimal places with round half to even"
+    },
+    {
+      "name": "total_from_unrounded_subtotal",
+      "function": "quote",
+      "predicate_src": "lambda args, result: result['total'] == round((args[0] * args[1]) * (1 - result['rate']), 2)",
+      "description": "total is computed from unrounded subtotal times (1 - rate) rounded to 2 decimal places"
+    }
+  ],
+  "visible_ids": [
+    "0f60a42eb3f0",
+    "4b142af61d83",
+    "9a088705cad2",
+    "8b9178bf449f",
+    "502af726e96c",
+    "test_quote.py::test_zero_units_types_are_float",
+    "test_quote.py::test_total_is_float",
+    "test_quote.py::test_total_formula",
+    "test_quote.py::test_subtotal_round_half_to_even_up",
+    "test_quote.py::test_subtotal_is_float",
+    "test_quote.py::test_quote_keys"
+  ],
+  "literals": {},
+  "modules": {
+    "test_quote.py": "import pytest\nfrom pricing.quote import quote\nfrom pricing.tiers import tier_for\nfrom pricing.discounts import discount_rate\n\n\ndef test_quote_keys():\n    q = quote(10.0, 2)\n    assert set(q.keys()) == {\"tier\", \"rate\", \"subtotal\", \"total\"}\n\n\ndef test_negative_amount_raises():\n    with pytest.raises(ValueError):\n        quote(-1.0, 5)\n\n\ndef test_negative_units_raises():\n    with pytest.raises(ValueError):\n        quote(10.0, -1)\n\n\ndef test_zero_units_subtotal():\n    q = quote(25.0, 0)\n    assert q[\"subtotal\"] == 0.0\n\n\ndef test_zero_units_total():\n    q = quote(25.0, 0)\n    assert q[\"total\"] == 0.0\n\n\ndef test_subtotal_is_float():\n    q = quote(10.0, 1)\n    assert isinstance(q[\"subtotal\"], float)\n\n\ndef test_total_is_float():\n    q = quote(10.0, 1)\n    assert isinstance(q[\"total\"], float)\n\n\ndef test_zero_units_types_are_float():\n    q = quote(0.0, 0)\n    assert type(q[\"subtotal\"]) is float and type(q[\"total\"]) is float\n\n\ndef test_tier_matches_tier_for():\n    q = quote(15.5, 3)\n    assert q[\"tier\"] == tier_for(15.5)\n\n\ndef test_rate_matches_discount_rate():\n    tier = tier_for(15.5)\n    q = quote(15.5, 3)\n    assert q[\"rate\"] == discount_rate(tier, 3)\n\n\ndef test_subtotal_formula():\n    q = quote(12.34, 3)\n    assert q[\"subtotal\"] == round(12.34 * 3, 2)\n\n\ndef test_total_formula():\n    q = quote(12.34, 3)\n    assert q[\"total\"] == round((12.34 * 3) * (1 - q[\"rate\"]), 2)\n\n\ndef test_total_lte_subtotal():\n    q = quote(50.0, 4)\n    assert q[\"total\"] <= q[\"subtotal\"]\n\n\ndef test_subtotal_round_half_to_even_down():\n    q = quote(0.125, 1)\n    assert q[\"subtotal\"] == 0.12\n\n\ndef test_subtotal_round_half_to_even_up():\n    q = quote(0.375, 1)\n    assert q[\"subtotal\"] == 0.38\n\n\ndef test_subtotal_float_tie_below():\n    q = quote(2.675, 1)\n    assert q[\"subtotal\"] == 2.67\n"
+  },
+  "author_id": "spec-author-gemini"
+}

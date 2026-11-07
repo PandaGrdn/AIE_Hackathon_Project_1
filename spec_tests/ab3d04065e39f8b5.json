@@ -1,0 +1,183 @@
+{
+  "subtask_id": "ef9678772ec8",
+  "cases": [
+    {
+      "id": "dcb330d66048",
+      "function": "tier_for",
+      "args": [
+        -10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "ec6f763e4b23",
+      "function": "tier_for",
+      "args": [
+        -0.01
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "4902adf13b22",
+      "function": "tier_for",
+      "args": [
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "a6ad8790acee",
+      "function": "tier_for",
+      "args": [
+        0.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "d536ae8edd3f",
+      "function": "tier_for",
+      "args": [
+        49.99
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "15eda30466fa",
+      "function": "tier_for",
+      "args": [
+        99.99
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "0267100d6486",
+      "function": "tier_for",
+      "args": [
+        100
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "da0a29317f72",
+      "function": "tier_for",
+      "args": [
+        100.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "d9f86163d0c2",
+      "function": "tier_for",
+      "args": [
+        550.5
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "f344a8bcb68e",
+      "function": "tier_for",
+      "args": [
+        1000
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "0924850310ac",
+      "function": "tier_for",
+      "args": [
+        1000.0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "c42f31f7d7b6",
+      "function": "tier_for",
+      "args": [
+        1000.01
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "fbbc2a3039dd",
+      "function": "tier_for",
+      "args": [
+        2500
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "dcb330d66048": {
+      "raises": "ValueError"
+    },
+    "ec6f763e4b23": {
+      "raises": "ValueError"
+    },
+    "4902adf13b22": "basic",
+    "a6ad8790acee": "basic",
+    "d536ae8edd3f": "basic",
+    "15eda30466fa": "basic",
+    "0267100d6486": "plus",
+    "da0a29317f72": "plus",
+    "d9f86163d0c2": "plus",
+    "f344a8bcb68e": "plus",
+    "0924850310ac": "plus",
+    "c42f31f7d7b6": "pro",
+    "fbbc2a3039dd": "pro"
+  },
+  "properties": [
+    {
+      "name": "valid_tier_membership",
+      "function": "tier_for",
+      "predicate_src": "lambda args, result: result in {'basic', 'plus', 'pro'}",
+      "description": "Returns exactly one of the lowercase tier names: 'basic', 'plus', or 'pro'."
+    },
+    {
+      "name": "basic_tier_interval",
+      "function": "tier_for",
+      "predicate_src": "lambda args, result: (result == 'basic') if (0 <= args[0] < 100) else (result != 'basic')",
+      "description": "Any amount in [0, 100) maps to 'basic', and amounts outside this range do not."
+    },
+    {
+      "name": "plus_tier_interval",
+      "function": "tier_for",
+      "predicate_src": "lambda args, result: (result == 'plus') if (100 <= args[0] <= 1000) else (result != 'plus')",
+      "description": "Any amount in [100, 1000] maps to 'plus', and amounts outside this range do not."
+    },
+    {
+      "name": "pro_tier_interval",
+      "function": "tier_for",
+      "predicate_src": "lambda args, result: (result == 'pro') if (args[0] > 1000) else (result != 'pro')",
+      "description": "Any amount strictly greater than 1000 maps to 'pro', and amounts <= 1000 do not."
+    }
+  ],
+  "visible_ids": [
+    "0924850310ac",
+    "da0a29317f72",
+    "f344a8bcb68e",
+    "dcb330d66048",
+    "4902adf13b22",
+    "test_pricing_tiers.py::test_negative_int_raises_value_error",
+    "test_pricing_tiers.py::test_zero_float_returns_basic",
+    "test_pricing_tiers.py::test_boundary_100_int_returns_plus",
+    "test_pricing_tiers.py::test_zero_int_returns_basic"
+  ],
+  "literals": {},
+  "modules": {
+    "test_pricing_tiers.py": "import pytest\nfrom pricing.tiers import tier_for\n\n\ndef test_negative_int_raises_value_error():\n    with pytest.raises(ValueError):\n        tier_for(-1)\n\n\ndef test_negative_float_raises_value_error():\n    with pytest.raises(ValueError):\n        tier_for(-0.01)\n\n\ndef test_zero_int_returns_basic():\n    assert tier_for(0) == \"basic\"\n\n\ndef test_zero_float_returns_basic():\n    assert tier_for(0.0) == \"basic\"\n\n\ndef test_edge_below_100_returns_basic():\n    assert tier_for(99.99) == \"basic\"\n\n\ndef test_boundary_100_int_returns_plus():\n    assert tier_for(100) == \"plus\"\n\n\ndef test_boundary_100_float_returns_plus():\n    assert tier_for(100.0) == \"plus\"\n\n\ndef test_midpoint_returns_plus():\n    assert tier_for(500) == \"plus\"\n\n\ndef test_boundary_1000_int_returns_plus():\n    assert tier_for(1000) == \"plus\"\n\n\ndef test_boundary_1000_float_returns_plus():\n    assert tier_for(1000.0) == \"plus\"\n\n\ndef test_edge_above_1000_returns_pro():\n    assert tier_for(1000.01) == \"pro\"\n\n\ndef test_large_amount_returns_pro():\n    assert tier_for(50000) == \"pro\"\n"
+  },
+  "author_id": "spec-author-gemini"
+}

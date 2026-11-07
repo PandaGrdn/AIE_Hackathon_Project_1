@@ -1,0 +1,264 @@
+{
+  "subtask_id": "35e1576c9f0d",
+  "cases": [
+    {
+      "id": "8f8e5a2f97b4",
+      "function": "discount_rate",
+      "args": [
+        "basic",
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "2138b9bfe9d0",
+      "function": "discount_rate",
+      "args": [
+        "basic",
+        49
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5c66f7df80d7",
+      "function": "discount_rate",
+      "args": [
+        "basic",
+        50
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "585bedeb9810",
+      "function": "discount_rate",
+      "args": [
+        "basic",
+        100
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "bc7585dd068c",
+      "function": "discount_rate",
+      "args": [
+        "plus",
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "72ebca3eaf89",
+      "function": "discount_rate",
+      "args": [
+        "plus",
+        49
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "64d21753d419",
+      "function": "discount_rate",
+      "args": [
+        "plus",
+        50
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "845dbaf1f1ca",
+      "function": "discount_rate",
+      "args": [
+        "plus",
+        75
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "7651db4074f8",
+      "function": "discount_rate",
+      "args": [
+        "pro",
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "a07977aa0102",
+      "function": "discount_rate",
+      "args": [
+        "pro",
+        49
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "a14857d66b85",
+      "function": "discount_rate",
+      "args": [
+        "pro",
+        50
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "6cd6a99807c6",
+      "function": "discount_rate",
+      "args": [
+        "pro",
+        200
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "9dcfcce564b1",
+      "function": "discount_rate",
+      "args": [
+        "basic",
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "19a6e1a74201",
+      "function": "discount_rate",
+      "args": [
+        "basic",
+        -50
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "cec173c0e984",
+      "function": "discount_rate",
+      "args": [
+        "Basic",
+        10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "e422e9b1cee2",
+      "function": "discount_rate",
+      "args": [
+        " plus",
+        10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "2e5759548ebd",
+      "function": "discount_rate",
+      "args": [
+        "",
+        10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "c79153021e17",
+      "function": "discount_rate",
+      "args": [
+        "gold",
+        10
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "8f8e5a2f97b4": 0.0,
+    "2138b9bfe9d0": 0.0,
+    "5c66f7df80d7": 0.02,
+    "585bedeb9810": 0.02,
+    "bc7585dd068c": 0.05,
+    "72ebca3eaf89": 0.05,
+    "64d21753d419": 0.07,
+    "845dbaf1f1ca": 0.07,
+    "7651db4074f8": 0.1,
+    "a07977aa0102": 0.1,
+    "a14857d66b85": 0.12,
+    "6cd6a99807c6": 0.12,
+    "9dcfcce564b1": {
+      "raises": "ValueError"
+    },
+    "19a6e1a74201": {
+      "raises": "ValueError"
+    },
+    "cec173c0e984": {
+      "raises": "ValueError"
+    },
+    "e422e9b1cee2": {
+      "raises": "ValueError"
+    },
+    "2e5759548ebd": {
+      "raises": "ValueError"
+    },
+    "c79153021e17": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "result_in_allowed_literal_set",
+      "function": "discount_rate",
+      "predicate_src": "lambda args, result: result in {0.0, 0.02, 0.05, 0.07, 0.10, 0.12}",
+      "description": "Returned discount rate must be exactly one of the six allowed float literals"
+    },
+    {
+      "name": "threshold_bonus_applied",
+      "function": "discount_rate",
+      "predicate_src": "lambda args, result: (result in {0.02, 0.07, 0.12}) if args[1] >= 50 else (result in {0.0, 0.05, 0.10})",
+      "description": "If units >= 50 bonus is applied, otherwise base rate is returned"
+    },
+    {
+      "name": "discount_rate_bounded",
+      "function": "discount_rate",
+      "predicate_src": "lambda args, result: 0.0 <= result <= 0.12",
+      "description": "Discount rate is always within the interval [0.0, 0.12]"
+    }
+  ],
+  "visible_ids": [
+    "6cd6a99807c6",
+    "bc7585dd068c",
+    "2138b9bfe9d0",
+    "845dbaf1f1ca",
+    "cec173c0e984",
+    "9dcfcce564b1",
+    "64d21753d419",
+    "test_discounts.py::test_basic_below_threshold",
+    "test_discounts.py::test_invalid_tier_whitespace",
+    "test_discounts.py::test_negative_units",
+    "test_discounts.py::test_basic_at_threshold",
+    "test_discounts.py::test_plus_at_threshold"
+  ],
+  "literals": {
+    "discount_rate": {
+      "tier": [
+        "basic",
+        "plus",
+        "pro"
+      ]
+    }
+  },
+  "modules": {
+    "test_discounts.py": "import pytest\nfrom pricing.discounts import discount_rate\n\n\ndef test_basic_zero_units():\n    assert discount_rate(\"basic\", 0) == 0.0\n\n\ndef test_basic_below_threshold():\n    assert discount_rate(\"basic\", 49) == 0.0\n\n\ndef test_basic_at_threshold():\n    assert discount_rate(\"basic\", 50) == 0.02\n\n\ndef test_basic_above_threshold():\n    assert discount_rate(\"basic\", 100) == 0.02\n\n\ndef test_plus_below_threshold():\n    assert discount_rate(\"plus\", 49) == 0.05\n\n\ndef test_plus_at_threshold():\n    assert discount_rate(\"plus\", 50) == 0.07\n\n\ndef test_plus_above_threshold():\n    assert discount_rate(\"plus\", 80) == 0.07\n\n\ndef test_pro_below_threshold():\n    assert discount_rate(\"pro\", 49) == 0.10\n\n\ndef test_pro_at_threshold():\n    assert discount_rate(\"pro\", 50) == 0.12\n\n\ndef test_invalid_tier_capitalized():\n    with pytest.raises(ValueError):\n        discount_rate(\"Basic\", 10)\n\n\ndef test_invalid_tier_whitespace():\n    with pytest.raises(ValueError):\n        discount_rate(\" plus\", 10)\n\n\ndef test_invalid_tier_empty():\n    with pytest.raises(ValueError):\n        discount_rate(\"\", 10)\n\n\ndef test_invalid_tier_unknown():\n    with pytest.raises(ValueError):\n        discount_rate(\"gold\", 10)\n\n\ndef test_negative_units():\n    with pytest.raises(ValueError):\n        discount_rate(\"basic\", -1)\n"
+  },
+  "author_id": "spec-author-gemini"
+}

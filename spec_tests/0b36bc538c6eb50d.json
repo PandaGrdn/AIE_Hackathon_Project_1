@@ -1,0 +1,317 @@
+{
+  "subtask_id": "fccf1b3e25c2",
+  "cases": [
+    {
+      "id": "4510aebd9213",
+      "function": "letter_grade",
+      "args": [
+        100
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "2dbc09c8bb3b",
+      "function": "letter_grade",
+      "args": [
+        90
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "e49cffebb1dd",
+      "function": "letter_grade",
+      "args": [
+        89
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "53a603841001",
+      "function": "letter_grade",
+      "args": [
+        80
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "3e70082aa524",
+      "function": "letter_grade",
+      "args": [
+        79
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "86a86310ba5a",
+      "function": "letter_grade",
+      "args": [
+        70
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "07f25b11bcc6",
+      "function": "letter_grade",
+      "args": [
+        69
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "2c23721c6a9f",
+      "function": "letter_grade",
+      "args": [
+        60
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "52873c417a2e",
+      "function": "letter_grade",
+      "args": [
+        59
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "b70803eafbd5",
+      "function": "letter_grade",
+      "args": [
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "c82f4399e97a",
+      "function": "letter_grade",
+      "args": [
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "9757a6b7e0c3",
+      "function": "letter_grade",
+      "args": [
+        101
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "0846cd8e3a49",
+      "function": "final_score",
+      "args": [
+        []
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "27e9305e271c",
+      "function": "final_score",
+      "args": [
+        [
+          100
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "76214f3a2be6",
+      "function": "final_score",
+      "args": [
+        [
+          0
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5fdb7417b0c1",
+      "function": "final_score",
+      "args": [
+        [
+          88,
+          89
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "0faf75de7922",
+      "function": "final_score",
+      "args": [
+        [
+          89,
+          90
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "e06291a58b9c",
+      "function": "final_score",
+      "args": [
+        [
+          86,
+          87
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "ccf8fec45fe0",
+      "function": "final_score",
+      "args": [
+        [
+          88,
+          89,
+          89
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "dc44fa941417",
+      "function": "final_score",
+      "args": [
+        [
+          -1
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "a98d1ceda3fb",
+      "function": "final_score",
+      "args": [
+        [
+          101
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "c21f176ac83e",
+      "function": "final_score",
+      "args": [
+        [
+          90,
+          -5,
+          80
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "4510aebd9213": "A",
+    "2dbc09c8bb3b": "A",
+    "e49cffebb1dd": "B",
+    "53a603841001": "B",
+    "3e70082aa524": "C",
+    "86a86310ba5a": "C",
+    "07f25b11bcc6": "D",
+    "2c23721c6a9f": "D",
+    "52873c417a2e": "F",
+    "b70803eafbd5": "F",
+    "c82f4399e97a": {
+      "raises": "ValueError"
+    },
+    "9757a6b7e0c3": {
+      "raises": "ValueError"
+    },
+    "0846cd8e3a49": null,
+    "27e9305e271c": 100,
+    "76214f3a2be6": 0,
+    "5fdb7417b0c1": 88,
+    "0faf75de7922": 90,
+    "e06291a58b9c": 86,
+    "ccf8fec45fe0": 89,
+    "dc44fa941417": {
+      "raises": "ValueError"
+    },
+    "a98d1ceda3fb": {
+      "raises": "ValueError"
+    },
+    "c21f176ac83e": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "letter_grade_valid_letters",
+      "function": "letter_grade",
+      "predicate_src": "lambda args, result: result in {'A', 'B', 'C', 'D', 'F'}",
+      "description": "The returned letter grade is always one of A, B, C, D, or F."
+    },
+    {
+      "name": "letter_grade_a_for_high_scores",
+      "function": "letter_grade",
+      "predicate_src": "lambda args, result: (args[0] >= 90) == (result == 'A')",
+      "description": "Scores 90 and above always receive grade A."
+    },
+    {
+      "name": "final_score_empty_is_none",
+      "function": "final_score",
+      "predicate_src": "lambda args, result: result is None if len(args[0]) == 0 else isinstance(result, int)",
+      "description": "Empty scores list returns None, non-empty list returns an int."
+    },
+    {
+      "name": "final_score_within_bounds",
+      "function": "final_score",
+      "predicate_src": "lambda args, result: len(args[0]) == 0 or (min(args[0]) <= result <= max(args[0]))",
+      "description": "The rounded mean is bounded by the minimum and maximum scores in the input."
+    },
+    {
+      "name": "final_score_identical_elements",
+      "function": "final_score",
+      "predicate_src": "lambda args, result: len(args[0]) == 0 or (len(set(args[0])) > 1 or result == args[0][0])",
+      "description": "If all input scores are identical, the final score equals that score."
+    }
+  ],
+  "visible_ids": [
+    "0faf75de7922",
+    "ccf8fec45fe0",
+    "9757a6b7e0c3",
+    "c82f4399e97a",
+    "2c23721c6a9f",
+    "c21f176ac83e",
+    "b70803eafbd5",
+    "52873c417a2e",
+    "test_grades.py::test_letter_grade_zero",
+    "test_grades.py::test_letter_grade_c_upper",
+    "test_grades.py::test_letter_grade_d_upper",
+    "test_grades.py::test_letter_grade_max",
+    "test_grades.py::test_letter_grade_b_upper",
+    "test_grades.py::test_final_score_round_half_to_even_up",
+    "test_grades.py::test_letter_grade_over_100_raises",
+    "test_grades.py::test_final_score_single"
+  ],
+  "literals": {},
+  "modules": {
+    "test_grades.py": "import pytest\nfrom grades import letter_grade, final_score\n\n\ndef test_letter_grade_max():\n    assert letter_grade(100) == \"A\"\n\n\ndef test_letter_grade_a_threshold():\n    assert letter_grade(90) == \"A\"\n\n\ndef test_letter_grade_b_upper():\n    assert letter_grade(89) == \"B\"\n\n\ndef test_letter_grade_b_threshold():\n    assert letter_grade(80) == \"B\"\n\n\ndef test_letter_grade_c_upper():\n    assert letter_grade(79) == \"C\"\n\n\ndef test_letter_grade_c_threshold():\n    assert letter_grade(70) == \"C\"\n\n\ndef test_letter_grade_d_upper():\n    assert letter_grade(69) == \"D\"\n\n\ndef test_letter_grade_d_threshold():\n    assert letter_grade(60) == \"D\"\n\n\ndef test_letter_grade_f_upper():\n    assert letter_grade(59) == \"F\"\n\n\ndef test_letter_grade_zero():\n    assert letter_grade(0) == \"F\"\n\n\ndef test_letter_grade_negative_raises():\n    with pytest.raises(ValueError):\n        letter_grade(-1)\n\n\ndef test_letter_grade_over_100_raises():\n    with pytest.raises(ValueError):\n        letter_grade(101)\n\n\ndef test_final_score_empty():\n    assert final_score([]) is None\n\n\ndef test_final_score_single():\n    assert final_score([85]) == 85\n\n\ndef test_final_score_round_half_to_even_down():\n    assert final_score([88, 89]) == 88\n\n\ndef test_final_score_round_half_to_even_up():\n    assert final_score([89, 90]) == 90\n\n\ndef test_final_score_round_half_to_even_86_point_5():\n    assert final_score([86, 87]) == 86\n\n\ndef test_final_score_round_nearest():\n    assert final_score([88, 89, 89]) == 89\n\n\ndef test_final_score_negative_raises():\n    with pytest.raises(ValueError):\n        final_score([90, -1])\n\n\ndef test_final_score_over_100_raises():\n    with pytest.raises(ValueError):\n        final_score([101, 80])\n"
+  },
+  "author_id": "spec-author-gemini"
+}

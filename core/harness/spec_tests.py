@@ -31,11 +31,12 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from core.config import settings
+from core.config import ROOT, settings
 from core.llm.clients import get_client
 from core.models import AgentIdentity, Subtask, TestCase
 
-CACHE_DIR = settings.runs_dir / "spec_tests"
+CACHE_DIR = settings.runs_dir / "spec_tests"  # written by every run (gitignored)
+COMMITTED_DIR = ROOT / "spec_tests"  # tracked snapshots for the demo fallback; copy files here by hand
 VISIBLE_SHARE = 0.4
 AUTHOR_ATTEMPTS = 3
 
@@ -163,6 +164,8 @@ def _cache_path(subtask: Subtask) -> Path:
 
 def load_cached(subtask: Subtask) -> SpecTests | None:
     p = _cache_path(subtask)
+    if not p.exists():
+        p = COMMITTED_DIR / p.name
     if not p.exists():
         return None
     st = SpecTests.model_validate_json(p.read_text())

@@ -127,7 +127,10 @@ def reflect(
             "judge_lesson_p": judged,
         },
     )
-    return dedup_or_insert(lesson, store)
+    # a confirmation signal (SubQ root cause or counterfactual replay) decides whether the region is created now;
+    # with no confirmation machinery in play, legacy behaviour: every lesson gets its region
+    ran = any(s in ("subq", "replay") for s in div.signals)
+    return dedup_or_insert(lesson, store, confirmed=(div.confirmed if ran else True))
 
 
 def _confirm_root_cause(judge: SubQJudge, spec: str, failed: AgentRun, div: Divergence, evidence: str) -> None:
