@@ -228,7 +228,7 @@ def test_roster_shape():
     assert "subq" not in providers
     assert len(providers) >= 2
     assert sum(i.provider == "anthropic" for i in roster) == 2
-    assert clients.reflector_identity().provider == "subq"
+    assert clients.reflector_identity().provider == "gemini"
 
 
 def test_provider_available(monkeypatch):
