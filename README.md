@@ -8,12 +8,17 @@ Full design: [docs/PROJECT_OUTLINE.md](docs/PROJECT_OUTLINE.md)
 
 ## Setup
 
+Python 3.12 exactly. Easiest with [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`):
+
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+uv python install 3.12
+uv venv --python 3.12 .venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
 cp .env.example .env   # fill in keys
 pytest
 ```
+
+Without uv: `python3.12 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`.
 
 ## Run
 
