@@ -25,8 +25,11 @@ TOOL_CLUSTER_SIMILARITY = 0.85  # cosine between divergence embeddings
 
 def propose_changes(new_lessons: list[Lesson], store: Store, cluster_threshold: float = TOOL_CLUSTER_SIMILARITY) -> list[Change]:
     changes: list[Change] = []
+    already = {c.ref_id for c in store.list_changes() if c.kind == ChangeKind.context}
     for l in new_lessons:
-        if l.status == ChangeStatus.candidate and l.hit_count == 1:
+        # any still-undecided lesson that has never been put to the gate (a repeat hit on a lesson created in an
+        # interrupted attempt must not slip past the gate just because its hit_count is no longer 1)
+        if l.status == ChangeStatus.candidate and l.id not in already:
             changes.append(Change(kind=ChangeKind.context, ref_id=l.id, description=f"lesson: {l.text}"))
         elif l.hit_count >= PROMOTE_AFTER_HITS and l.status == ChangeStatus.adopted:
             changes.append(Change(kind=ChangeKind.skill, ref_id=l.id, description=f"promote to skill: {l.text}"))
