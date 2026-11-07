@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm Learning Log</title>
+<style>
+  :root {
+    --bg: #0a0d12;
+    --panel: #121720;
+    --line: #253041;
+    --text: #eef2f7;
+    --muted: #a3adbb;
+    --green: #3ddc84;
+    --red: #ff5d5d;
+    --grey: #8b95a3;
+    --accent: #7cc4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 20px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px 32px 64px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 28px; margin-bottom: 8px; }
+  h1 { font-size: 34px; margin: 0; letter-spacing: -0.01em; }
+  .live { color: var(--muted); font-size: 16px; }
+  .live b { color: var(--green); }
+  .stats { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0 6px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; min-width: 150px; }
+  .stat .v { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .k { color: var(--muted); font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; }
+  section { margin-top: 36px; }
+  h2 { font-size: 28px; margin: 0 0 12px; display: flex; align-items: baseline; gap: 14px; }
+  h2 .n { color: var(--muted); font-size: 18px; font-weight: 400; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pill { display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: 16px; font-weight: 700; white-space: nowrap; }
+  .pill.adopted { background: rgba(61,220,132,.16); color: var(--green); border: 1px solid var(--green); }
+  .pill.rolled_back { background: rgba(255,93,93,.16); color: var(--red); border: 1px solid var(--red); }
+  .pill.candidate { background: rgba(139,149,163,.16); color: var(--grey); border: 1px solid var(--grey); }
+  .up { color: var(--green); } .down { color: var(--red); } .same { color: var(--muted); }
+  .muted { color: var(--muted); }
+  .empty { padding: 22px 16px; color: var(--muted); }
+  .reason { color: var(--muted); font-size: 18px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 17px; }
+  .lesson-text { font-size: 21px; }
+  .bar { display: inline-block; height: 10px; border-radius: 5px; background: var(--accent); vertical-align: middle; margin-right: 10px; }
+  #map-wrap { position: relative; }
+  #map { display: block; width: 100%; height: 560px; }
+  #tip {
+    position: absolute; pointer-events: none; display: none; max-width: 520px;
+    background: #000; color: var(--text); border: 1px solid var(--accent); border-radius: 8px;
+    padding: 10px 14px; font-size: 17px; line-height: 1.35; z-index: 5;
+  }
+  #tip .meta { color: var(--muted); font-size: 14px; margin-bottom: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 22px; padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 16px; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+  .err { color: var(--red); font-size: 15px; }
+  @media (max-width: 800px) {
+    body { padding: 16px; font-size: 17px; }
+    th, td { padding: 8px 10px; }
+    .panel { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>What the swarm learned</h1>
+  <span class="live" id="live">loading...</span>
+</header>
+<div class="stats" id="stats"></div>
+
+<section id="changelog">
+  <h2>Changelog <span class="n" id="changes-n"></span></h2>
+  <div class="panel" id="changes"></div>
+</section>
+
+<section id="trust-section">
+  <h2>Trust leaderboard <span class="n" id="trust-n"></span></h2>
+  <div class="panel" id="trust"></div>
+</section>
+
+<section id="lessons-section">
+  <h2>Lessons <span class="n" id="lessons-n"></span></h2>
+  <div class="panel" id="lessons"></div>
+</section>
+
+<section id="map-section">
+  <h2>Reasoning map <span class="n" id="map-n"></span></h2>
+  <div class="panel" id="map-wrap">
+    <svg id="map" role="img" aria-label="2D projection of reasoning step embeddings"></svg>
+    <div id="tip"></div>
+    <div class="legend">
+      <span><i style="background:var(--grey)"></i>verified-run step</span>
+      <span><i style="background:var(--red)"></i>failed-run step</span>
+      <span><i style="border:2px solid var(--grey);background:transparent"></i>run verdict unknown</span>
+      <span><i style="border:2px dashed var(--red);background:transparent"></i>failure region (approx.)</span>
+      <span>PCA of step embeddings, computed in the browser</span>
+    </div>
+  </div>
+</section>
+
+<script>
+"use strict";
+const REFRESH_MS = 3000;
+const last = {};  // endpoint -> last JSON text, so unchanged sections are not re-rendered
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = (x) => (x === null || x === undefined || Number.isNaN(x)) ? "–" : (100 * x).toFixed(0) + "%";
+const $ = (id) => document.getElementById(id);
+
+function delta(before, after, higherIsBetter) {
+  if (before === undefined && after === undefined) return '<span class="muted">–</span>';
+  const cls = (before === undefined || after === undefined || before === after) ? "same"
+    : ((after > before) === higherIsBetter ? "up" : "down");
+  return `${pct(before)} → <span class="${cls}">${pct(after)}</span>`;
+}
+
+function renderSummary(s) {
+  if (!s || s.error) { $("stats").innerHTML = s && s.error ? `<span class="err">summary unavailable: ${esc(s.error)}</span>` : ""; return; }
+  const items = [
+    ["adopted", s.changes_adopted, "var(--green)"],
+    ["rolled back", s.changes_rolled_back, "var(--red)"],
+    ["lessons", s.lessons_total],
+    ["lessons adopted", s.lessons_adopted],
+    ["held-out acc. first → last", (s.heldout_accuracy_first != null || s.heldout_accuracy_last != null) ? `${pct(s.heldout_accuracy_first)} → ${pct(s.heldout_accuracy_last)}` : "–"],
+  ];
+  $("stats").innerHTML = items.map(([k, v, c]) =>
+    `<div class="stat"><div class="v" ${c ? `style="color:${c}"` : ""}>${esc(v ?? "–")}</div><div class="k">${esc(k)}</div></div>`).join("");
+}
+
+function renderChanges(cs) {
+  $("changes-n").textContent = cs.length ? `${cs.length} change${cs.length === 1 ? "" : "s"}` : "";
+  if (!cs.length) { $("changes").innerHTML = '<div class="empty">No changes proposed yet.</div>'; return; }
+  const rows = cs.map((c) => {
+    const b = c.heldout_before || {}, a = c.heldout_after || {};
+    return `<tr>
+      <td><span class="pill ${esc(c.status)}">${esc(String(c.status).replace("_", " "))}</span>${c.version > 1 ? ` <span class="muted">v${esc(c.version)}</span>` : ""}</td>
+      <td>${esc(c.kind)}</td>
+      <td>${esc(c.description)}</td>
+      <td class="num">${delta(b.accuracy, a.accuracy, true)}</td>
+      <td class="num">${delta(b.repeat_mistake_rate, a.repeat_mistake_rate, false)}</td>
+      <td class="reason">${esc(c.reason)}</td>
+    </tr>`;
+  }).join("");
+  $("changes").innerHTML = `<table><thead><tr><th>Status</th><th>Kind</th><th>Change</th><th>Held-out accuracy</th><th>Repeat-mistake rate</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function sparkline(hist) {
+  const w = 160, h = 36, p = 3;
+  if (!hist || !hist.length) return '<span class="muted">–</span>';
+  const pts = hist.length === 1 ? [hist[0], hist[0]] : hist;
+  const xy = pts.map((v, i) => [p + (i * (w - 2 * p)) / (pts.length - 1), h - p - Math.max(0, Math.min(1, v)) * (h - 2 * p)]);
+  const d = xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const [lx, ly] = xy[xy.length - 1];
+  const up = pts[pts.length - 1] >= pts[0];
+  const col = up ? "var(--green)" : "var(--red)";
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <line x1="${p}" x2="${w - p}" y1="${h / 2}" y2="${h / 2}" stroke="var(--line)" stroke-dasharray="3 3"/>
+    <polyline points="${d}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="${lx}" cy="${ly}" r="3.5" fill="${col}"/></svg>`;
+}
+
+function renderTrust(ts) {
+  $("trust-n").textContent = ts.length ? `${ts.length} agent${ts.length === 1 ? "" : "s"}` : "";
+  if (!ts.length) { $("trust").innerHTML = '<div class="empty">No trust scores yet.</div>'; return; }
+  const rows = ts.map((t, i) => `<tr>
+      <td class="num muted">${i + 1}</td>
+      <td class="mono">${esc(t.agent_id)}</td>
+      <td class="num"><span class="bar" style="width:${Math.round(120 * t.score)}px"></span><b>${t.score.toFixed(2)}</b></td>
+      <td class="num"><span class="up">${t.agreements}</span> / <span class="down">${t.disagreements}</span></td>
+      <td>${sparkline(t.history)}</td>
+    </tr>`).join("");
+  $("trust").innerHTML = `<table><thead><tr><th>#</th><th>Agent</th><th>Score</th><th>Agree / disagree</th><th>History</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderLessons(ls) {
+  $("lessons-n").textContent = ls.length ? `${ls.length} lesson${ls.length === 1 ? "" : "s"}` : "";
+  if (!ls.length) { $("lessons").innerHTML = '<div class="empty">No lessons yet.</div>'; return; }
+  const rows = ls.map((l) => `<tr>
+      <td class="lesson-text">${esc(l.text)}${l.tags && l.tags.length ? `<div class="muted" style="font-size:15px">${l.tags.map(esc).join(" · ")}</div>` : ""}</td>
+      <td class="num"><b>${esc(l.hit_count)}</b></td>
+      <td><span class="pill ${esc(l.status)}">${esc(String(l.status).replace("_", " "))}</span>${l.version > 1 ? ` <span class="muted">v${esc(l.version)}</span>` : ""}</td>
+      <td class="num">${pct(l.confidence)}</td>
+    </tr>`).join("");
+  $("lessons").innerHTML = `<table><thead><tr><th>Lesson</th><th>Hits</th><th>Status</th><th>Confidence</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ---------- PCA by power iteration (no d x d matrix: Cv = X^T (X v) / n) ----------
+function topComponents(X, k, iters) {
+  const n = X.length, d = X[0].length, comps = [];
+  for (let c = 0; c < k; c++) {
+    let v = new Float64Array(d);
+    for (let j = 0; j < d; j++) v[j] = Math.sin(1.7 * (j + 1) * (c + 1)) + 0.01;  // deterministic start
+    for (let it = 0; it < iters; it++) {
+      const xv = new Float64Array(n);
+      for (let i = 0; i < n; i++) { let s = 0; const r = X[i]; for (let j = 0; j < d; j++) s += r[j] * v[j]; xv[i] = s; }
+      const w = new Float64Array(d);
+      for (let i = 0; i < n; i++) { const r = X[i], s = xv[i]; for (let j = 0; j < d; j++) w[j] += r[j] * s; }
+      for (const u of comps) { let dot = 0; for (let j = 0; j < d; j++) dot += w[j] * u[j]; for (let j = 0; j < d; j++) w[j] -= dot * u[j]; }
+      let norm = 0; for (let j = 0; j < d; j++) norm += w[j] * w[j]; norm = Math.sqrt(norm);
+      if (norm < 1e-12) break;
+      for (let j = 0; j < d; j++) w[j] /= norm;
+      v = w;
+    }
+    // stable sign across refreshes: largest-magnitude entry positive
+    let m = 0; for (let j = 1; j < d; j++) if (Math.abs(v[j]) > Math.abs(v[m])) m = j;
+    if (v[m] < 0) for (let j = 0; j < d; j++) v[j] = -v[j];
+    comps.push(v);
+  }
+  return comps;
+}
+
+function renderMap(payload) {
+  const [steps, regions] = payload;
+  const svg = $("map");
+  const W = svg.clientWidth || 1000, H = svg.clientHeight || 560, pad = 36;
+  const withEmb = steps.filter((s) => Array.isArray(s.embedding) && s.embedding.length);
+  const dims = {}; withEmb.forEach((s) => { dims[s.embedding.length] = (dims[s.embedding.length] || 0) + 1; });
+  const d = +Object.keys(dims).sort((a, b) => dims[b] - dims[a])[0];
+  const pts = withEmb.filter((s) => s.embedding.length === d);
+  const failedN = pts.filter((s) => s.failed === true).length;
+  $("map-n").textContent = steps.length ? `${steps.length} step${steps.length === 1 ? "" : "s"}${failedN ? `, ${failedN} from failed runs` : ""}` : "";
+  if (!pts.length) {
+    svg.innerHTML = `<text x="24" y="44" fill="var(--muted)" font-size="20">${steps.length ? "Steps have no embeddings yet." : "No reasoning steps yet."}</text>`;
+    return;
+  }
+  const mean = new Float64Array(d);
+  pts.forEach((s) => { for (let j = 0; j < d; j++) mean[j] += s.embedding[j] / pts.length; });
+  const X = pts.map((s) => { const r = new Float64Array(d); for (let j = 0; j < d; j++) r[j] = s.embedding[j] - mean[j]; return r; });
+  const comps = topComponents(X, 2, 80);
+  const proj = (e) => comps.map((u) => { let s = 0; for (let j = 0; j < d; j++) s += (e[j] - mean[j]) * u[j]; return s; });
+  const P = pts.map((s) => proj(s.embedding));
+  const R = regions.filter((r) => Array.isArray(r.centroid) && r.centroid.length === d).map((r) => ({ r, c: proj(r.centroid) }));
+  const xs = P.map((p) => p[0]).concat(R.map((q) => q.c[0])), ys = P.map((p) => p[1]).concat(R.map((q) => q.c[1]));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const span = Math.max(x1 - x0, y1 - y0, 1e-9);
+  const scale = Math.min((W - 2 * pad) / span, (H - 2 * pad) / span);
+  const cx = (W - (x1 - x0) * scale) / 2, cy = (H - (y1 - y0) * scale) / 2;
+  const sx = (x) => cx + (x - x0) * scale, sy = (y) => H - (cy + (y - y0) * scale);
+
+  let out = "";
+  R.forEach(({ r, c }) => {
+    // projection distorts distances, so the radius is only indicative: capped so it never swamps the map
+    const rad = Math.max(18, Math.min(r.radius * scale, Math.min(W, H) / 8));
+    out += `<circle cx="${sx(c[0]).toFixed(1)}" cy="${sy(c[1]).toFixed(1)}" r="${rad.toFixed(1)}" fill="rgba(255,93,93,0.08)" stroke="var(--red)" stroke-width="2" stroke-dasharray="6 5"/>`;
+  });
+  // draw verified/unknown first, failed on top
+  const order = P.map((_, i) => i).sort((a, b) => (pts[a].failed === true) - (pts[b].failed === true));
+  order.forEach((i) => {
+    const s = pts[i], f = s.failed;
+    const fill = f === true ? "var(--red)" : f === false ? "var(--grey)" : "transparent";
+    const stroke = f === true ? "#ffb3b3" : "var(--grey)";
+    out += `<circle data-i="${i}" cx="${sx(P[i][0]).toFixed(1)}" cy="${sy(P[i][1]).toFixed(1)}" r="${f === true ? 9 : 7}" fill="${fill}" fill-opacity="${f === true ? 0.95 : 0.7}" stroke="${stroke}" stroke-width="${f === null || f === undefined ? 2 : 1}" style="cursor:pointer"/>`;
+  });
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = out;
+
+  const tip = $("tip"), wrap = $("map-wrap");
+  svg.onmousemove = (ev) => {
+    const t = ev.target;
+    if (!(t instanceof SVGCircleElement) || t.dataset.i === undefined) { tip.style.display = "none"; return; }
+    const s = pts[+t.dataset.i];
+    const verdict = s.failed === true ? '<span class="down">failed run</span>' : s.failed === false ? "verified run" : "verdict unknown";
+    tip.innerHTML = `<div class="meta">${verdict} · ${esc(s.agent_id)} · run ${esc(s.run_id)} · step ${esc(s.step_index)}</div>${esc(s.text)}`;
+    const b = wrap.getBoundingClientRect();
+    tip.style.display = "block";
+    const left = Math.min(ev.clientX - b.left + 16, b.width - tip.offsetWidth - 8);
+    tip.style.left = Math.max(8, left) + "px";
+    tip.style.top = (ev.clientY - b.top + 16) + "px";
+  };
+  svg.onmouseleave = () => { tip.style.display = "none"; };
+}
+
+async function getJSON(path) {
+  const r = await fetch(path, { cache: "no-store" });
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.text();
+}
+
+function changed(key, text) {
+  if (last[key] === text) return false;
+  last[key] = text;
+  return true;
+}
+
+async function refresh() {
+  try {
+    const [summary, changes, trust, lessons, steps, regions] = await Promise.all(
+      ["/api/summary", "/api/changes", "/api/trust", "/api/lessons", "/api/steps", "/api/regions"].map(getJSON));
+    if (changed("summary", summary)) renderSummary(JSON.parse(summary));
+    if (changed("changes", changes)) renderChanges(JSON.parse(changes));
+    if (changed("trust", trust)) renderTrust(JSON.parse(trust));
+    if (changed("lessons", lessons)) renderLessons(JSON.parse(lessons));
+    if (changed("map", steps + regions)) renderMap([JSON.parse(steps), JSON.parse(regions)]);
+    $("live").innerHTML = `<b>●</b> live · updated ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    $("live").innerHTML = `<span class="err">refresh failed: ${esc(e.message)}</span>`;
+  }
+}
+
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { delete last.map; refresh(); }, 200); });
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>

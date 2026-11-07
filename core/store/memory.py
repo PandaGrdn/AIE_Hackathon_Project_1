@@ -77,7 +77,11 @@ class MemoryStore:
         self.changes[change.id] = change
 
     def list_changes(self):
-        return sorted(self.changes.values(), key=lambda c: (c.decided_at or c.id.__hash__()))
+        # decided changes in decision order, undecided candidates last
+        from datetime import datetime, timezone
+
+        floor = datetime.min.replace(tzinfo=timezone.utc)
+        return sorted(self.changes.values(), key=lambda c: (c.decided_at is None, c.decided_at or floor, c.id))
 
     # runs
     def save_manifest(self, manifest):
