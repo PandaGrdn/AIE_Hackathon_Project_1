@@ -77,7 +77,15 @@ def run_subtask(
     n_fuzz: int | None = None,
     swarm_size: int | None = None,
     report: dict[str, Any] | None = None,
+    retries_left: int = 1,
+    extra_lesson_ids: list[str] | None = None,
 ) -> bool:
+    """One subtask: context → route → swarm → verdict → commit → reflect → propose → gate.
+
+    When no run verifies, the failures are still reflected into lessons and the subtask is retried once
+    with those provisional lessons injected (`extra_lesson_ids`); they are gated like any other lesson
+    after the retry. That is the loop learning inside a subtask instead of stalling on its first all-fail.
+    """
     swarm_fn = swarm_fn or run_swarm
     spec_fn = spec_fn or load_or_author
     reflect_fn = reflect_fn or reflect
@@ -96,7 +104,13 @@ def run_subtask(
 
     # 1. context
     lessons_block, lesson_ids = build_context(subtask, store)
-    console.print(f"lessons in play: {len(lesson_ids)}")
+    carried = [l for l in (store.get_lesson(i) for i in (extra_lesson_ids or [])) if l is not None and l.id not in lesson_ids]
+    if carried:
+        from core.context.builder import render_lessons
+
+        lesson_ids = lesson_ids + [l.id for l in carried]
+        lessons_block = render_lessons([l for l in (store.get_lesson(i) for i in lesson_ids) if l is not None])
+    console.print(f"lessons in play: {len(lesson_ids)}" + (f" ({len(carried)} provisional from the previous attempt)" if carried else ""))
 
     # 2. route
     agents = route(subtask, store, swarm_size or settings.swarm_size)
@@ -126,6 +140,30 @@ def run_subtask(
     # 6. commit + advance
     agreement = min((mv.agreement for mv in result.majority.values()), default=0.0)
     if not result.verified_runs or agreement <= settings.majority_ambiguous_threshold:
+        # Learn from the all-fail before giving up: reflect every failed run into a lesson, then retry once
+        # with those lessons in the agents' context. Trust still moves on this attempt.
+        lessons_now = _reflect_failures(subtask, runs, result, store, locate_fn, reflect_fn, report)
+        for ch in update_trust(runs, result, store):
+            ch.status, ch.reason = ChangeStatus.adopted, "applied directly; kind not gated (GATE_KINDS)"
+            store.save_change(ch)
+        if retries_left > 0 and lessons_now:
+            console.print(f"[yellow]no verified run; retrying once with {len(lessons_now)} provisional lesson(s) from these failures")
+            first = {k: report.get(k) for k in ("verified", "failed", "failed_run_ids", "verified_run_ids", "lessons")}
+            rep2: dict[str, Any] = {}
+            ok = run_subtask(
+                task, subtask, store, run_heldout,
+                swarm_fn=swarm_fn, spec_fn=spec_fn, reflect_fn=reflect_fn, locate_fn=locate_fn, n_fuzz=n_fuzz, swarm_size=swarm_size,
+                report=rep2, retries_left=retries_left - 1, extra_lesson_ids=[l.id for l in lessons_now] + list(extra_lesson_ids or []),
+            )
+            report["first_attempt"] = first
+            report.update(verified=rep2.get("verified", 0), failed=rep2.get("failed", 0), committed=rep2.get("committed", False),
+                          verified_run_ids=rep2.get("verified_run_ids", []), retried=True)
+            report["failed_run_ids"] = list(first.get("failed_run_ids") or []) + list(rep2.get("failed_run_ids") or [])
+            report["lessons"] = list(first.get("lessons") or []) + list(rep2.get("lessons") or [])
+            report["changes"] = rep2.get("changes", [])
+            if rep2.get("ambiguity_flags"):
+                report["ambiguity_flags"] = rep2["ambiguity_flags"]
+            return ok
         console.print("[yellow]ambiguous — no verified majority; not advancing")
         return False
     winner = max((r for r in runs if r.id in result.verified_runs), key=lambda r: store.get_trust(r.agent.id).score)
@@ -134,8 +172,42 @@ def run_subtask(
     console.print(f"committed implementation from {winner.agent.id}")
 
     # 7. reflect
+    new_lessons = _reflect_failures(subtask, runs, result, store, locate_fn, reflect_fn, report)
+    # provisional lessons from a failed first attempt are gated now, with this attempt's lessons
+    for lid in extra_lesson_ids or []:
+        l = store.get_lesson(lid)
+        if l is not None and l.status == ChangeStatus.candidate and all(x.id != l.id for x in new_lessons):
+            new_lessons.append(l)
+
+    # 8–9. propose + gate
+    changes = propose_changes(new_lessons, store) + update_trust(runs, result, store)
+    for ch in changes:
+        if run_heldout is None:
+            store.save_change(ch)
+            report["changes"].append(ch.id)
+            continue
+        if str(ch.kind) not in settings.gate_kinds:
+            # Not gated (live-run cost control): applied directly and labelled so the changelog is honest.
+            from datetime import datetime, timezone
+
+            ch.status = ChangeStatus.adopted
+            ch.reason = "applied directly; kind not gated (GATE_KINDS)"
+            ch.decided_at = datetime.now(timezone.utc)
+            store.save_change(ch)
+            report["changes"].append(ch.id)
+            console.print(f"[dim]applied (not gated) {ch.kind}: {ch.description[:80]}")
+            continue
+        ch = evaluate_change(ch, store, run_heldout)
+        report["changes"].append(ch.id)
+        console.print(f"[{'green' if ch.status == 'adopted' else 'red'}]{ch.status}[/] {ch.kind}: {ch.description} — {ch.reason}")
+    return True
+
+
+def _reflect_failures(subtask: Subtask, runs: list[AgentRun], result, store: Store, locate_fn: LocateFn, reflect_fn: ReflectFn, report: dict[str, Any]) -> list[Lesson]:
+    """Locate each failed run's root-cause step (SubQ when configured), record the divergence for the UI and
+    write a lesson for it. Returns the new lessons (deduplicated by the store)."""
     verified_runs = [r for r in runs if r.id in result.verified_runs]
-    new_lessons = []
+    new_lessons: list[Lesson] = []
     divergences: list[Divergence] = getattr(store, "divergences", None) or []
     for run in runs:
         if run.id not in result.failed_runs:
@@ -170,33 +242,12 @@ def run_subtask(
         if div.generalizes is not None and div.generalizes < lesson.confidence:
             lesson.confidence = float(div.generalizes)  # SubQ doubts this generalizes: start the lesson lower
             store.upsert_lesson(lesson)
-        new_lessons.append(lesson)
-        report["lessons"].append(lesson.id)
+        if all(x.id != lesson.id for x in new_lessons):
+            new_lessons.append(lesson)
+        report.setdefault("lessons", []).append(lesson.id)
         console.print(f"[cyan]lesson ({run.agent.id} @ step {div.step_index}): {lesson.text}")
     store.divergences = divergences  # read by the UI snapshot and /api/divergences
-
-    # 8–9. propose + gate
-    changes = propose_changes(new_lessons, store) + update_trust(runs, result, store)
-    for ch in changes:
-        if run_heldout is None:
-            store.save_change(ch)
-            report["changes"].append(ch.id)
-            continue
-        if str(ch.kind) not in settings.gate_kinds:
-            # Not gated (live-run cost control): applied directly and labelled so the changelog is honest.
-            from datetime import datetime, timezone
-
-            ch.status = ChangeStatus.adopted
-            ch.reason = "applied directly; kind not gated (GATE_KINDS)"
-            ch.decided_at = datetime.now(timezone.utc)
-            store.save_change(ch)
-            report["changes"].append(ch.id)
-            console.print(f"[dim]applied (not gated) {ch.kind}: {ch.description[:80]}")
-            continue
-        ch = evaluate_change(ch, store, run_heldout)
-        report["changes"].append(ch.id)
-        console.print(f"[{'green' if ch.status == 'adopted' else 'red'}]{ch.status}[/] {ch.kind}: {ch.description} — {ch.reason}")
-    return True
+    return new_lessons
 
 
 def run_task(
