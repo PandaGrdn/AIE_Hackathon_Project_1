@@ -14,3 +14,5 @@ runs/
 sandboxes/
 ui/node_modules/
 ui/dist/
+AIE_Hackathon_Project_1/
+.python-version.local
