@@ -25,20 +25,21 @@ An autonomous coding system that completes a long, tightly coupled software task
 
 | Concept | Meaning |
 | --- | --- |
-| **Long task** | A hard, multi-file task decomposed into an ordered list of subtasks, each with a pinned interface |
+| **Long task** | A real feature on a real open-source repository, spanning several modules (config → core → API/CLI → docs), decomposed into 6–10 ordered subtasks that each build on the previous commit. A wrong assumption early must be able to break later steps; that cascade is what the lessons are for |
+| **Pinned interface** | The public surface a subtask must expose: function and method signatures, class names, CLI flags, config keys. Extracted with `ast` where possible, stated in the spec otherwise |
 | **Swarm** | N (6–8) sandboxed agents from different model families that each implement the current subtask independently |
 | **Reasoning step** | A structured log entry an agent writes before each action: `{assumption, action, files_touched}` |
 | **Reasoning path** | An agent's ordered reasoning steps, each embedded as a vector |
 | **Consensus path** | The region in embedding space where the majority agents' paths cluster at each phase of the subtask |
-| **Spec tests** | Test cases, expected values and properties written by an independent model from the spec, the pinned interface and the existing codebase only, before any implementation exists |
-| **Verification** | Running every implementation on the same independent spec tests, properties and fuzzed inputs. A run is **verified** when it passes every hidden spec test and property; the trust-weighted majority on fuzz inputs is a secondary oracle only. Agents' own tests play no role |
+| **Spec tests** | Hidden **pytest modules** against the repo's public API, written by an independent model from the spec, the pinned interface and the codebase at the base commit, before any implementation exists. Function-level cases and properties are used only for subtasks that happen to be pure |
+| **Verification** | A run is **verified** when the hidden spec tests pass **and the repository's existing test suite still passes** in its sandbox (no regressions). The trust-weighted majority on fuzz inputs is a secondary oracle for pure subtasks only. Agents' own tests play no role |
 | **Verified majority** | The implementation(s) agreeing with the majority on every input; one is committed and the long task advances |
 | **Divergence point** | For a failed agent, the first reasoning step that leaves the consensus path: the suspected reasoning error |
 | **Reflector** | Reads the failed agent's path, its divergence point, the breaking input and the consensus steps at that phase; writes a lesson that resolves the reasoning error |
 | **Lesson** | A short rule tied to the divergence point's embedding, e.g. *"'over $100' means strictly greater; always test the boundary."* |
 | **Failure region** | The embedding neighbourhood around a lesson's divergence point; radius and weight grow with repeat hits |
 | **Change** | Any versioned modification to the system: a new lesson (context/skill), a trust-score update (routing), or a generated tool |
-| **Held-out gate** | Each change runs against held-out subtasks with and without it; adopted only if results improve, else rolled back |
+| **Held-out gate** | Each change runs against held-out feature slices from the same repository (never used to produce a lesson) with and without it; adopted only if results improve, else rolled back |
 | **Trust score** | Per agent identity, running agreement with the verified majority; sets vote weight and which agents are routed to which subtask types |
 
 ---
@@ -99,9 +100,10 @@ Every change gets a version, a `candidate → adopted | rolled_back` status, and
 ## 5. Component details
 
 ### 5.1 Decomposer
-- Input: the long task description + repo.
-- LLM produces an ordered subtask list with pinned interfaces (`ast`-extractable names, signatures, files) and dependencies.
-- Subtasks are the unit of swarm work; interfaces make implementations comparable.
+- Input: the long task description (a feature written against a real repository, from a documented issue or a feature that does not exist upstream) + the repo at its base commit.
+- LLM produces an ordered subtask list with pinned interfaces (function/method signatures, class names, CLI flags, config keys, files) and dependencies. For the demo the decomposition is hand-authored in `subtasks.json` and checked against the repo with `ast`.
+- Each subtask touches 2–3 files and depends on the previous commit; 6–10 subtasks total. Subtasks are the unit of swarm work; interfaces make implementations comparable.
+- Agents navigating a real repo need `list_files` and `read_file` tools alongside `write_file`, `run_tests`, `run_spec_tests` and `log_step`.
 
 ### 5.2 Context Builder
 - Embeds the subtask spec; vector search over `lessons` (top-k, tag-filtered).
@@ -129,13 +131,16 @@ Four test sources, in order of weight:
 
 | Source | Who writes it | Sees | Weight |
 | --- | --- | --- | --- |
-| **Spec tests** | A dedicated test-author model, never one of the implementers for that subtask | Spec, pinned interface, existing repo at the base commit | Highest: a concrete expected value per case |
+| **Spec tests** | A dedicated test-author model, never one of the implementers for that subtask | Spec, pinned interface, existing repo at the base commit | Highest: hidden pytest modules run inside each sandbox; the verdict |
+| **Regression suite** | The repository's own existing tests | n/a | Highest: must still pass; a run that breaks existing behavior is failed regardless of spec tests |
 | **Spec properties** | Same author | Same | High: metamorphic rules that hold regardless of the exact answer, e.g. "`tier_for` is monotonic in amount", "`quote` total never exceeds subtotal", "`summarize([])` is all zeros" |
 | **Fuzz** | `hypothesis` strategies from the type hints + boundary seeds from the types | Interface only | Medium: no expected value; the majority is the oracle |
 
 Agents' own tests are **not used**: they are derived from the agent's implementation and would share its misunderstanding. Agents may still write tests for their own development loop; the harness ignores them.
 
-**Verdict per run:** verified if it passes every hidden spec test and every property. Fuzz majority never fails a run on its own; a fuzz disagreement with the majority is attached to the reflector as extra evidence and, when the spec author and the majority disagree, raised as a spec-ambiguity flag.
+**How the harness runs on a real repo.** The spec-test author emits pytest files. Per sandbox: copy the hidden test modules in under a temporary name, run `python -I -m pytest <hidden> <repo tests> --junitxml`, remove them, and parse the junit report. Function-level fuzz and properties run only for subtasks whose pinned interface is pure functions.
+
+**Verdict per run:** verified if every hidden spec test passes, every property holds, and the repo's existing suite passes. Fuzz majority never fails a run on its own; a fuzz disagreement with the majority is attached to the reflector as extra evidence and, when the spec author and the majority disagree, raised as a spec-ambiguity flag.
 
 - Spec tests and properties are generated once per subtask and cached, so every run of that subtask (including held-out re-runs) uses the same independent tests.
 - Every implementation runs on every input in an isolated subprocess with a timeout.
@@ -243,8 +248,8 @@ project/
 
 ## 9. Demo script (3 min)
 
-1. **0:00** — The long task: e.g. add a tiered-pricing module across 4 coupled files. Subtask 1 starts; swarm runs; verified majority commits.
-2. **0:40** — Subtask 2: one agent fails cross-test on input `100` (boundary). Its reasoning path leaves the consensus at step 3: *"assumed 'over' includes equal."* Reflector writes the lesson; a failure region appears on the map.
+1. **0:00** — The long task: a real feature across a real open-source repo (6+ coupled subtasks: data model → core behavior → CLI/API → docs). Subtask 1 starts; swarm runs; verified run commits.
+2. **0:40** — Subtask 2: one agent's sandbox fails a hidden spec test (and would have broken subtask 4). Its reasoning path leaves the consensus at step 3, e.g. *"assumed the option is parsed before the config is loaded."* Reflector writes the lesson; a failure region appears on the map.
 3. **1:30** — Held-out gate runs the change with vs. without: repeat-mistake rate drops → **adopted v1**. A second candidate (a routing change) doesn't help → **rolled back**. Both shown in the changelog.
 4. **2:10** — Subtask 3: a different agent's step enters the failure region live; lesson injected; it passes. Trust leaderboard updates.
 5. **2:45** — Numbers: subtasks completed, repeat-mistake rate falling, changes adopted vs. rolled back, held-out accuracy before vs. after.

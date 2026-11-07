@@ -17,8 +17,9 @@ Need a new field or dependency? Post it in chat; Ethan Liu adds it within minute
 
 | Hour | Deliverable |
 | --- | --- |
-| 1 | `git init` + commit in `demo_task/repo`. Decompose `demo_task/task.md` with SubQ and check the 4 subtasks have correct pinned interfaces. Write 3 held-out subtasks in `eval/heldout/` (spec, interface.json, reference impl) on different domains with the same bug patterns. |
-| 2 | Implement `eval/heldout_runner._run_one` (swarm with lesson ids → cross-test with reference as an always-trusted run → `correct`, `repeats`). Add `git commit` in `orchestrator._commit`. Run subtask 1 end to end once Lucas's runner works. |
+| 1 | ~~Pricing demo task, held-out set, `_run_one`, offline loop~~ — done (`ethanliu/orchestration`). |
+| 2 | **Real long-horizon task.** Vendor a real open-source repo under `demo_task/repo/` at a pinned commit (its own `.git`, so `_commit` works). Write `task.md` for a feature that does not exist upstream and spans config → core → CLI/API → docs, and `subtasks.json` with 6–10 coupled subtasks (2–3 files each, pinned signatures/flags/keys). Write 3 held-out feature slices from the same repo under `eval/heldout/<name>/` with a `repo/` base and a `reference/` branch or patch. |
+| 3 | Point the fake swarm at a reference patch per subtask so the offline demo runs on the real repo. Full run, cached snapshot, numbers, video. |
 | 3 | Full run on all 4 subtasks; cache the run as the demo fallback (`runs/demo/`). `eval/metrics.py` numbers. Minimal `ui/` (changelog + trust table is enough). Record the video, submit. |
 
 ## Lucas Chen — swarm agents and LLM clients
@@ -28,7 +29,7 @@ Need a new field or dependency? Post it in chat; Ethan Liu adds it within minute
 | Hour | Deliverable |
 | --- | --- |
 | 1 | Get keys working: SubQ, Meta, Gemini, Anthropic. Finish tool-call mapping in `GeminiClient.chat` and `AnthropicClient.chat` (`core/llm/clients.py`). One agent implements demo subtask 1 for real via `run_one`, producing `steps.jsonl`-style `ReasoningStep`s and a diff. Implement the `run_spec_tests` tool in `runner.py` + `sandbox.py`: runs the subtask's **visible** spec cases against the sandbox and returns pass/fail per case; record the result on the preceding `ReasoningStep` (`live_results`). |
-| 2 | Full roster of 6 in parallel (`run_swarm`), timeouts and token budgets enforced, `Sandbox.diff()` for the copy backend. Make agents reliably call `log_step` before every action (tighten `prompts.py` if they skip it). |
+| 2 | Full roster of 6 in parallel (`run_swarm`), timeouts and token budgets enforced, `Sandbox.diff()` for the copy backend. Make agents reliably call `log_step` before every action (tighten `prompts.py` if they skip it). **Real-repo navigation:** add `list_files(glob)` and `read_file(path)` tools (`tools.py`, `runner.py`, `sandbox.py`) with size caps, and a `run_tests(path=None)` that can run a subset of the repo suite; `run_spec_tests` runs the visible hidden-style pytest modules the harness hands it, not function cases. |
 | 3 | Reliability: retries on API errors, graceful failure per agent, cost/time logging per run. Help with the live run and demo fallback. |
 
 ## Ethan Li — harness, reasoning paths, reflector, changes, store
