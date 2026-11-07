@@ -38,21 +38,29 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:26px;padding:12px 22
 .chip{font:600 10.5px var(--mono);padding:2px 7px;border-radius:5px;background:#2a2417;color:var(--amber);white-space:nowrap}
 .chip.dim{background:#211e18;color:var(--dim)}.chip.pin{background:#1d2a22;color:var(--ok)}
 #tSteps{list-style:none;margin:0;padding:0;overflow:auto;min-height:0;scrollbar-width:none}
-#tSteps li{display:grid;grid-template-columns:20px 1fr;gap:8px;padding:4px 7px;border-radius:7px;margin-bottom:2px;animation:in .35s ease}
+#tSteps li{display:grid;grid-template-columns:20px 1fr;gap:10px;padding:5px 7px;border-radius:7px;margin-bottom:2px;animation:in .35s ease}
 #tSteps li.ph{display:block;color:var(--mute);font-size:12.5px}
-#tSteps .n{font:600 11px var(--mono);color:var(--dim);padding-top:2px}
-#tSteps .as{font-size:12.5px;line-height:1.3}
+#tSteps .n{font:600 10.5px var(--mono);color:var(--mute);width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#24201a;margin-top:1px}
+#tSteps li.bad .n{background:var(--bad);color:#0e0d0b}#tSteps li.heed .n{background:var(--ok);color:#0e0d0b}
+#tSteps .as{font-size:14px;line-height:1.35}
 #tSteps .do{font:11px var(--mono);color:var(--mute);margin-top:1px}
 #tSteps .was{font-size:11px;color:var(--dim);margin-top:2px}
 #tSteps .was s{text-decoration-color:var(--bad)}
 #tSteps li.cur{background:#1e1b15;box-shadow:inset 2px 0 0 var(--amber)}
 #tSteps li.bad{background:rgba(255,107,94,.1);box-shadow:inset 2px 0 0 var(--bad)}
-#tSteps li.bad .as{color:#ffb7ae}#tSteps li.bad .n{color:var(--bad)}
+#tSteps li.bad .as{color:#ffb7ae}
 #tSteps li.heed{background:rgba(127,212,154,.09);box-shadow:inset 2px 0 0 var(--ok)}
-#tSteps li.heed .as{color:#c4f0d1}#tSteps li.heed .n{color:var(--ok)}
+#tSteps li.heed .as{color:#c4f0d1}
 .tag{font:600 10px var(--mono);padding:1px 6px;border-radius:4px;margin-left:6px;color:#0e0d0b}
 .tag.bad{background:var(--bad)}.tag.ok{background:var(--ok)}
 code{font-family:var(--mono);font-size:.92em;color:#f0d9a8}
+.story .ln{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:7px 0;border-bottom:1px solid #221f19;animation:in .35s ease}
+.story .ln:last-of-type{border-bottom:0}
+.story .k{font:600 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding-top:3px}
+.story .v{font-size:14.5px;line-height:1.38}
+.story .k.bad{color:var(--bad)}.story .k.ok{color:var(--ok)}.story .k.les{color:var(--amber)}.story .k.dim{color:var(--mute)}
+.story .v.struck{text-decoration:line-through;text-decoration-color:var(--bad);color:var(--mute)}
+.story .v small{display:block;font:11px var(--mono);margin-top:3px}
 .why h3{margin:0 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:600}
 .cmp{border-left:3px solid;padding:4px 10px;margin:5px 0;border-radius:0 7px 7px 0;font-size:12.5px;line-height:1.35;animation:in .35s ease}
 .cmp span{display:block;font:10.5px var(--mono);color:var(--mute);margin-bottom:1px}
@@ -117,6 +125,8 @@ aside{border-left:1px solid var(--line);background:var(--panel);display:flex;fle
 .pipe .st.on{color:var(--ink);border-color:var(--amber);background:#241e12}.pipe .st.on i{background:var(--amber);color:#0e0d0b}
 .pipe .ar{color:#3d372b;font-size:10px}
 .cut.hot{border-top-color:var(--amber);color:var(--amber)}.cut.hot span{color:var(--amber)}
+.paused{position:absolute;top:14px;left:16px;font:600 12px var(--mono);color:var(--amber);background:rgba(36,30,18,.92);border:1px solid #5a4724;padding:6px 12px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+#stepmode.on{border-color:var(--amber);color:var(--amber)}
 footer{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-top:1px solid var(--line)}
 button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:600 12px var(--mono);cursor:pointer}
 button:hover{border-color:#4a4334}
@@ -152,6 +162,7 @@ button:hover{border-color:#4a4334}
   <div class="stage" id="stage">
     <div class="mapwrap" id="mapwrap">
     <canvas id="map"></canvas>
+    <div class="paused" id="paused">❚❚ paused · press space to continue</div>
     <div class="overlay" id="intro"><div class="card"><h1>The colony gets better</h1><p>Task: add a retry policy and a <code>--since</code> filter to a CLI. The decomposer splits it into three subtasks with pinned interfaces: S1, S2, S3.</p><p style="margin-top:10px">Each beetle is a coding agent. When one falls into a pit, the colony plants a flag there, and only flags that pass the held-out test stay.</p></div></div>
     <div class="overlay bottom" id="outro"><div class="card">
       <h1>Subtask 1 → Subtask 3</h1>
@@ -190,15 +201,16 @@ button:hover{border-color:#4a4334}
     <div class="tl" id="tl"><div class="track"></div><div class="fill" id="fill"></div></div>
     <div class="clock" id="clock">0:00 / 0:00</div>
     <button id="speed">1×</button>
-    <span class="keys">space play · ←/→ beats · 1-3 subtask · R restart</span>
+    <button id="stepmode" title="Pause automatically at the start of every pipeline step (S)">stop at each step: off</button>
+    <span class="keys">space play/pause · S stop at steps · ←/→ steps · 1-3 subtask · R restart</span>
   </footer>
 </div>
 
 <script>
 // ---------- hardcoded scenario (swap for real run data later) ----------
 const W = 1000, H = 600;
-const INTRO = 5, RD = 30, OUTRO = 14;
-const P = { TESTS: 0, ROUTE: 1.2, WALK: 2.4, VERIFY: 16, TRUST: 17, DIVERGE: 19, REFLECT: 20.5, GATE: 22, GATE_DUR: 2.2, GATE_GAP: 2.6, END: 27.5 };
+const INTRO = 5, RD = 40, OUTRO = 14;
+const P = { TESTS: 0, ROUTE: 1.5, WALK: 3, VERIFY: 23, TRUST: 24.5, DIVERGE: 27, REFLECT: 29, GATE: 31, GATE_DUR: 2.6, GATE_GAP: 3, END: 37 };
 
 const AGENTS = [ // roster order = router tie-break order (core/llm/clients.py)
   { id: 'gemini-t2',     co: 'Google',    model: 'gemini-3.8-flash',  paint: 'gemini', trail: '#7d86f5' },
@@ -211,15 +223,15 @@ const AGENTS = [ // roster order = router tie-break order (core/llm/clients.py)
 ];
 const NEST = { x: 82, y: 300 }, FOOD = { x: 928, y: 300 };
 const PITS = {
-  A: { x: 395, y: 212, assume: 'assumed an empty config means "use defaults"',
+  A: { x: 395, y: 212, short: 'empty config = use defaults', assume: 'assumed an empty config means "use defaults"',
        wrong: { a: 'An empty config file means the user wants the defaults', do: 'write_file app/config.py: return Config() on empty input' },
        right: { a: 'Spec §2.3: an empty config file is an error', do: 'write_file app/config.py: raise ConfigError on empty input' },
        heed: 'Lesson L1: empty input is an error, never a silent default' },
-  B: { x: 575, y: 398, assume: 'named the key `retry`; the interface pins `retries`',
+  B: { x: 575, y: 398, short: 'the key is `retry`', assume: 'named the key `retry`; the interface pins `retries`',
        wrong: { a: 'The retry count key is `retry`, like the existing `timeout` key', do: "write_file app/retry.py: read cfg['retry']" },
        right: { a: 'The pinned interface spells the key `retries`', do: "write_file app/retry.py: read cfg['retries']" },
        heed: 'Lesson L2: use key names exactly as the interface pins them' },
-  C: { x: 742, y: 236, assume: 'parsed --since as local time',
+  C: { x: 742, y: 236, short: '--since is local time', assume: 'parsed --since as local time',
        wrong: { a: '`--since` takes a local-time timestamp', do: 'write_file app/cli.py: datetime.fromisoformat(value)' },
        right: { a: 'Spec §4: `--since` is always UTC', do: 'write_file app/cli.py: parse with tzinfo=UTC' },
        heed: 'Lesson L4: every timestamp is UTC' },
@@ -338,24 +350,25 @@ function consensusFor(rd) {
 function buildRun(id, k, rd, T0, cons) {
   const lane = 300 + (k - 2.5) * 54 + (rnd() - .5) * 18;
   const failStep = rd.fail[id], pit = PITS[rd.pit];
-  const pts = [{ x: NEST.x + 14, y: NEST.y + (k - 2.5) * 7 }];
+  const S0 = { x: NEST.x + 20 + (k % 2) * 16, y: NEST.y + (k - 2.5) * 19 };
+  const pts = [S0];
   const xs = [235, 400, 570, 740];
   if (failStep) {
     // Follow the consensus path to the divergence point, then leave it for the pit.
     const fi = Object.keys(rd.fail).indexOf(id), off = (fi - 1) * 5, forkX = pit.x - 135;
-    const poly = cons.filter(q => q.x <= forkX).map(q => ({ x: q.x, y: q.y + off * clamp((q.x - NEST.x) / 90) }));
+    const poly = cons.filter(q => q.x <= forkX).map(q => { const w = 1 - clamp((q.x - NEST.x - 14) / 120); return { x: lerp(q.x, S0.x, w), y: lerp(q.y + off, S0.y, w) }; });
     const F = poly[poly.length - 1], end = { x: pit.x + (fi - 1) * 13, y: pit.y + ((fi % 2) - .5) * 12 }, ctl = { x: lerp(F.x, end.x, .55), y: F.y };
     const forkIdx = poly.length - 1;
     for (let j = 1; j <= 30; j++) { const u = j / 30; poly.push({ x: (1 - u) * (1 - u) * F.x + 2 * (1 - u) * u * ctl.x + u * u * end.x, y: (1 - u) * (1 - u) * F.y + 2 * (1 - u) * u * ctl.y + u * u * end.y }); }
     const cum = lengths(poly), len = cum[cum.length - 1], forkFrac = cum[forkIdx] / len;
-    const t0 = T0 + P.WALK + k * .13 + rnd() * .25, dur = len / (78 + rnd() * 14);
+    const t0 = T0 + P.WALK + k * .13 + rnd() * .25, dur = len / (50 + rnd() * 9);
     const steps = [];
     for (let i = 0; i < failStep - 1; i++) steps.push({ ...SCRIPT[rd.sub].pre[i] });
     steps.push({ ...pit.wrong, bad: true });
     const pins = steps.map((_, i) => i < failStep - 1 ? (i + 1) / (failStep - 1) * forkFrac : 1);
     const own = rd.lessons.find(l => l.from === id);
     return { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep, pit: rd.pit, steps, pins, nSteps: steps.length,
-      avoid: [], fork: F, forkT: t0 + forkFrac * dur, dist: own ? own.dist : .52 + rnd() * .14 };
+      avoid: [], fork: F, forkIdx, forkT: t0 + forkFrac * dur, dist: own ? own.dist : .52 + rnd() * .14 };
   } else {
     for (const x of xs) {
       const tp = rd.tempt[id];
@@ -373,7 +386,7 @@ function buildRun(id, k, rd, T0, cons) {
   for (let i = 1; i < poly.length; i++) cum.push(cum[i - 1] + Math.hypot(poly[i].x - poly[i - 1].x, poly[i].y - poly[i - 1].y));
   const len = cum[cum.length - 1];
   const t0 = T0 + P.WALK + k * .13 + rnd() * .25;
-  const dur = failStep ? len / (78 + rnd() * 14) : 10.4 + rnd() * 1.7;
+  const dur = 16 + rnd() * 2.6;
   const run = { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep || 0, pit: rd.pit,
     nSteps: failStep || 5 + Math.floor(rnd() * 3), avoid: [] };
   for (const [pk, amt] of Object.entries(push)) {
@@ -407,29 +420,29 @@ ROUNDS.forEach((rd, ri) => {
   const firstAvoid = runs.flatMap(r => r.avoid.map(a => ({ id: r.id, t: a.t }))).sort((a, b) => a.t - b.t)[0];
   const focus = [{ t: T0, id: firstAvoid ? firstAvoid.id : authorRun.id }];
   if (firstAvoid) focus.push({ t: Math.max(firstAvoid.t + 1.2, Math.min(firstAvoid.t + 2.6, authorRun.arrive - 1.4)), id: authorRun.id });
-  EVENTS.push({ t: T0 + .1, kind: 'info', text: `${rd.sub} · test author (Gemini) wrote ${rd.tests} hidden tests from the spec alone` });
-  EVENTS.push({ t: T0 + P.ROUTE, kind: 'info', text: `${rd.sub} · router picks the top 6 by trust; ${bench.join(', ')} sits out` });
+  EVENTS.push({ t: T0 + .1, kind: 'info', text: `${rd.sub}: ${rd.tests} hidden tests written from the spec` });
+  EVENTS.push({ t: T0 + P.ROUTE, kind: 'info', text: `Router sent the top 6; ${bench.join(', ')} sits out` });
   for (const r of runs) {
-    if (r.fail) EVENTS.push({ t: r.arrive, kind: 'bad', text: `${r.id} fell into pit ${r.pit} at step ${r.fail}: ${PITS[r.pit].assume}` });
-    for (const a of r.avoid) EVENTS.push({ t: a.t, kind: 'ok', text: `${r.id} steered around pit ${a.pit} using lesson ${a.lesson}` });
+    if (r.fail) EVENTS.push({ t: r.arrive, kind: 'bad', text: `${r.id} fell into pit ${r.pit}` });
+    for (const a of r.avoid) EVENTS.push({ t: a.t, kind: 'ok', text: `${r.id} avoided pit ${a.pit} (${a.lesson})` });
   }
   const fallers = runs.filter(r => r.fail);
   PIT_REVEAL[rd.pit] = Math.min(...fallers.map(r => r.arrive));
   const verified = runs.filter(r => !r.fail);
-  EVENTS.push({ t: T0 + P.VERIFY, kind: 'info', text: `Hidden tests: ${verified.length}/6 verified on ${rd.sub}` });
-  EVENTS.push({ t: T0 + P.DIVERGE, kind: 'bad', text: `Divergence: ${fallers.length} failed path${fallers.length > 1 ? 's' : ''} left the swarm consensus at step ${[...new Set(fallers.map(r => r.fail))].join('/')}; SubQ confirms the root cause` });
+  EVENTS.push({ t: T0 + P.VERIFY, kind: 'info', text: `${verified.length} of 6 passed the hidden tests` });
+  EVENTS.push({ t: T0 + P.DIVERGE, kind: 'bad', text: `Divergence point found at step ${[...new Set(fallers.map(r => r.fail))].join('/')} (${fallers.length} agent${fallers.length > 1 ? 's' : ''})` });
   const winner = verified.slice().sort((a, b) => SNAPS[ri][b.id] - SNAPS[ri][a.id] || byId[a.id].i - byId[b.id].i)[0];
   team.forEach(id => rd.fail[id] ? counts[id].f++ : counts[id].v++);
   SNAPS.push(Object.fromEntries(AGENTS.map(a => [a.id, scoreOf(a.id)])));
   ORDERS.push(order(SNAPS[ri + 1]));
-  EVENTS.push({ t: T0 + P.TRUST, kind: 'amber', text: 'Trust: ' + team.map(id => `${id} ${pct(SNAPS[ri][id])}→${pct(SNAPS[ri + 1][id])}`).join(', ') });
-  EVENTS.push({ t: T0 + P.TRUST + .4, kind: 'ok', text: `Committed ${winner.id}'s code for ${rd.sub} (highest-trust verified run)` });
+  EVENTS.push({ t: T0 + P.TRUST, kind: 'amber', text: `Trust updated: ${verified.length} up, ${fallers.length} down` });
+  EVENTS.push({ t: T0 + P.TRUST + .4, kind: 'ok', text: `Committed ${winner.id}'s code` });
   rd.lessons.forEach((L, j) => {
     const rise = T0 + P.REFLECT + j * .9, g0 = T0 + P.GATE + j * P.GATE_GAP, g1 = g0 + P.GATE_DUR;
     const lesson = { ...L, ri, pit: rd.pit, j, rise, g0, g1 };
     LESSONS.push(lesson);
-    EVENTS.push({ t: rise, kind: 'amber', text: `Reflector wrote ${L.id} from ${L.from}'s step ${L.step} · SubQ confidence ${L.conf.toFixed(2)}` });
-    EVENTS.push({ t: g1, kind: L.adopt ? 'ok' : 'bad', text: `Held-out gate ${L.id}: ${L.before}% → ${L.after}% · ${L.adopt ? 'adopted' : 'rolled back'}` });
+    EVENTS.push({ t: rise, kind: 'amber', text: `Lesson ${L.id} written from ${L.from}'s mistake` });
+    EVENTS.push({ t: g1, kind: L.adopt ? 'ok' : 'bad', text: `${L.id} ${L.adopt ? 'kept' : 'rolled back'}: held-out ${L.before}% → ${L.after}%` });
     if (L.adopt) adopted[rd.pit] = L.id;
   });
   const fk = fallers.map(r => r.fork);
@@ -531,11 +544,11 @@ function label(text, x, y, color = '#9a917f', align = 'center', size = 10.5) {
 }
 function drawNestFood(t, ri) {
   ctx.save();
-  const g = ctx.createRadialGradient(NEST.x, NEST.y, 4, NEST.x, NEST.y, 60);
+  const g = ctx.createRadialGradient(NEST.x + 14, NEST.y, 4, NEST.x + 14, NEST.y, 85);
   g.addColorStop(0, 'rgba(242,181,82,.28)'); g.addColorStop(1, 'rgba(242,181,82,0)');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(NEST.x, NEST.y, 60, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(242,181,82,.5)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(NEST.x, NEST.y, 30, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-  label('NEST', NEST.x, NEST.y + 50);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 85, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(242,181,82,.5)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 62, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  label('NEST', NEST.x + 14, NEST.y + 80);
   const r = R[clamp(ri, 0, R.length - 1)], lt = t - r.T0;
   const glow = ri >= 0 && ri < R.length && lt >= P.VERIFY && lt < P.VERIFY + 2 ? 1 - (lt - P.VERIFY) / 2 : 0;
   const fg = ctx.createRadialGradient(FOOD.x, FOOD.y, 4, FOOD.x, FOOD.y, 70 + glow * 30);
@@ -600,21 +613,30 @@ function drawConsensus(r, t, alpha) {
   label('swarm consensus path', q.x, q.y + 20, `rgba(127,212,154,${.85 * e})`, 'center', 10);
   ctx.globalAlpha = 1;
 }
-function drawDivergence(r, t, alpha) {
+function drawDivergence(r, t, alpha, ghost = false) {
   const rev = r.T0 + P.DIVERGE; if (t < rev) return;
-  const F = r.fork, pit = PITS[r.pit], e = ease(clamp((t - rev) / .6)) * alpha, pulse = 1 + Math.sin(t * 5) * .12;
+  const pit = PITS[r.pit], fallers = r.runs.filter(x => x.fail);
+  const e = (ghost ? 1 : ease(clamp((t - rev) / .6))) * alpha, pulse = ghost ? 1 : 1 + Math.sin(t * 5) * .15;
+  const diamond = (x, y, s) => { ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y); ctx.closePath(); };
   ctx.globalAlpha = e;
-  ctx.strokeStyle = 'rgba(255,107,94,.9)'; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.arc(F.x, F.y, 13 * pulse, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = '#ff6b5e'; ctx.beginPath(); ctx.moveTo(F.x, F.y - 6); ctx.lineTo(F.x + 6, F.y); ctx.lineTo(F.x, F.y + 6); ctx.lineTo(F.x - 6, F.y); ctx.closePath(); ctx.fill();
-  const steps = [...new Set(r.runs.filter(x => x.fail).map(x => x.fail))].join(' / ');
-  const n = r.runs.filter(x => x.fail).length, below = pit.y < F.y, by = below ? F.y + 24 : F.y - 54;
-  const w = 232, bx = F.x - w / 2;
-  ctx.fillStyle = 'rgba(14,13,11,.88)'; ctx.strokeStyle = 'rgba(255,107,94,.7)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(bx, by, w, 32, 6); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(F.x, below ? F.y + 13 : F.y - 13); ctx.lineTo(F.x, below ? by : by + 32); ctx.stroke();
-  label(`DIVERGENCE POINT · step ${steps}`, F.x, by + 13, '#ff6b5e', 'center', 10.5);
-  label(`${n} agent${n > 1 ? 's' : ''} left the consensus here`, F.x, by + 26, '#cfc8b8', 'center', 9.5);
+  for (const f of fallers) {
+    ctx.fillStyle = '#ff6b5e'; ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1.2;
+    diamond(f.fork.x, f.fork.y, ghost ? 4.5 : 6.5); ctx.fill(); ctx.stroke();
+  }
+  const F = r.fork;
+  if (ghost) { label(`${r.sub} divergence`, F.x, F.y + (pit.y < F.y ? 18 : -12), 'rgba(255,107,94,.85)', 'center', 9.5); ctx.globalAlpha = 1; return; }
+  ctx.strokeStyle = 'rgba(255,107,94,.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(F.x, F.y, 17 * pulse, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = e * .35; ctx.beginPath(); ctx.arc(F.x, F.y, 27 * pulse, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = e;
+  const steps = [...new Set(fallers.map(x => x.fail))].join(' / '), n = fallers.length;
+  const below = pit.y < F.y, w = 300, h = 52, bx = F.x - 30, by = below ? F.y + 34 : F.y - 34 - h;
+  ctx.fillStyle = 'rgba(30,12,10,.94)'; ctx.strokeStyle = '#ff6b5e'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.roundRect(bx, by, w, h, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ff6b5e'; ctx.fillRect(bx, by, 4, h);
+  ctx.beginPath(); ctx.moveTo(F.x, below ? F.y + 17 : F.y - 17); ctx.lineTo(F.x, below ? by : by + h); ctx.stroke();
+  label(`DIVERGENCE POINT · step ${steps}`, bx + 14, by + 16, '#ff6b5e', 'left', 11.5);
+  label(`${n} agent${n > 1 ? 's' : ''} left the consensus path here`, bx + 14, by + 31, '#e8dccb', 'left', 10);
+  label(`wrong assumption: ${pit.short}`, bx + 14, by + 45, '#bba99a', 'left', 10);
   ctx.globalAlpha = 1;
 }
 function drawRound(r, t, alpha) {
@@ -625,7 +647,14 @@ function drawRound(r, t, alpha) {
     if (ghost) { ctx.globalAlpha = .1; ctx.strokeStyle = a.trail; ctx.lineWidth = 1; trailPath(run, run.poly.length - 1); ctx.stroke(); ctx.globalAlpha = 1; continue; }
     if (t < run.t0) { drawBeetle(ctx, run.poly[0].x - 6, run.poly[0].y, 0, a, { alpha: clamp((t - r.T0) / .8) * alpha }); continue; }
     const pos = posAt(run, t);
-    ctx.globalAlpha = .1 + .5 * alpha; ctx.strokeStyle = a.trail; ctx.lineWidth = 1.8; trailPath(run, pos.idx); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    const shown = run.fail && t >= r.T0 + P.DIVERGE;
+    ctx.globalAlpha = .1 + .5 * alpha; ctx.strokeStyle = a.trail; ctx.lineWidth = 1.8;
+    if (shown) {
+      trailPath(run, run.forkIdx); ctx.stroke();
+      ctx.globalAlpha = .95 * alpha; ctx.strokeStyle = '#ff6b5e'; ctx.lineWidth = 2.4; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); for (let i = run.forkIdx; i <= pos.idx; i++) i === run.forkIdx ? ctx.moveTo(run.poly[i].x, run.poly[i].y) : ctx.lineTo(run.poly[i].x, run.poly[i].y);
+      ctx.lineTo(pos.x, pos.y); ctx.stroke(); ctx.setLineDash([]);
+    } else { trailPath(run, pos.idx); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }
     for (let s = 1; s <= run.nSteps; s++) {
       const f = run.pins[s - 1]; if (pos.p < f - 1e-6) break;
       const pp = posAt({ ...run, t0: 0, dur: 1 }, f), bad = run.fail && s === run.nSteps;
@@ -636,7 +665,7 @@ function drawRound(r, t, alpha) {
     ctx.globalAlpha = 1;
     const fell = run.fail && pos.p >= 1, moving = pos.p < 1;
     const sink = fell ? clamp((t - run.arrive) / .5) : 0;
-    drawBeetle(ctx, pos.x, pos.y, pos.ang + (fell ? sink * .6 : 0), a, { phase: moving ? (t - run.t0) * 15 : (fell ? t * 9 : 0), flipped: fell && sink > .5, alpha, scale: 1.55 * (1 - sink * .15) });
+    drawBeetle(ctx, pos.x, pos.y, pos.ang + (fell ? sink * .6 : 0), a, { phase: moving ? (t - run.t0) * 10 : (fell ? t * 9 : 0), flipped: fell && sink > .5, alpha, scale: 1.55 * (1 - sink * .15) });
     if (run.id === focusId && alpha > .3) {
       ctx.globalAlpha = alpha; ctx.strokeStyle = a.trail; ctx.lineWidth = 1.3; ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.arc(pos.x, pos.y, 22 + Math.sin(t * 4) * 1.5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
@@ -740,47 +769,47 @@ const gateStatus = (L, t) => t < L.g0 ? ['waiting for the held-out gate', 'st-am
 const traceCache = { head: '', left: '', right: '', icon: '' };
 function traceFor(t) {
   const ri = roundAt(t);
-  if (ri < 0) return { icon: null, name: 'Reasoning trace', sub: 'one log_step before every action', chips: '',
-    left: '<li class="ph">Before every edit or test run, each agent must log its assumption, the action and the files it touches. Calls without a log_step are rejected.</li>',
-    right: '<h3>Why log every step</h3><div class="cmp ok"><span>what the colony keeps</span><div class="tx">Every agent\'s chain of assumptions. When an agent fails, its chain is compared with the swarm\'s to find the exact step where its reasoning went wrong.</div></div>' };
+  const ln = (cls, k, v, extra = '') => `<div class="ln"><span class="k ${cls}">${k}</span><span class="v${extra}">${v}</span></div>`;
+  const story = (h, lines, foot = '') => `<h3>${h}</h3><div class="story">${lines.join('')}</div>${foot ? `<div class="m">${foot}</div>` : ''}`;
+  if (ri < 0) return { icon: null, name: 'Reasoning trace', sub: 'what each agent thinks before it acts', chips: '',
+    left: '<li class="ph">Before every edit or test run, an agent must write down what it believes and what it is about to do. That is its reasoning trace.</li>',
+    right: story('How to read this', [ln('dim', 'left side', 'What the followed agent thinks, one step at a time'), ln('bad', 'red step', 'Where its thinking left the swarm: the divergence point'), ln('ok', 'green step', 'Where a lesson kept it on track')]) };
   if (ri >= R.length) {
     const avoided = R.slice(1).flatMap(r => r.runs.flatMap(x => x.avoid)).length;
-    return { icon: null, name: 'Every lesson, traced', sub: 'wrong assumption → lesson → gate', chips: '',
-      left: LESSONS.map(L => `<li class="${L.adopt ? 'heed' : 'bad'}"><span class="n">${L.id}</span><div><div class="as"><s>${md(PITS[L.pit].wrong.a)}</s></div><div class="as">→ ${md(L.text)}</div><div class="do">${L.from} · ${R[L.ri].sub} step ${L.step} · <span class="${L.adopt ? 'st-ok' : 'st-bad'}">${L.adopt ? 'adopted' : 'rolled back'} ${L.before}% → ${L.after}%</span></div></div></li>`).join(''),
-      right: `<h3>Before vs after</h3><div class="cmp bad"><span>subtask 1</span><div class="tx">3 of 6 agents made the same wrong assumption and fell into pit A.</div></div><div class="cmp ok"><span>subtasks 2 and 3</span><div class="tx">${avoided} times an agent reached a known pit with its lesson in the prompt and steered around it. Nobody fell into a known pit again.</div></div><div class="m">L3 failed the held-out gate, so it never reached a prompt.</div>` };
+    return { icon: null, name: 'Every lesson', sub: 'from a wrong step to a rule', chips: '',
+      left: LESSONS.map(L => `<li class="${L.adopt ? 'heed' : 'bad'}"><span class="n">${L.id.slice(1)}</span><div><div class="as">${md(L.text)}</div><div class="do">${L.adopt ? '<span class="st-ok">kept</span>' : '<span class="st-bad">rolled back</span>'} · held-out ${L.before}% → ${L.after}%</div></div></li>`).join(''),
+      right: story('Before vs after', [ln('bad', 'subtask 1', '3 of 6 agents assumed an empty config means "use the defaults" and failed.'), ln('ok', 'subtasks 2–3', `${avoided} times an agent reached a known pit with its lesson and stayed on track. Nobody fell into a known pit again.`)], 'L3 made held-out worse, so it was rolled back and never reached a prompt.') };
   }
   const f = focusAt(t), { r, id, run } = f, lt = t - r.T0;
-  const chips = (r.prompt.length ? r.prompt.map(l => `<span class="chip">${l} in prompt</span>`).join('') : '<span class="chip dim">no lessons in prompt</span>') + (f.pinned ? '<span class="chip pin">following · click row to release</span>' : '');
-  const base = { icon: id, name: id, sub: `${r.sub} · ${byId[id].model}`, chips };
-  if (!run) return { ...base, left: `<li class="ph">Benched for ${r.sub}: its trust was below the router's cut.</li>`, right: '<h3>Benched</h3><div class="m">The router sends only the top 6 by trust.</div>' };
+  const chips = (r.prompt.length ? r.prompt.map(l => `<span class="chip">${l} in prompt</span>`).join('') : '<span class="chip dim">no lessons yet</span>') + (f.pinned ? '<span class="chip pin">following · click row to release</span>' : '');
+  const base = { icon: id, name: id, sub: `${r.sub} · ${byId[id].co}`, chips };
+  if (!run) return { ...base, left: `<li class="ph">Sitting out ${r.sub}. Its trust was below the router's cut.</li>`, right: story('Benched', [ln('dim', 'why', 'The router only sends the 6 agents with the highest trust.')]) };
   const n = run.steps.length, p = t < run.t0 ? -1 : clamp((t - run.t0) / run.dur);
-  const vis = stepsShown(run, p), fell = run.fail && t >= run.arrive;
+  const vis = stepsShown(run, p), fell = run.fail && t >= run.arrive, diverged = fell && lt >= P.DIVERGE;
   const left = run.steps.slice(0, vis).map((st, i) => {
-    let cls = st.heed ? 'heed' : ''; if (st.bad && fell) cls = 'bad'; if (i === vis - 1 && p < 1 && !st.heed) cls += ' cur';
-    const tag = st.heed ? ` <b class="tag ok">uses ${st.heed}</b>` : (st.bad && fell ? (lt >= P.DIVERGE ? ' <b class="tag bad">divergence point</b>' : ' <b class="tag bad">fell here</b>') : '');
-    return `<li class="${cls}"><span class="n">${i + 1}</span><div><div class="as">${md(st.a)}</div><div class="do">${md(st.do)}${tag}</div>${st.heed ? `<div class="was">before the lesson: <s>${md(st.was)}</s></div>` : ''}</div></li>`;
-  }).join('') || '<li class="ph">Leaving the nest…</li>';
+    const last = i === vis - 1;
+    let cls = st.heed ? 'heed' : ''; if (st.bad && fell) cls = 'bad'; if (last && p < 1 && !st.heed) cls += ' cur';
+    const tag = st.heed ? ` <b class="tag ok">used ${st.heed}</b>` : (st.bad && fell ? ` <b class="tag bad">${diverged ? 'divergence point' : 'fell here'}</b>` : '');
+    const act = last || st.bad || st.heed ? `<div class="do">${md(st.do)}${tag}</div>` : '';
+    return `<li class="${cls}"><span class="n">${i + 1}</span><div><div class="as">${md(st.a)}</div>${act}</div></li>`;
+  }).join('') || '<li class="ph">Waiting at the nest…</li>';
   let right;
-  if (run.fail) {
-    const pit = PITS[run.pit];
-    if (!fell) right = `<h3>Watching ${id}</h3><div class="m">${r.prompt.length ? 'Lessons in prompt: ' + r.prompt.join(', ') + '. None of them covers this pit yet.' : 'No lessons yet. The colony does not know where the pits are.'}</div>`;
-    else {
-      const fixed = LESSONS.find(L => L.pit === run.pit && L.adopt && t >= L.g1);
-      right = `<h3>${lt >= P.DIVERGE ? 'Divergence point' : 'Fell into pit ' + run.pit + ' at'}: step ${run.fail}</h3><div class="cmp bad${fixed ? ' struck' : ''}"><span>${id} assumed</span><div class="tx">${md(pit.wrong.a)}</div></div>`;
-      if (lt >= P.VERIFY && lt < P.DIVERGE) right += '<div class="m">failed hidden tests · locating where its path left the consensus…</div>';
-      else if (lt >= P.DIVERGE) right += `<div class="cmp ok"><span>swarm consensus at this step</span><div class="tx">${md(pit.right.a)}</div></div><div class="m">failed hidden tests · ${run.dist.toFixed(2)} from the consensus path · SubQ confirms step ${run.fail}</div>`;
-      else right += `<div class="m">fell into pit ${run.pit} · waiting for the hidden tests</div>`;
-      const L = LESSONS.find(x => x.from === id && x.ri === f.ri);
-      if (L && t >= L.rise) { const [st, cl] = gateStatus(L, t); right += `<div class="cmp les"><span>${L.id} from the reflector · <b class="${cl}">${st}</b></span><div class="tx">${md(L.text)}</div></div>`; }
-    }
+  if (run.fail && fell) {
+    const pit = PITS[run.pit], fixed = LESSONS.find(L => L.pit === run.pit && L.adopt && t >= L.g1);
+    const lines = [ln('bad', 'it thought', md(pit.wrong.a), fixed ? ' struck' : '')];
+    let foot = lt < P.VERIFY ? `Fell into pit ${run.pit}. Waiting for the hidden tests.` : `Failed the hidden tests. Finding where its thinking went wrong…`;
+    if (diverged) { lines.push(ln('ok', 'swarm thought', md(pit.right.a))); foot = `Divergence point: step ${run.fail}. SubQ agrees this step caused the failure.`; }
+    const L = LESSONS.find(x => x.from === id && x.ri === f.ri);
+    if (L && t >= L.rise) { const [st, cl] = gateStatus(L, t); lines.push(ln('les', `lesson ${L.id}`, `${md(L.text)}<small class="${cl}">${st}</small>`)); }
+    right = story(diverged ? 'What went wrong' : `Fell at step ${run.fail}`, lines, foot);
   } else if (run.avoid.length && t >= run.avoid[0].t - .6) {
     const av = run.avoid[0], L0 = LESSONS.find(L => L.pit === av.pit && L.adopt);
-    right = `<h3>Same trap, different outcome</h3><div class="cmp bad struck"><span>${R[L0.ri].sub} · ${L0.from} · step ${L0.step}</span><div class="tx">${md(PITS[av.pit].wrong.a)}</div></div><div class="cmp ok"><span>${r.sub} · ${id} · step ${av.step}</span><div class="tx">${md(PITS[av.pit].heed)}</div></div><div class="m">${L0.id} was in its prompt · steered around pit ${av.pit} · no fall</div>`;
-  } else if (lt >= P.VERIFY) {
-    right = `<h3>Verified</h3><div class="cmp ok"><span>step 4 matches the swarm consensus</span><div class="tx">${md(PITS[r.pit].right.a)}</div></div><div class="m">passed every hidden test</div>`;
+    right = story('What the lesson changed', [ln('bad', `before · ${R[L0.ri].sub}`, `${md(PITS[av.pit].wrong.a)}<small>${L0.from} fell into pit ${av.pit}</small>`, ''), ln('ok', `now · ${r.sub}`, `${md(PITS[av.pit].heed)}<small>${id} stayed on track</small>`)], `${L0.id} was in its prompt, so it steered around pit ${av.pit}.`);
+  } else if (!run.fail && lt >= P.VERIFY) {
+    right = story('On track', [ln('ok', 'it thought', md(PITS[r.pit].right.a))], 'Matched the swarm and passed every hidden test.');
   } else if (r.prompt.length) {
-    right = '<h3>Lessons in this agent\'s prompt</h3>' + r.prompt.map(lid => { const L0 = LESSONS.find(x => x.id === lid); return `<div class="cmp les"><span>${lid} · learned from ${L0.from}'s fall in ${R[L0.ri].sub}</span><div class="tx">${md(L0.text)}</div></div>`; }).join('');
-  } else right = `<h3>Watching ${id}</h3><div class="m">No lessons yet. The colony does not know where the pits are.</div>`;
+    right = story('Lessons it starts with', r.prompt.map(lid => { const L0 = LESSONS.find(x => x.id === lid); return ln('les', lid, `${md(L0.text)}<small>learned from ${L0.from} in ${R[L0.ri].sub}</small>`); }));
+  } else right = story(`Following ${id}`, [ln('dim', 'lessons', 'None yet. The colony does not know where the pits are.')]);
   return { ...base, left, right };
 }
 function updateTrace(t) {
@@ -874,7 +903,7 @@ function updateHeader(t) {
 
 // ---------- main loop + controls ----------
 const params = new URLSearchParams(location.search);
-let T = clamp(parseFloat(params.get('t')) || 0, 0, TOTAL), playing = !params.has('paused') && !params.has('t'), speed = 1, last = performance.now();
+let T = clamp(parseFloat(params.get('t')) || 0, 0, TOTAL), playing = !params.has('paused') && !params.has('t'), speed = 1, stepMode = false, last = performance.now();
 
 function render() {
   const { s, ox, oy, dpr } = view;
@@ -884,9 +913,9 @@ function render() {
   const ri = roundAt(T);
   focusId = focusAt(T)?.id ?? null;
   drawNestFood(T, ri);
-  if (T >= OUTRO_T) { drawPits(T); drawFlags(T); drawOutro(T); }
+  if (T >= OUTRO_T) { drawPits(T); drawFlags(T); drawOutro(T); R.forEach(r => drawDivergence(r, T, .8, true)); }
   else {
-    for (let i = 0; i < Math.min(ri, R.length); i++) drawRound(R[i], T, 1);
+    for (let i = 0; i < Math.min(ri, R.length); i++) { drawRound(R[i], T, 1); drawDivergence(R[i], T, .55, true); }
     drawPits(T); drawFlags(T);
     if (ri >= 0) { const lt = T - R[ri].T0, al = lt > P.END ? 1 - clamp((lt - P.END) / (RD - P.END)) : 1; drawRound(R[ri], T, al); drawDivergence(R[ri], T, al); }
   }
@@ -896,10 +925,15 @@ function render() {
   $('fill').style.width = (T / TOTAL * 100) + '%';
   $('clock').textContent = `${fmt(T)} / ${fmt(TOTAL)}`;
   $('play').textContent = playing ? '❚❚ pause' : '▶ play';
+  $('paused').style.opacity = !playing && T > 0 && T < TOTAL ? '1' : '0';
 }
 function frame(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
-  if (playing) { T += dt * speed; if (T >= TOTAL) { T = TOTAL; playing = false; } }
+  if (playing) {
+    const prev = T; T += dt * speed;
+    if (stepMode) { const b = BEATS.find(x => x > prev + 1e-3 && x <= T); if (b !== undefined) { T = b; playing = false; } }
+    if (T >= TOTAL) { T = TOTAL; playing = false; }
+  }
   render(); requestAnimationFrame(frame);
 }
 function seek(t) { T = clamp(t, 0, TOTAL); logCount = -1; }
@@ -915,12 +949,14 @@ tl.addEventListener('pointerdown', e => { drag = true; tl.setPointerCapture(e.po
 tl.addEventListener('pointermove', e => drag && tlSeek(e));
 tl.addEventListener('pointerup', () => drag = false);
 $('play').onclick = () => { if (T >= TOTAL) seek(0); playing = !playing; };
+$('stepmode').onclick = () => { stepMode = !stepMode; $('stepmode').textContent = 'stop at each step: ' + (stepMode ? 'on' : 'off'); $('stepmode').classList.toggle('on', stepMode); };
 $('speed').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? .5 : 1; $('speed').textContent = speed + '×'; };
 window.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
   else if (e.key === 'ArrowRight') seek(BEATS.find(b => b > T + .05) ?? TOTAL);
   else if (e.key === 'ArrowLeft') seek([...BEATS].reverse().find(b => b < T - .3) ?? 0);
   else if (e.key >= '1' && e.key <= String(R.length)) seek(R[+e.key - 1].T0);
+  else if (e.key === 's' || e.key === 'S') $('stepmode').click();
   else if (e.key === 'r' || e.key === 'R') { seek(0); playing = true; }
   else if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
 });
