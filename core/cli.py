@@ -24,6 +24,8 @@ committed into, so it is reset to `base_commit` first when it has moved (`--rese
 
 from __future__ import annotations
 
+import os
+
 import subprocess
 import sys
 from pathlib import Path
@@ -87,6 +89,7 @@ def run(
     )
 
     use_fake_embeddings()
+    os.environ.setdefault("SWARM_FAKE", "1")  # router: keep the full roster even when real keys are configured
     task_dir = Path(task_file).resolve().parent
     runner = (
         make_heldout_runner(store, swarm_fn=fake_heldout_swarm(heldout_dir), spec_fn=fake_spec_tests, heldout_dir=heldout_dir, n_fuzz=FAKE_N_FUZZ)
