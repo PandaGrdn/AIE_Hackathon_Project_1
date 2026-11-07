@@ -27,6 +27,7 @@ def main() -> int:
     ap.add_argument("--agents", default="gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--out", default=None, help="write the gated snapshot here (default: in place)")
+    ap.add_argument("--regate-blind", action="store_true", help="also re-decide lessons rolled back with a blind score (held-out before == after == 0.0)")
     args = ap.parse_args()
 
     import os
@@ -38,8 +39,17 @@ def main() -> int:
     from core.config import settings
 
     store = load_snapshot(args.snapshot)
-    decided = {c.ref_id for c in store.list_changes() if c.kind == ChangeKind.context}
+    changes = store.list_changes()
+    decided = {c.ref_id for c in changes if c.kind == ChangeKind.context}
     leftovers = [l for l in store.list_lessons() if l.status == ChangeStatus.candidate and l.id not in decided]
+    if args.regate_blind:
+        blind = {c.ref_id for c in changes if c.kind == ChangeKind.context and c.status == ChangeStatus.rolled_back
+                 and not c.heldout_before.get("accuracy") and not c.heldout_after.get("accuracy")}
+        for l in store.list_lessons():
+            if l.id in blind and l.id not in {x.id for x in leftovers}:
+                l.status = ChangeStatus.candidate  # re-decided below with the pass-fraction score
+                leftovers.append(l)
+        print(f"{len(blind)} rolled-back lesson(s) had a blind 0.0 -> 0.0 score and will be re-decided")
     print(f"{len(leftovers)} undecided lesson(s) not yet gated")
     for l in leftovers:
         print(" -", l.id, l.text[:100])
@@ -48,7 +58,8 @@ def main() -> int:
     hdir = mcp_heldout_dir(settings.runs_dir / "record_demo" / "heldout_mcp")
     run_heldout = make_heldout_runner(store, heldout_dir=hdir, swarm_size=args.heldout_swarm_size)
     for l in leftovers:
-        ch = evaluate_change(Change(kind=ChangeKind.context, ref_id=l.id, description=f"lesson: {l.text}"), store, run_heldout)
+        desc = f"lesson: {l.text}" + (" [re-decided with pass-fraction score]" if l.id in decided else "")
+        ch = evaluate_change(Change(kind=ChangeKind.context, ref_id=l.id, description=desc), store, run_heldout)
         print(f"{ch.status}: {l.text[:80]} — {ch.reason} {ch.heldout_before} -> {ch.heldout_after}")
         write_snapshot(store, args.out or args.snapshot)
     return 0
