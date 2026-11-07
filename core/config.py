@@ -36,6 +36,8 @@ class Settings:
 
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash"))
+    # A deliberately weaker, hotter swarm member: real diversity is how real failures (and lessons) arise.
+    gemini_weak_model: str = field(default_factory=lambda: _env("GEMINI_WEAK_MODEL", "gemini-3.5-flash-lite"))
     # thinking level for Gemini tool-loop (swarm agent) turns: low | medium | high, "" = model default
     gemini_agent_thinking: str = field(default_factory=lambda: _env("GEMINI_AGENT_THINKING", "low"))
     gemini_embed_model: str = field(default_factory=lambda: _env("GEMINI_EMBED_MODEL", "gemini-embedding-2"))

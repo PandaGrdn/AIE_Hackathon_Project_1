@@ -348,6 +348,7 @@ def swarm_identities() -> list[AgentIdentity]:
     return [
         AgentIdentity(id="gemini-t2", provider="gemini", model=settings.gemini_model, temperature=0.2),
         AgentIdentity(id="gemini-t7-alt", provider="gemini", model=settings.gemini_model, temperature=0.7, prompt_variant="alt"),
+        AgentIdentity(id="gemini-lite-t9-alt", provider="gemini", model=settings.gemini_weak_model, temperature=0.9, prompt_variant="alt"),
         AgentIdentity(id="claude-t2", provider="anthropic", model=settings.anthropic_model, temperature=0.2),
         AgentIdentity(id="claude-t7-alt", provider="anthropic", model=settings.anthropic_model, temperature=0.7, prompt_variant="alt"),
         AgentIdentity(id="openai-t2", provider="openai", model=settings.openai_model, temperature=0.2),
