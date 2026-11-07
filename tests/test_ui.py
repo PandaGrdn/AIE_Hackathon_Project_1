@@ -241,3 +241,9 @@ def test_old_snapshot_without_divergences_loads(store, tmp_path):
     loaded = load_snapshot(path)
     assert loaded.divergences == []
     assert TestClient(make_app(loaded)).get("/api/divergences").json() == []
+
+
+def test_concept_page_serves_terrain(client):
+    r = client.get("/concept")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert "Reasoning terrain" in r.text and "/api/steps" in r.text

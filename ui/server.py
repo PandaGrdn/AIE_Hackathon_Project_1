@@ -42,6 +42,7 @@ from core.store.memory import MemoryStore
 
 HERE = Path(__file__).resolve().parent
 INDEX_HTML = HERE / "index.html"
+CONCEPT_HTML = HERE / "concept.html"
 SNAPSHOT_VERSION = 1
 
 
@@ -302,6 +303,10 @@ def make_app(store=None) -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(INDEX_HTML, media_type="text/html")
+
+    @app.get("/concept", include_in_schema=False)
+    def concept():
+        return FileResponse(CONCEPT_HTML, media_type="text/html")
 
     @app.get("/api/changes")
     def changes():

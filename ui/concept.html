@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reasoning terrain</title>
+<style>
+  :root {
+    --ground: #22231A; --soil: #2E2F23; --scrub: #464831; --sage: #87826E; --bark: #734E30; --salt: #F1EBE4;
+    --ink: var(--salt); --mute: var(--sage); --rule: var(--scrub);
+    --meta: #0866FF; --gemini: #9168C0; --claude: #D97757; --openai: #10A37F; --subq: #C9C2B4;
+  }
+  html[data-theme="salt"] { --ground: #F1EBE4; --ink: #22231A; --mute: #734E30; --rule: #87826E; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--ground); color: var(--ink); }
+  body { font: 16px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; padding: 18px 24px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; margin-bottom: 12px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: 0; }
+  .caption { color: var(--mute); }
+  .spacer { flex: 1; }
+  button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 2px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  button:focus-visible { outline: 2px solid var(--claude); outline-offset: 2px; }
+  #wrap { position: relative; border: 1px solid var(--rule); }
+  #terrain { display: block; width: 100%; height: 72vh; min-height: 420px; }
+  #legend { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 12px 2px 0; color: var(--mute); }
+  #legend b { font-weight: 600; color: var(--ink); }
+  #legend .sp { font-weight: 700; margin-right: 6px; }
+  .sheet { margin-top: 48px; max-width: 76ch; }
+  .sheet h2 { font-size: 18px; font-weight: 600; margin: 32px 0 10px; }
+  .sheet p { margin: 0 0 10px; color: var(--mute); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .sw { border: 1px solid var(--rule); padding: 8px 10px; }
+  .sw i { display: block; height: 36px; margin-bottom: 6px; }
+  .sw small { color: var(--mute); display: block; }
+  .opt { display: grid; grid-template-columns: 11ch 1fr; gap: 10px 18px; align-items: start; margin: 12px 0; }
+  .opt pre { margin: 0; font: inherit; line-height: 1.15; font-size: 20px; }
+  .opt .why { color: var(--mute); }
+  @media (prefers-reduced-motion: reduce) { .motion-note { display: inline; } }
+  .motion-note { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Reasoning terrain</h1>
+  <span class="caption" id="caption">loading the swarm</span>
+  <span class="spacer"></span>
+  <span class="caption">theme</span>
+  <button id="t-night" aria-pressed="true">night</button>
+  <button id="t-salt" aria-pressed="false">salt</button>
+  <button id="t-heldout" aria-pressed="false">held-out runs</button>
+</header>
+<div id="wrap"><canvas id="terrain" role="img" aria-label="ASCII terrain of the reasoning space with beetles for each agent"></canvas></div>
+<div id="legend"></div>
+
+<section class="sheet">
+  <h2>What you are looking at</h2>
+  <p>Every reasoning step of every agent run is embedded, then projected with PCA. Height is how often agents reasoned there, so consensus paths become ridges and the lesson's failure region is a pit. Each beetle is one agent in its company's color. It walks its real steps, in order, and leaves a trail that fades. A beetle that reaches the step SubQ blamed flips onto its back and stays there.</p>
+  <p class="motion-note">Reduced motion is on in your system, so beetles stand still and trails are drawn in full.</p>
+
+  <h2>Palette, as a desert</h2>
+  <div class="swatches" id="swatches"></div>
+
+  <h2>Beetle options</h2>
+  <div class="opt"><pre style="color:var(--claude)"> ╲<span style="color:var(--salt)">▀</span>╱
+─▐█▌─
+╱▐█▌╲
+ ▝▀▘</pre><div><b>A. block beetle</b><div class="why">Solid elytra from block glyphs, a lighter head shows heading. Reads at projector distance. Used in the canvas above.</div></div></div>
+  <div class="opt"><pre style="color:var(--gemini)"> ╲╷╱
+─(█)─
+╱(█)╲
+ ╰─╯</pre><div><b>B. outlined beetle</b><div class="why">Line glyphs for the shell, closer to classic ASCII art. Lighter on the terrain, but thin on a projector.</div></div></div>
+  <div class="opt"><pre style="color:var(--meta)">▗▄▄▄▖
+▐█████▌
+▝▜███▛▘
+  ▀▀▀</pre><div><b>C. pixel beetle</b><div class="why">Half-block glyphs give twice the vertical resolution, so it looks like pixel art rather than text. Heavier, no visible legs.</div></div></div>
+
+  <h2>Trail options</h2>
+  <div class="opt"><pre style="color:var(--claude)">@#*+=-:·.  </pre><div><b>A. density fade</b><div class="why">Glyph density and opacity decay with age, like the Framer FlowTrail. Used above.</div></div></div>
+  <div class="opt"><pre style="color:var(--claude)">· · · · · ·</pre><div><b>B. breadcrumbs</b><div class="why">One dot per step only, so the trail is the reasoning path itself, nothing between steps.</div></div></div>
+  <div class="opt"><pre style="color:var(--claude)">≈≈~~--··  </pre><div><b>C. wind smear</b><div class="why">Wave glyphs that flatten as they age, sand blown over tracks.</div></div></div>
+</section>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const THEMES = {
+  night: { bg: "#22231A", ramp: ["#2E2F23", "#464831", "#87826E", "#734E30", "#F1EBE4"], pit: "#734E30", ink: "#F1EBE4", mute: "#87826E", belly: "#F1EBE4" },
+  salt:  { bg: "#F1EBE4", ramp: ["#E1DACF", "#87826E", "#734E30", "#464831", "#22231A"], pit: "#734E30", ink: "#22231A", mute: "#734E30", belly: "#F1EBE4" },
+};
+const RAMP = " .:-=+*#%@";
+const TRAIL = "@%#*+=-:·.";
+const TRAIL_LIFE = 18;  // seconds
+const SPEED = 6.5;      // cells per second
+const COMPANY = [[/meta|muse/, "meta", "Meta"], [/gemini|google/, "gemini", "Gemini"], [/claude|anthropic/, "claude", "Claude"], [/gpt|openai/, "openai", "OpenAI"], [/subq/, "subq", "SubQ"]];
+const companyOf = (id) => { for (const [re, k, name] of COMPANY) if (re.test(id || "")) return { key: k, name }; return { key: "subq", name: "other" }; };
+const cssVar = (k) => getComputedStyle(document.documentElement).getPropertyValue("--" + k).trim();
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// sprites: rows of glyphs; "H" cells are the head (drawn lighter)
+const SPRITES = {
+  up:    [[" ╲H╱", "─▐█▌─", "╱▐█▌╲", " ▝▀▘"], [" ╱H╲", "─▐█▌─", "╲▐█▌╱", " ▝▀▘"]],
+  down:  [[" ▗▄▖", "╲▐█▌╱", "─▐█▌─", " ╱H╲"], [" ▗▄▖", "╱▐█▌╲", "─▐█▌─", " ╲H╱"]],
+  right: [[" ╲ │ ╱", "▝████H", " ╱ │ ╲"], [" ╱ │ ╲", "▝████H", " ╲ │ ╱"]],
+  left:  [[" ╲ │ ╱", "H████▘", " ╱ │ ╲"], [" ╱ │ ╲", "H████▘", " ╲ │ ╱"]],
+  dead:  [["╲ ╲╱ ╱", " ▐░▌", "╱ ╱╲ ╲"]],
+};
+const HEAD = { up: "▀", down: "▄", right: "▌", left: "▐" };
+
+// ---------- PCA (power iteration, 3 components) ----------
+function topComponents(X, k, iters) {
+  const n = X.length, d = X[0].length, comps = [];
+  for (let c = 0; c < k; c++) {
+    let v = new Float64Array(d);
+    for (let j = 0; j < d; j++) v[j] = Math.sin(1.7 * (j + 1) * (c + 1)) + 0.01;
+    for (let it = 0; it < iters; it++) {
+      const xv = new Float64Array(n);
+      for (let i = 0; i < n; i++) { let s = 0; const r = X[i]; for (let j = 0; j < d; j++) s += r[j] * v[j]; xv[i] = s; }
+      const w = new Float64Array(d);
+      for (let i = 0; i < n; i++) { const r = X[i], s = xv[i]; for (let j = 0; j < d; j++) w[j] += r[j] * s; }
+      for (const u of comps) { let dot = 0; for (let j = 0; j < d; j++) dot += w[j] * u[j]; for (let j = 0; j < d; j++) w[j] -= dot * u[j]; }
+      let norm = 0; for (let j = 0; j < d; j++) norm += w[j] * w[j]; norm = Math.sqrt(norm);
+      if (norm < 1e-12) break;
+      for (let j = 0; j < d; j++) w[j] /= norm;
+      v = w;
+    }
+    let m = 0; for (let j = 1; j < d; j++) if (Math.abs(v[j]) > Math.abs(v[m])) m = j;
+    if (v[m] < 0) for (let j = 0; j < d; j++) v[j] = -v[j];
+    comps.push(v);
+  }
+  return comps;
+}
+// decompress a tight cluster so hills are visible: signed power curve around the median
+const decompress = (x) => Math.sign(x) * Math.pow(Math.abs(x), 0.6);
+
+// value noise for dunes where no one reasoned
+function hash(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
+function noise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
+// ---------- world ----------
+const world = { theme: "night", heldout: false, data: null, grid: null, beetles: [], corpses: [], trails: new Map(), terrainCanvas: null, pits: [] };
+const canvas = $("terrain"), ctx = canvas.getContext("2d");
+let dpr = 1, cellW = 10, cellH = 18, fontPx = 16, cols = 0, rows = 0;
+
+function measure() {
+  const r = canvas.getBoundingClientRect();
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fontPx = r.width > 1300 ? 17 : 15;
+  ctx.font = `${fontPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+  cellW = ctx.measureText("M").width; cellH = Math.round(fontPx * 1.18);
+  cols = Math.floor(r.width / cellW); rows = Math.floor(r.height / cellH);
+}
+
+function layout() {
+  const { steps, divs, regions } = world.data;
+  const use = steps.filter((s) => Array.isArray(s.embedding) && s.embedding.length && (world.heldout || !String(s.subtask_id || "").startsWith("heldout-")));
+  const dims = {}; use.forEach((s) => { dims[s.embedding.length] = (dims[s.embedding.length] || 0) + 1; });
+  const d = +Object.keys(dims).sort((a, b) => dims[b] - dims[a])[0];
+  const pts = use.filter((s) => s.embedding.length === d);
+  if (!pts.length) return null;
+  const mean = new Float64Array(d);
+  pts.forEach((s) => { for (let j = 0; j < d; j++) mean[j] += s.embedding[j] / pts.length; });
+  const X = pts.map((s) => { const r = new Float64Array(d); for (let j = 0; j < d; j++) r[j] = s.embedding[j] - mean[j]; return r; });
+  const comps = topComponents(X, 2, 60);
+  const proj = (e) => comps.map((u) => { let s = 0; for (let j = 0; j < d; j++) s += (e[j] - mean[j]) * u[j]; return decompress(s); });
+  const P = pts.map((s) => proj(s.embedding));
+  const R = regions.filter((r) => Array.isArray(r.centroid) && r.centroid.length === d).map((r) => ({ r, c: proj(r.centroid) }));
+  const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const padX = 8, padY = 3;
+  const sx = (x) => padX + ((x - x0) / Math.max(1e-9, x1 - x0)) * (cols - 2 * padX);
+  const sy = (y) => padY + (1 - (y - y0) / Math.max(1e-9, y1 - y0)) * (rows - 2 * padY);
+  const placed = pts.map((s, i) => ({ ...s, cx: sx(P[i][0]), cy: sy(P[i][1]) }));
+  const pits = R.map(({ r, c }) => ({ x: sx(c[0]), y: sy(c[1]), rad: Math.max(3, Math.min(7, r.radius * 12)) }));
+  // root-cause step per run (latest divergence wins; divs arrive newest first)
+  const roots = {};
+  divs.forEach((dv) => { if (dv.run_id && !(dv.run_id in roots)) roots[dv.run_id] = dv; });
+  // group by run, order runs by first appearance (the orchestrator's subtask order)
+  const byRun = new Map();
+  placed.forEach((s) => { if (!byRun.has(s.run_id)) byRun.set(s.run_id, []); byRun.get(s.run_id).push(s); });
+  byRun.forEach((arr) => arr.sort((a, b) => (a.step_index ?? 0) - (b.step_index ?? 0)));
+  const byAgent = new Map();
+  byRun.forEach((arr, rid) => { const a = arr[0].agent_id || "agent"; if (!byAgent.has(a)) byAgent.set(a, []); byAgent.get(a).push({ rid, steps: arr, root: roots[rid] }); });
+  return { placed, pits, byAgent, roots, runCount: byRun.size, subtasks: new Set(placed.map((s) => s.subtask_id)).size };
+}
+
+function buildTerrain(g) {
+  const T = THEMES[world.theme];
+  const h = new Float32Array(cols * rows);
+  const sig2 = 2 * 3.0 * 3.0;
+  let mx = 0;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    let v = 0;
+    for (const p of g.placed) { const dx = c - p.cx, dy = (r - p.cy) * 1.8; const d2 = dx * dx + dy * dy; if (d2 < 220) v += Math.exp(-d2 / sig2); }
+    v = Math.min(v, 6) / 6;
+    v += 0.28 * noise(c * 0.055, r * 0.1) + 0.12 * noise(c * 0.17, r * 0.3);
+    for (const p of g.pits) { const dx = c - p.x, dy = (r - p.y) * 1.8; v -= 1.1 * Math.exp(-(dx * dx + dy * dy) / (2 * p.rad * p.rad)); }
+    h[r * cols + c] = v; if (v > mx) mx = v;
+  }
+  const off = document.createElement("canvas");
+  off.width = canvas.width; off.height = canvas.height;
+  const o = off.getContext("2d");
+  o.setTransform(dpr, 0, 0, dpr, 0, 0);
+  o.fillStyle = T.bg; o.fillRect(0, 0, canvas.width, canvas.height);
+  o.font = ctx.font; o.textBaseline = "top";
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const v = Math.max(0, h[r * cols + c]) / mx;
+    const ci = Math.min(RAMP.length - 1, Math.floor(v * RAMP.length));
+    if (ci === 0) continue;
+    const band = Math.min(T.ramp.length - 1, Math.floor(v * T.ramp.length));
+    // contour: band edge against the neighbour above
+    const up = r > 0 ? Math.min(T.ramp.length - 1, Math.floor(Math.max(0, h[(r - 1) * cols + c]) / mx * T.ramp.length)) : band;
+    o.fillStyle = T.ramp[band];
+    o.fillText(up !== band && band >= 2 ? "─" : RAMP[ci], c * cellW, r * cellH);
+  }
+  // pit rims
+  o.fillStyle = T.pit;
+  for (const p of g.pits) {
+    for (let a = 0; a < Math.PI * 2; a += 0.22) { const c = Math.round(p.x + Math.cos(a) * p.rad * 1.6), r = Math.round(p.y + Math.sin(a) * p.rad * 0.9); if (c >= 0 && c < cols && r >= 0 && r < rows) o.fillText("˙", c * cellW, r * cellH); }
+  }
+  world.terrainCanvas = off;
+}
+
+function makeBeetles(g) {
+  const beetles = [];
+  let k = 0;
+  g.byAgent.forEach((runs, agent) => {
+    const co = companyOf(agent);
+    const wps = [];
+    // enter from an edge
+    const side = k % 4; k++;
+    const first = runs[0].steps[0];
+    wps.push({ x: side === 0 ? -4 : side === 1 ? cols + 4 : first.cx, y: side === 2 ? -3 : side === 3 ? rows + 3 : first.cy });
+    runs.forEach((run) => {
+      run.steps.forEach((s, i) => {
+        if (i > 0) {
+          const a = run.steps[i - 1], dx = s.cx - a.cx, dy = s.cy - a.cy, len = Math.hypot(dx, dy) || 1;
+          const amp = (3 + 5 * hash(i, k)) * (i % 2 ? 1 : -1);
+          wps.push({ x: (a.cx + s.cx) / 2 - (dy / len) * amp, y: (a.cy + s.cy) / 2 + (dx / len) * amp * 0.55 });
+        }
+        wps.push({ x: s.cx, y: s.cy, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null, failed: s.failed === true });
+      });
+    });
+    wps.push({ x: side === 1 ? -4 : side === 0 ? cols + 4 : first.cx, y: side === 3 ? -3 : side === 2 ? rows + 3 : first.cy, exit: true });
+    beetles.push({ agent, co, color: cssVar(co.key), wps, i: 0, t: hash(k, 7) * 0.9, x: wps[0].x, y: wps[0].y, face: "up", frame: 0, flipT: 0, done: false, pace: 0.7 + 0.6 * hash(k, 3) });
+  });
+  return beetles;
+}
+
+function rebuild() {
+  measure();
+  const g = layout();
+  world.grid = g; world.trails.clear(); world.corpses = [];
+  if (!g) { world.beetles = []; $("caption").textContent = "no reasoning steps with embeddings yet"; drawEmpty(); return; }
+  buildTerrain(g);
+  world.beetles = makeBeetles(g);
+  const flipped = Object.keys(g.roots).filter((rid) => g.byAgent.size && [...g.byAgent.values()].some((rs) => rs.some((r) => r.rid === rid))).length;
+  $("caption").textContent = `${g.runCount} runs across ${g.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped`;
+  renderLegend();
+  if (reduced) { // draw full trails and park beetles at their last step
+    world.beetles.forEach((b) => { b.wps.forEach((w) => stamp(w.x, w.y, b.color, -TRAIL_LIFE * 0.5)); const last = b.wps[b.wps.length - 2]; b.x = last.x; b.y = last.y; });
+  }
+}
+
+function drawEmpty() { const T = THEMES[world.theme]; ctx.fillStyle = T.bg; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+function renderLegend() {
+  const trust = Object.fromEntries((world.data.trust || []).map((t) => [t.agent_id, t.score]));
+  $("legend").innerHTML = world.beetles.map((b) => `<span><span class="sp" style="color:${b.color}">▐█▌</span><b>${b.agent}</b> ${b.co.name}${trust[b.agent] != null ? `, trust ${trust[b.agent].toFixed(2)}` : ""}</span>`).join("");
+}
+
+// ---------- animation ----------
+let lastT = 0;
+function stamp(x, y, color, ageOffset = 0) {
+  const c = Math.round(x), r = Math.round(y);
+  if (c < 0 || r < 0 || c >= cols || r >= rows) return;
+  world.trails.set(r * cols + c, { t: now() + ageOffset, color });
+}
+const now = () => performance.now() / 1000;
+
+function step(dt) {
+  for (const b of world.beetles) {
+    if (b.done) continue;
+    if (b.flipT > 0) { b.flipT -= dt; if (b.flipT <= 0) { b.i++; b.t = 0; } continue; }
+    const a = b.wps[b.i], z = b.wps[b.i + 1];
+    if (!z) { b.done = true; continue; }
+    const len = Math.hypot(z.x - a.x, (z.y - a.y) * 1.8) || 1;
+    b.t += (SPEED * b.pace * dt) / len;
+    const px = b.x, py = b.y;
+    const wob = Math.sin(now() * 7 + b.wps.length) * 0.35;
+    b.x = a.x + (z.x - a.x) * Math.min(1, b.t) + wob * ((z.y - a.y) / len);
+    b.y = a.y + (z.y - a.y) * Math.min(1, b.t) - wob * ((z.x - a.x) / len) * 0.5;
+    const dx = b.x - px, dy = b.y - py;
+    if (Math.abs(dx) + Math.abs(dy) > 0.01) b.face = Math.abs(dx) * 0.55 > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
+    b.frame = Math.floor(now() * 8) % 2;
+    stamp(b.x, b.y, b.color);
+    if (b.t >= 1) {
+      if (z.root) { b.flipT = 2.6; world.corpses.push({ x: z.x, y: z.y, color: b.color, agent: b.agent, label: rootLabel(z.root) }); }
+      else { b.i++; b.t = 0; }
+    }
+  }
+  if (world.beetles.length && world.beetles.every((b) => b.done)) { world.beetles = makeBeetles(world.grid); world.corpses = []; }
+}
+function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
+
+function drawSprite(rows_, x, y, color, head) {
+  const T = THEMES[world.theme];
+  const h = rows_.length, w = Math.max(...rows_.map((r) => r.length));
+  const c0 = Math.round(x) - Math.floor(w / 2), r0 = Math.round(y) - Math.floor(h / 2);
+  rows_.forEach((row, i) => { for (let j = 0; j < row.length; j++) {
+    const ch = row[j]; if (ch === " ") continue;
+    const isHead = ch === "H";
+    ctx.fillStyle = isHead ? T.belly : color;
+    ctx.fillText(isHead ? head : ch, (c0 + j) * cellW, (r0 + i) * cellH);
+  } });
+}
+
+function render() {
+  const T = THEMES[world.theme];
+  if (!world.terrainCanvas) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(world.terrainCanvas, 0, 0); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.font = `${fontPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`; ctx.textBaseline = "top";
+  const t = now();
+  // trails
+  for (const [k, v] of world.trails) {
+    const age = t - v.t;
+    if (age > TRAIL_LIFE) { world.trails.delete(k); continue; }
+    const f = Math.max(0, age / TRAIL_LIFE);
+    ctx.globalAlpha = reduced ? 0.8 : 0.15 + 0.85 * (1 - f);
+    ctx.fillStyle = v.color;
+    ctx.fillText(TRAIL[Math.min(TRAIL.length - 1, Math.floor(f * TRAIL.length))], (k % cols) * cellW, Math.floor(k / cols) * cellH);
+  }
+  ctx.globalAlpha = 1;
+  // flipped beetles stay
+  for (const c of world.corpses) {
+    drawSprite(SPRITES.dead[0], c.x, c.y, c.color, "");
+    ctx.fillStyle = T.belly; ctx.fillText("░", (Math.round(c.x)) * cellW, (Math.round(c.y)) * cellH);
+    ctx.fillStyle = T.ink; ctx.globalAlpha = 0.9;
+    ctx.fillText(`${c.agent}  ${c.label}`, (Math.round(c.x) + 4) * cellW, (Math.round(c.y) - 1) * cellH);
+    ctx.globalAlpha = 1;
+  }
+  for (const b of world.beetles) {
+    if (b.done) continue;
+    if (b.flipT > 0) continue; // the corpse is drawn instead
+    drawSprite(SPRITES[b.face][b.frame], b.x, b.y, b.color, HEAD[b.face]);
+  }
+}
+
+function frame(ts) {
+  const t = ts / 1000, dt = Math.min(0.05, t - (lastT || t)); lastT = t;
+  if (!reduced) step(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ---------- data + controls ----------
+async function getJSON(p) { const r = await fetch(p, { cache: "no-store" }); if (!r.ok) throw new Error(`${p}: HTTP ${r.status}`); return r.json(); }
+async function load() {
+  try {
+    const [steps, divs, regions, trust] = await Promise.all(["/api/steps", "/api/divergences", "/api/regions", "/api/trust"].map(getJSON));
+    world.data = { steps, divs, regions, trust };
+    rebuild();
+  } catch (e) { $("caption").textContent = `could not load the swarm: ${e.message}`; }
+}
+function setTheme(name) {
+  world.theme = name; document.documentElement.dataset.theme = name;
+  $("t-night").setAttribute("aria-pressed", String(name === "night")); $("t-salt").setAttribute("aria-pressed", String(name === "salt"));
+  if (world.data) rebuild();
+}
+$("t-night").onclick = () => setTheme("night");
+$("t-salt").onclick = () => setTheme("salt");
+$("t-heldout").onclick = () => { world.heldout = !world.heldout; $("t-heldout").setAttribute("aria-pressed", String(world.heldout)); if (world.data) rebuild(); };
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => world.data && rebuild(), 200); });
+
+$("swatches").innerHTML = [["#22231A", "ground", "page, night sky"], ["#2E2F23", "soil", "flats"], ["#464831", "scrub", "low slopes"], ["#87826E", "sage", "mid slopes, quiet text"], ["#734E30", "bark", "high slopes, contours, pit rims"], ["#F1EBE4", "salt", "text, peaks, beetle heads"], ["#0866FF", "Meta", "meta beetles"], ["#9168C0", "Gemini", "gemini beetles"], ["#D97757", "Claude", "claude beetles"]]
+  .map(([hex, name, role]) => `<div class="sw"><i style="background:${hex}"></i><b>${name}</b> ${hex}<small>${role}</small></div>`).join("");
+
+load();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
