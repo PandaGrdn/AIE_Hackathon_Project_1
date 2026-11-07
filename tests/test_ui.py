@@ -247,3 +247,9 @@ def test_concept_page_serves_terrain(client):
     r = client.get("/concept")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert "Reasoning terrain" in r.text and "/api/steps" in r.text
+
+
+def test_colony_page_serves(client):
+    r = client.get("/colony")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert "Colony" in r.text and "Trust leaderboard" in r.text
