@@ -4,7 +4,26 @@ The claim is "the system improves as it works, and only keeps changes that held-
 
 ## The demo recording
 
-One full real run on the MCP long task (7 subtasks, `demo_task/mcp/task.md`) with live agents, recorded as `demo/mcp_snapshot.json` plus the terminal log. The held-out set is the three MCP slices in `eval/heldout/mcp_*` (per-tool timeout, tool deprecation, resource size cap): same repository, same reasoning patterns (registration-time validation, inclusive vs exclusive boundaries, metadata only when configured, exact error messages), never used to produce a lesson.
+Two long tasks on the MCP Python SDK (same clone, `demo_task/mcp/repo` at `77001c9`), live agents, recorded by `scripts/record_demo.py` (see `scripts/README.md`):
+
+- **Task A**: per-tool rate limits (`demo_task/mcp/task.md`, 7 subtasks), held-out gate on. The gate scores every candidate change on the three MCP slices in `eval/heldout/mcp_*` (per-tool timeout, tool deprecation, resource size cap): same repository, same reasoning patterns (registration-time validation, inclusive vs exclusive boundaries, metadata only when configured, exact error messages). Lessons come only from Task A's own failures. Output: `demo/mcp_snapshot.json`, `demo/task_a_summary.json`, `demo/task_a.log`.
+- **Task B**: the three slices joined into one long task (`demo_task/mcp_heldout/task.md`: timeout → deprecation → size cap, each building on the previous commit). Spec tests are the slices' verified hidden tests (`eval.heldout_specs.spec_from_hidden_tests`, all hidden, no authored tests), held-out gate off. It runs twice from the base commit with the same agents:
+  - **B0, baseline**: fresh store, no lessons → `demo/task_b_baseline*.json`, `.log`.
+  - **B1, with lessons**: the store from Task A's snapshot (adopted lessons, failure regions, trust) → `demo/task_b_with_lessons*.json`, `.log`. `--b1-no-trust` drops the trust scores so that only lessons and regions differ.
+
+`demo/results.json` reports, per phase: subtasks done, per-subtask verified/failed/errored counts and first-pass verified share (verified runs / runs on the subtask's first and only swarm), lessons created, changes adopted/rolled back (Task A only), repeat-mistake rate (reflected failures in this phase that deduplicated into an existing lesson / all reflected failures in this phase), wall time. Then `b0_vs_b1`:
+
+| Field | B0 vs B1 |
+| --- | --- |
+| `subtasks_done` | subtasks verified and committed before the first stall |
+| `verified_share` | Σ verified / Σ runs over the subtasks each phase attempted, with the delta B1 − B0 |
+| `first_pass_verified_share` | per subtask, B0, B1, delta |
+| `failed_runs` | runs the harness failed (hidden-test miss or regression) |
+| `lessons_needed` | lessons the phase had to create from its own failures (fewer in B1 = Task A's lessons covered them) |
+| `repeat_mistake_rate` | per phase, as above; in B1 a failure that lands in a Task A lesson counts as a repeat |
+| `lessons_carried_into_b1`, `lessons_in_play_b1` | adopted lessons in the snapshot, and how many the context builder injected |
+
+The claim it supports is narrow: on the same three features, the same swarm does better on a long task when it starts with the lessons Task A's gate adopted. It is not transfer to unseen work: those three slices are the gate's own held-out set, so they took part in choosing which lessons to keep. With 3 subtasks × 3 runs per phase, one run is 11 points of share; always show counts next to shares.
 
 ## Primary metric: held-out pass rate, with vs without the change
 

@@ -35,3 +35,36 @@ regression failures, the SubQ root-cause step for each failed run, and the lesso
 goes into the snapshot under `real_run`. Each run also gets `runs/<run_id>/` (code copy + `meta.json`).
 
 Exit code 0 when every selected subtask verified and committed.
+
+## record_demo.py — the two-task demo recording
+
+Task A (rate limits, 7 subtasks, held-out gate on the three MCP slices) learns lessons; Task B
+(`demo_task/mcp_heldout`: timeout → deprecation → size cap, built from those slices) runs twice, without and
+with them. See docs/METRICS.md, "The demo recording", for what `results.json` reports.
+
+```bash
+source .venv/bin/activate
+python scripts/record_demo.py --dry-run --check-references   # preconditions + plan; no API calls, no repo changes
+python scripts/record_demo.py --swarm-size 3 --heldout-swarm-size 1 --out demo/ --phase all
+```
+
+| `--phase` | Store | Spec tests | Gate | Writes (under `--out`) |
+| --- | --- | --- | --- | --- |
+| `a` | fresh | authored (`load_or_author`) | on, `eval/heldout/mcp_*` only | `mcp_snapshot.json`, `task_a_summary.json`, `task_a.log` |
+| `b0` | fresh | slices' hidden tests | off | `task_b_baseline.json`, `task_b_baseline_summary.json`, `task_b_baseline.log` |
+| `b1` | `load_snapshot(mcp_snapshot.json)` | slices' hidden tests | off | `task_b_with_lessons.json`, `task_b_with_lessons_summary.json`, `task_b_with_lessons.log` |
+| `compare` | none | none | none | `results.json`, `compare.log` (no API calls) |
+
+- `--phase all` runs a, b0, b1, compare and skips a phase whose summary already exists (resume after a crash);
+  `--redo` reruns it. A phase that raises stops the sequence, still writes its summary (`error`) and snapshot.
+- **Repo**: each agent phase resets `demo_task/mcp/repo` to the base commit on branch `swarm`
+  (`eval.heldout_specs.reset_repo`: worktrees pruned, edits stashed, old HEAD kept as `record-demo/pre-<phase>`;
+  the clone is never deleted) and keeps its result on branch `record-demo/<phase>`.
+- **Roster**: `--agents` (default `gemini-t2,gemini-t7-alt,meta-spark-t5`, as real_run.py); the router sees
+  exactly that list, so b0 and b1 route the same agents. `all` = every identity with a key, ranked by trust.
+- **Task B spec tests**: `eval.heldout_specs.spec_from_hidden_tests` returns the slice's `hidden_tests/*.py`,
+  all hidden, flattened so every parametrized case (and the anyio backend) is its own top-level test, which is
+  how `cross_test` keys spec tests.
+- `--b1-no-trust` drops Task A's trust scores in b1 so only lessons and failure regions differ from b0.
+- Budgets as real_run.py: `--agent-timeout 360`, `--max-turns 40`, `--token-budget 1000000`, `--n-fuzz 10`,
+  `--regression "tests/server tests/shared"`.
