@@ -53,7 +53,7 @@ from core.swarm.router import route
 
 HELDOUT_DIR = Path(__file__).parent / "heldout"
 DEMO_TASK_DIR = ROOT / "demo_task" / "mcp"
-DEMO_REPO = DEMO_TASK_DIR / "repo"
+DEMO_REPO = Path(os.environ["HELDOUT_BASE_REPO"]) if os.environ.get("HELDOUT_BASE_REPO") else DEMO_TASK_DIR / "repo"  # override: gate on a clone copy
 REFERENCE_WEIGHT = 1e6  # the reference is an always-trusted voter: its outcome is the majority
 DEFAULT_N_FUZZ = 50
 HIDDEN_TESTS_TIMEOUT_S = 900
@@ -520,12 +520,22 @@ def _run_patch(item: HeldoutItem, lesson_ids, store, *, swarm_fn, swarm_size, ru
         return {"correct": 0.0, "repeats": 0.0}
 
     verified: set[str] = set()
+    fractions: list[float] = []
     for run in runs:
         if run.error or not run.sandbox_path:
+            fractions.append(0.0)
             continue
-        if run_hidden_tests(run.sandbox_path, item).passed:
+        res = run_hidden_tests(run.sandbox_path, item)
+        if res.passed:
             verified.add(run.id)
-    return _score(runs, verified, store)
+        fractions.append(max(0.0, (res.tests - res.failures - res.errors) / res.tests) if res.tests else 0.0)
+    score = _score(runs, verified, store)
+    # With one or two agents per slice a binary "run verified" score is almost always 0 and the gate is
+    # blind. The hidden-test pass FRACTION (mean over runs) moves when a lesson helps part of the way, so it
+    # is the gate's accuracy for patch slices; the verified share is kept alongside.
+    score["verified_share"] = score["correct"]
+    score["correct"] = sum(fractions) / len(fractions) if fractions else 0.0
+    return score
 
 
 def _lands_in_region(run: AgentRun, verified: list[AgentRun], store: Store) -> bool:
