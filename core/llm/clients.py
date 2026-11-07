@@ -258,7 +258,8 @@ class AnthropicClient:
             "model": self.identity.model,
             "max_tokens": 8000,
             "messages": convo,
-            "temperature": self.identity.temperature,
+            # anthropic>=2.6 dropped `temperature` from messages.create; the two Claude identities
+            # differ by prompt_variant instead.
         }
         if system:
             kwargs["system"] = system
