@@ -21,7 +21,11 @@ from typing import Self
 from core.config import settings
 
 _SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules"}
-_PYTEST = ["-I", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "pythonpath=."]
+def _pytest(root: Path) -> list[str]:
+    # Sandboxes live under the project root, so pytest would otherwise adopt the project's
+    # pyproject.toml as rootdir and resolve `pythonpath` against it. Pin both to the sandbox.
+    r = str(root.resolve())
+    return ["-I", "-m", "pytest", "-q", "-p", "no:cacheprovider", f"--rootdir={r}", "-o", f"pythonpath={r}"]
 
 
 class Sandbox:
@@ -91,7 +95,7 @@ class Sandbox:
     # ---- tests -----------------------------------------------------------------------------
 
     def run_tests(self, path: str | None = None, timeout: int = 120) -> str:
-        cmd = [sys.executable, *_PYTEST, "-x"]
+        cmd = [sys.executable, *_pytest(self.path), "-x"]
         if _has_pytest_timeout():
             cmd += ["--timeout", str(timeout)]
         if path:
@@ -121,7 +125,7 @@ class Sandbox:
         try:
             for name, src in modules.items():
                 files[stems[name]].write_text(src)
-            cmd = [sys.executable, *_PYTEST, f"--junitxml={junit}", *(str(p.relative_to(self.path)) for p in files.values())]
+            cmd = [sys.executable, *_pytest(self.path), f"--junitxml={junit}", *(str(p.relative_to(self.path)) for p in files.values())]
             if _has_pytest_timeout():
                 cmd += ["--timeout", str(timeout)]
             try:
@@ -181,6 +185,12 @@ def _parse_junit(junit: Path, stem_to_mod: dict[str, str]) -> dict[str, bool]:
         parts = (tc.get("classname") or "").split(".")
         idx = next((i for i, part in enumerate(parts) if part in stem_to_mod), None)
         if idx is None:
+            # collection error: classname is empty and `name` is the dotted module path
+            nparts = (tc.get("name") or "").replace("/", ".").removesuffix(".py").split(".")
+            stem = next((p for p in nparts if p in stem_to_mod), None)
+            if stem is None:
+                continue
+            results[f"{stem_to_mod[stem]}::<collection error>"] = False
             continue
         key = "::".join([stem_to_mod[parts[idx]], *parts[idx + 1 :], tc.get("name", "")])
         results[key] = not any(tc.find(tag) is not None for tag in ("failure", "error", "skipped"))

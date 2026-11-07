@@ -86,13 +86,12 @@ class OpenAICompatClient:
         self._client = OpenAI(api_key=api_key, base_url=base_url)
 
     def chat(self, messages, tools=None):
+        kwargs: dict[str, Any] = {"model": self.identity.model, "messages": messages, "tools": tools or None}
+        # OpenAI reasoning models (gpt-5*, o*) reject a non-default temperature.
+        if not self.identity.model.startswith(("gpt-5", "o1", "o3", "o4")):
+            kwargs["temperature"] = self.identity.temperature
         resp = _with_retries(
-            lambda: self._client.chat.completions.create(
-                model=self.identity.model,
-                messages=messages,
-                temperature=self.identity.temperature,
-                tools=tools or None,
-            )
+            lambda: self._client.chat.completions.create(**kwargs)
         )
         msg = resp.choices[0].message
         calls = []
@@ -293,6 +292,7 @@ _PROVIDER_KEYS = {
     "meta": "meta_api_key",
     "gemini": "gemini_api_key",
     "anthropic": "anthropic_api_key",
+    "openai": "openai_api_key",
 }
 
 
@@ -310,6 +310,8 @@ def get_client(identity: AgentIdentity) -> LLMClient:
         return GeminiClient(identity, settings.gemini_api_key)
     if p == "anthropic":
         return AnthropicClient(identity, settings.anthropic_api_key)
+    if p == "openai":
+        return OpenAICompatClient(identity, settings.openai_api_key, settings.openai_base_url)
     raise ValueError(f"unknown provider {p}")
 
 
@@ -320,7 +322,9 @@ def reflector_identity() -> AgentIdentity:
 
 
 def swarm_identities() -> list[AgentIdentity]:
-    """The default swarm roster (6: 2 meta, 2 gemini, 2 anthropic). Vary temperature/prompt so identities differ.
+    """The default swarm roster (7: 2 gemini, 2 anthropic, 1 openai, 2 meta); the router takes the top
+    `swarm_size` by trust, so with every key present the last meta identity sits out. Vary
+    temperature/prompt so identities differ.
 
     SubQ is deliberately absent: it is the verdict judge (Decisions API, no chat endpoint), and a
     judge must not also implement. Gemini writes the spec tests and lessons.
@@ -328,10 +332,11 @@ def swarm_identities() -> list[AgentIdentity]:
     `provider_available`.
     """
     return [
-        AgentIdentity(id="meta-code-t2", provider="meta", model=settings.meta_model_code, temperature=0.2),
-        AgentIdentity(id="meta-spark-t5", provider="meta", model=settings.meta_model_spark, temperature=0.5),
         AgentIdentity(id="gemini-t2", provider="gemini", model=settings.gemini_model, temperature=0.2),
         AgentIdentity(id="gemini-t7-alt", provider="gemini", model=settings.gemini_model, temperature=0.7, prompt_variant="alt"),
         AgentIdentity(id="claude-t2", provider="anthropic", model=settings.anthropic_model, temperature=0.2),
         AgentIdentity(id="claude-t7-alt", provider="anthropic", model=settings.anthropic_model, temperature=0.7, prompt_variant="alt"),
+        AgentIdentity(id="openai-t2", provider="openai", model=settings.openai_model, temperature=0.2),
+        AgentIdentity(id="meta-code-t2", provider="meta", model=settings.meta_model_code, temperature=0.2),
+        AgentIdentity(id="meta-spark-t5", provider="meta", model=settings.meta_model_spark, temperature=0.5),
     ]
