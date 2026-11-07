@@ -27,6 +27,7 @@ def main() -> int:
     ap.add_argument("--agents", default="gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--out", default=None, help="write the gated snapshot here (default: in place)")
+    ap.add_argument("--max", type=int, default=0, help="gate only the N highest-confidence lessons (0 = all)")
     ap.add_argument("--regate-blind", action="store_true", help="also re-decide lessons rolled back with a blind score (held-out before == after == 0.0)")
     args = ap.parse_args()
 
@@ -50,6 +51,9 @@ def main() -> int:
                 l.status = ChangeStatus.candidate  # re-decided below with the pass-fraction score
                 leftovers.append(l)
         print(f"{len(blind)} rolled-back lesson(s) had a blind 0.0 -> 0.0 score and will be re-decided")
+    leftovers.sort(key=lambda l: -l.confidence)
+    if args.max:
+        leftovers = leftovers[: args.max]
     print(f"{len(leftovers)} undecided lesson(s) not yet gated")
     for l in leftovers:
         print(" -", l.id, l.text[:100])
