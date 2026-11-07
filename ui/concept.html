@@ -83,7 +83,7 @@ const SPEED = 3.2;        // cells per second
 const TRAIL_LIFE = 22;    // seconds
 const HSCALE = 4.2;       // cells of height for the tallest ridge
 const SIG2 = 2 * 3.2 * 3.2;
-const BS = 1.5;           // beetle scale in cells (about 4.5 cells long)
+const BS = 1.7;           // beetle scale in cells (about 4.5 cells long)
 
 // ---------- PCA ----------
 function topComponents(X, k, iters) {
@@ -193,7 +193,7 @@ function makeBeetles() {
       });
     });
     wps.push({ x: first.x + Math.cos(ang + 2.6) * 50, y: first.y + Math.sin(ang + 2.6) * 50, exit: true });
-    beetles.push({ agent, co, color: shade(color, 0.72), dark: shade(color, 0.45), wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, z: 0, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
+    beetles.push({ agent, co, color, dark: shade(color, 0.5), wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, z: 0, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
     k++;
   });
   return beetles;
@@ -289,7 +289,7 @@ function drawScene(t) {
     const n = norm([h00 - h10 + h01 - h11, h00 - h01 + h10 - h11, 2]);
     const lam = Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
     const elev = Math.max(0, Math.min(1, ((h00 + h11) / 2 + 0.6) / (HSCALE + 0.6)));  // pits go below zero, so offset
-    let v = cam.ortho ? 0.05 + 0.8 * elev + 0.15 * lam * lam : 0.09 + 0.5 * Math.pow(lam, 1.8) + 0.34 * elev * elev;
+    let v = cam.ortho ? 0.13 + 0.8 * elev + 0.15 * lam * lam : 0.14 + 0.5 * Math.pow(lam, 1.8) + 0.34 * elev * elev;
     if (!cam.ortho) v = Math.round(v * 9) / 9;  // the 2D map stays continuous: height reads as dot size and density
     const far = Math.sqrt(c.depth);
     const fog = Math.max(0, Math.min(1, (far - FOG0) / (FOG1 - FOG0)));
@@ -324,14 +324,14 @@ function drawBeetle(b, t, flipped) {
   const parts = [];
   const body = flipped ? PAL.sage : b.color, belly = flipped ? PAL.salt : b.dark;
   // ground shadow anchors the beetle to the terrain
-  if (!flipped) { const sh = ellipsePoly(L, -0.2, 0.08, 1.15, 0.7); if (sh) { sctx.fillStyle = PAL.ground; sctx.globalAlpha = 0.7; fillPoly(sh); sctx.globalAlpha = 1; } }
+  if (!flipped) { const sh = ellipsePoly(L, -0.1, 0.04, 1.75, 1.3); if (sh) { sctx.fillStyle = PAL.ground; sctx.globalAlpha = 0.85; fillPoly(sh); sctx.globalAlpha = 1; } }
   const dome = (al, up, rx, ry, col) => {
     const base_ = ellipsePoly(L, al, up, rx, ry), top = ellipsePoly(L, al - 0.12, up + 0.22, rx * 0.62, ry * 0.6);
     if (!base_) return;
     parts.push({ d: base_.d, draw: () => {
       sctx.fillStyle = col; fillPoly(base_);
-      sctx.strokeStyle = PAL.ground; sctx.lineWidth = 1; strokePoly(base_);
-      if (top) { sctx.fillStyle = lighten(col, flipped ? 0.15 : 0.22); fillPoly(top); }
+      sctx.strokeStyle = PAL.ground; sctx.lineWidth = 2.2; strokePoly(base_);
+      if (top) { sctx.fillStyle = lighten(col, flipped ? 0.15 : 0.4); fillPoly(top); }
     } });
   };
   dome(-0.6, 0.3, 0.8, 0.58, body); dome(0.3, 0.3, 0.42, 0.42, body); dome(0.88, 0.28, 0.26, 0.22, flipped ? PAL.sage : b.dark);
@@ -344,14 +344,14 @@ function drawBeetle(b, t, flipped) {
     // hip at the shell's edge, knee just above shell height, foot on the ground (legs point up when flipped)
     const hip = L(al, side * 0.36, 0.28), knee = L(al + swing * 0.2 + sw, side * 0.78, flipped ? -0.02 + lift : 0.46 + lift * 0.5), foot = L(al + swing * 0.45 + sw * 1.5, side * 1.1, flipped ? -0.22 + lift : lift);
     const a = project(...hip), k = project(...knee), f = project(...foot);
-    if (a && k && f) parts.push({ d: k[2], draw: () => { sctx.strokeStyle = b.color; sctx.lineWidth = Math.max(1.1, 0.11 * BS * cam.focal / k[2]); sctx.lineCap = "round"; sctx.beginPath(); sctx.moveTo(a[0], a[1]); sctx.lineTo(k[0], k[1]); sctx.lineTo(f[0], f[1]); sctx.stroke(); } });
+    if (a && k && f) parts.push({ d: k[2], draw: () => { sctx.strokeStyle = lighten(b.color, 0.25); sctx.lineWidth = Math.max(1.1, 0.11 * BS * cam.focal / k[2]); sctx.lineCap = "round"; sctx.beginPath(); sctx.moveTo(a[0], a[1]); sctx.lineTo(k[0], k[1]); sctx.lineTo(f[0], f[1]); sctx.stroke(); } });
   }));
   [1, -1].forEach((side) => {
     const a = project(...L(1.0, side * 0.1, 0.32)), f = project(...L(1.55, side * 0.42, flipped ? -0.1 : 0.5));
     if (a && f) parts.push({ d: a[2] - 0.01, draw: () => { sctx.strokeStyle = b.color; sctx.lineWidth = Math.max(0.9, 0.07 * BS * cam.focal / a[2]); sctx.beginPath(); sctx.moveTo(a[0], a[1]); sctx.lineTo(f[0], f[1]); sctx.stroke(); } });
   });
   parts.sort((p, q) => q.d - p.d).forEach((p) => p.draw());
-  b.screen = project(base[0], base[1], base[2] + 1.1 * BS);
+  b.screen = project(base[0], base[1], base[2] + 0.35 * BS);
   if (flipped) { const bl = ellipsePoly(L, -0.3, 0.42, 0.55, 0.38); if (bl) { sctx.fillStyle = belly; fillPoly(bl); } }
 }
 function ellipsePoly(L, al, up, rx, ry) {
@@ -414,9 +414,9 @@ void main(){
   else if (bc.y < 2.0) bayer = bc.x < 1.0 ? 12.0 : bc.x < 2.0 ? 4.0 : bc.x < 3.0 ? 14.0 : 6.0;
   else if (bc.y < 3.0) bayer = bc.x < 1.0 ? 3.0 : bc.x < 2.0 ? 11.0 : bc.x < 3.0 ? 1.0 : 9.0;
   else bayer = bc.x < 1.0 ? 15.0 : bc.x < 2.0 ? 7.0 : bc.x < 3.0 ? 13.0 : 5.0;
-  float density = smoothstep(0.0, 0.55, f) * 0.85 + 0.15 * step(0.02, f);
+  float density = smoothstep(0.0, 0.5, f) * 0.78 + 0.22 * step(0.02, f);
   float vis = density > (bayer + 0.5) / 16.0 ? 1.0 : 0.0;
-  float r = 0.5 * pitch * (0.1 + 0.95 * sqrt(f));
+  float r = 0.5 * pitch * (0.14 + 0.92 * sqrt(f));
   float d = distance(gl_FragCoord.xy, ctr);
   float a = vis * (1.0 - smoothstep(r - 0.6, r + 0.6, d));
   gl_FragColor = vec4(mix(bg, c, a), 1.0);
@@ -461,11 +461,18 @@ function composite() {
   const k = (pitchCss * dpr) / dpr;  // scene px -> css px
   lctx.font = "600 13px ui-monospace, 'SF Mono', Menlo, Consolas, monospace"; lctx.textBaseline = "middle";
   const tag = (s, text, color) => {
-    if (!s) return; const x = s[0] * k + 10, y = s[1] * k;
+    if (!s) return; const x = s[0] * k + 14, y = s[1] * k - 14;
     const w = lctx.measureText(text).width + 12;
     lctx.fillStyle = PAL.ground; lctx.fillRect(x - 6, y - 10, w, 20);
     lctx.fillStyle = color; lctx.fillText(text, x, y);
   };
+  const ring = (s, color, depth) => {
+    if (!s) return; const r = Math.max(8, Math.min(30, 1.5 * BS * cam.focal / depth * k));
+    lctx.strokeStyle = color; lctx.lineWidth = 1.5; lctx.globalAlpha = 0.9;
+    lctx.beginPath(); lctx.arc(s[0] * k, s[1] * k, r, 0, 7); lctx.stroke(); lctx.globalAlpha = 1;
+  };
+  for (const b of world.beetles) if (!b.done && !b.flipped && b.screen) ring(b.screen, b.color, b.screen[2]);
+  for (const c of world.corpses) if (c.screen) ring(c.screen, PAL.salt, c.screen[2]);
   for (const c of world.corpses) tag(c.screen, `${c.agent}  ${c.label}`, PAL.salt);
   const f = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done && !b.flipped);
   if (f) tag(f.screen, f.agent, f.color);
