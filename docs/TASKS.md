@@ -37,7 +37,8 @@ Need a new field or dependency? Post it in chat; Ethan Liu adds it within minute
 
 | Hour | Deliverable |
 | --- | --- |
-| 1 | Reflector live on SubQ: `reflect()` returns a real lesson from a failed run (`core/reflect/reflector.py`; pass the failed run's actual outcome instead of the `_fmt` stub). Cross-test matrix in `core/harness/crosstest.py` (each run's `tests/` × every impl). |
+| 1 | **Spec tests** (`core/harness/spec_tests.py`): a test-author model writes cases with expected values and metamorphic properties from spec + interface + base repo only, cached per subtask, run before the swarm; wire into `cross_test` as `source="spec"` / `source="property"`. Reflector live on SubQ: `reflect()` returns a real lesson from a failed run (`core/reflect/reflector.py`; pass the failed run's actual outcome instead of the `_fmt` stub). |
+| 1b | Cross-test matrix in `core/harness/crosstest.py` (each run's `tests/` × every impl) as tie-breaker evidence only; spec-vs-majority disagreement surfaces as an ambiguity flag, not a failure. |
 | 2 | MongoDB: `MongoStore` wired, `ensure_indexes`, `regions_near` via `$vectorSearch`. Tune `dedup.py` thresholds (`BASE_RADIUS`, similarity) on real Gemini embeddings. Check `find_divergence` picks the right step on real paths; adjust `divergence_sigma` / `N_BINS`. |
 | 3 | `proposer.py`: cluster adopted lessons → `ChangeKind.tool` proposal (reflector writes a small tool). Trust leaderboard data for the UI. Help debug the gate on the full run. |
 

@@ -1,8 +1,11 @@
-"""Run every implementation on every case in an isolated subprocess. Owner: C.
+"""Run every implementation on every case in an isolated subprocess. Owner: Ethan Li.
 
-Each (run, case) executes `python -I runner.py <impl_dir> <file> <func> <args_json>`
+Test independence: verdict inputs are (1) spec tests and properties from `spec_tests.py`,
+written before the swarm from spec + interface + base repo only, (2) fuzz cases from the
+type hints. Agents' own tests are tie-breaker evidence only. See outline §5.5.
+
+Each (run, case) executes `python -I -c <exec> <impl_dir> <file> <func> <args_json>`
 with a timeout, so a hanging or crashing implementation can't take the harness down.
-Also runs every agent's own tests against every implementation (cross-test matrix).
 """
 
 from __future__ import annotations
@@ -54,8 +57,10 @@ def _call(impl_dir: str, sig: FunctionSig, case: TestCase, timeout: float = 5.0)
         return Outcome(ok=False, timed_out=True)
 
 
-def cross_test(subtask: Subtask, runs: list[AgentRun], weights: dict[str, float], extra_cases: list[TestCase] | None = None, n_fuzz: int = 200) -> CrossTestResult:
-    cases: list[TestCase] = list(extra_cases or [])
+def cross_test(subtask: Subtask, runs: list[AgentRun], weights: dict[str, float], extra_cases: list[TestCase] | None = None, n_fuzz: int = 200, spec_cases: list[TestCase] | None = None) -> CrossTestResult:
+    # spec_cases come from spec_tests.load_or_author(...) and are the highest-weight input.
+    # TODO(Ethan Li): compare spec-case outcomes to `expected` and check properties (see spec_tests.py).
+    cases: list[TestCase] = list(spec_cases or []) + list(extra_cases or [])
     sig_by_name = {s.name: s for s in subtask.interface}
     for sig in subtask.interface:
         cases += generate_cases(sig, n_fuzz=n_fuzz)

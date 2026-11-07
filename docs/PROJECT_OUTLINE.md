@@ -30,7 +30,8 @@ An autonomous coding system that completes a long, tightly coupled software task
 | **Reasoning step** | A structured log entry an agent writes before each action: `{assumption, action, files_touched}` |
 | **Reasoning path** | An agent's ordered reasoning steps, each embedded as a vector |
 | **Consensus path** | The region in embedding space where the majority agents' paths cluster at each phase of the subtask |
-| **Cross-test** | Running every implementation on the same fuzzed inputs and on every agent's tests; the trust-weighted majority output is the verified result |
+| **Spec tests** | Test cases, expected values and properties written by an independent model from the spec, the pinned interface and the existing codebase only, before any implementation exists |
+| **Cross-test** | Running every implementation on the same spec tests, fuzzed inputs and properties; the trust-weighted majority output is the verified result. Agents' own tests are evidence, not the verdict |
 | **Verified majority** | The implementation(s) agreeing with the majority on every input; one is committed and the long task advances |
 | **Divergence point** | For a failed agent, the first reasoning step that leaves the consensus path: the suspected reasoning error |
 | **Reflector** | Reads the failed agent's path, its divergence point, the breaking input and the consensus steps at that phase; writes a lesson that resolves the reasoning error |
@@ -62,7 +63,8 @@ Long task
        │
        ├─ 4. Path Embedder ─────── embed every reasoning step → vector store
        │
-       ├─ 5. Cross-Test Harness ── fuzzed inputs + every agent's tests × every impl
+       ├─ 5. Cross-Test Harness ── spec tests (written before the swarm, never from an impl)
+       │        + fuzzed inputs from the interface + spec properties; agents' tests as tie-breaker
        │        → trust-weighted majority per input → verified majority implementation
        │
        ├─ 6. Commit + Advance ──── merge the verified implementation; next subtask starts from it
@@ -118,10 +120,24 @@ Every change gets a version, a `candidate → adopted | rolled_back` status, and
 - Gemini embeddings or `sentence-transformers`; stored in MongoDB Atlas Vector Search with `{task_id, subtask_id, agent_id, step_index, outcome}`.
 
 ### 5.5 Cross-Test Harness
-- `hypothesis` strategies from the pinned type hints + seed cases from the spec.
-- Every implementation on every input in an isolated subprocess; cross-test matrix of every agent's tests × every implementation.
+
+**Test independence rule: no test used for a verdict is derived from any implementation.** Tests come from the spec, the pinned interface and the pre-existing codebase, and are written before the swarm runs.
+
+Four test sources, in order of weight:
+
+| Source | Who writes it | Sees | Weight |
+| --- | --- | --- | --- |
+| **Spec tests** | A dedicated test-author model, never one of the implementers for that subtask | Spec, pinned interface, existing repo at the base commit | Highest: a concrete expected value per case |
+| **Spec properties** | Same author | Same | High: metamorphic rules that hold regardless of the exact answer, e.g. "`tier_for` is monotonic in amount", "`quote` total never exceeds subtotal", "`summarize([])` is all zeros" |
+| **Fuzz** | `hypothesis` strategies from the type hints + boundary seeds from the types | Interface only | Medium: no expected value; the majority is the oracle |
+| **Agent tests** | Each swarm agent | Its own implementation | Lowest: tie-breaker and reflector evidence only; never the sole reason for a verdict |
+
+- Spec tests and properties are generated once per subtask and cached, so every run of that subtask (including held-out re-runs) uses the same independent tests.
+- Every implementation runs on every input in an isolated subprocess with a timeout.
 - Equivalence rules: float tolerance, unordered collections as sets, same exception type.
 - Trust-weighted majority per input; agents outside the majority on any input are "failed" for this subtask.
+- **Two oracles.** When the spec test's expected value disagrees with the swarm majority, that is a spec-ambiguity flag sent to the reflector and the decomposer, not a failure charged to any agent. When they agree, the case counts double.
+- Properties catch what majority voting cannot: a bug the whole swarm shares still violates a spec property.
 
 ### 5.6 Commit + Advance
 - The highest-trust implementation in the majority group is committed; its tests and the shrunk counterexamples join the repo's test suite.

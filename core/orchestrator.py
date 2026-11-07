@@ -17,6 +17,7 @@ from core.changes.trust import update_trust, weights_for
 from core.config import settings
 from core.context.builder import build_context
 from core.harness.crosstest import breaking_case, cross_test
+from core.harness.spec_tests import load_or_author
 from core.models import Divergence, LongTask, RunManifest, Subtask
 from core.paths.divergence import find_divergence
 from core.reflect.reflector import reflect
@@ -31,6 +32,10 @@ def run_subtask(task: LongTask, subtask: Subtask, store: Store, run_heldout: Hel
     repo = Path(task.repo_path)
     console.rule(f"[bold]Subtask {subtask.index}: {subtask.title}")
 
+    # 0. independent spec tests, authored before any implementation exists (cached per subtask)
+    spec = load_or_author(subtask, repo)
+    console.print(f"spec tests: {len(spec.cases)} cases, {len(spec.properties)} properties")
+
     # 1. context
     lessons_block, lesson_ids = build_context(subtask, store)
     console.print(f"lessons in play: {len(lesson_ids)}")
@@ -44,7 +49,7 @@ def run_subtask(task: LongTask, subtask: Subtask, store: Store, run_heldout: Hel
     store.save_manifest(RunManifest(task_id=task.id, subtask_id=subtask.id, agent_ids=[a.id for a in agents], lessons_used=lesson_ids))
 
     # 4–5. cross-test
-    result = cross_test(subtask, runs, weights_for(runs, store))
+    result = cross_test(subtask, runs, weights_for(runs, store), spec_cases=spec.cases)
     console.print(f"verified: {len(result.verified_runs)}  failed: {len(result.failed_runs)}  cases: {len(result.cases)}")
 
     # 6. commit + advance
