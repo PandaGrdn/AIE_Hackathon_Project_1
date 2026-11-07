@@ -1,0 +1,186 @@
+From be54fb2718c89d6fcaeea72cdad79832bf3e12e2 Mon Sep 17 00:00:00 2001
+From: heldout <heldout@example.invalid>
+Date: Sat, 7 Nov 2026 13:08:40 -0800
+Subject: [PATCH] mcpserver: per-tool timeout (timeout_seconds) enforced in
+ ToolManager.call_tool
+
+---
+ src/mcp/server/mcpserver/server.py            | 19 +++++++++++++++
+ src/mcp/server/mcpserver/tools/base.py        | 14 ++++++++++-
+ .../server/mcpserver/tools/tool_manager.py    | 23 ++++++++++++++++---
+ 3 files changed, 52 insertions(+), 4 deletions(-)
+
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index 7efa291..e933b16 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -625,6 +625,7 @@ class MCPServer(Generic[LifespanResultT]):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        timeout_seconds: float | None = None,
+     ) -> None:
+         """Add a tool to the server.
+ 
+@@ -643,6 +644,12 @@ class MCPServer(Generic[LifespanResultT]):
+                 - If None, auto-detects based on the function's return type annotation
+                 - If True, creates a structured tool (return type annotation permitting)
+                 - If False, unconditionally creates an unstructured tool
++            timeout_seconds: Optional limit on how long one call may run. A call that
++                runs longer is cancelled and fails with "Tool '<name>' timed out after
++                <timeout>s". None (the default) means no timeout.
++
++        Raises:
++            ValueError: If `timeout_seconds` is not `None` and is zero or negative.
+         """
+         self._tool_manager.add_tool(
+             fn,
+@@ -653,6 +660,7 @@ class MCPServer(Generic[LifespanResultT]):
+             icons=icons,
+             meta=meta,
+             structured_output=structured_output,
++            timeout_seconds=timeout_seconds,
+         )
+ 
+     def remove_tool(self, name: str) -> None:
+@@ -675,6 +683,7 @@ class MCPServer(Generic[LifespanResultT]):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        timeout_seconds: float | None = None,
+     ) -> Callable[[_CallableT], _CallableT]:
+         """Decorator to register a tool.
+ 
+@@ -693,6 +702,12 @@ class MCPServer(Generic[LifespanResultT]):
+                 - If None, auto-detects based on the function's return type annotation
+                 - If True, creates a structured tool (return type annotation permitting)
+                 - If False, unconditionally creates an unstructured tool
++            timeout_seconds: Optional limit on how long one call may run. A call that
++                runs longer is cancelled and fails with "Tool '<name>' timed out after
++                <timeout>s". None (the default) means no timeout.
++
++        Raises:
++            ValueError: If `timeout_seconds` is not `None` and is zero or negative.
+ 
+         Example:
+             ```python
+@@ -721,6 +736,9 @@ class MCPServer(Generic[LifespanResultT]):
+                 "The @tool decorator was used incorrectly. Did you forget to call it? Use @tool() instead of @tool"
+             )
+ 
++        if timeout_seconds is not None and timeout_seconds <= 0:
++            raise ValueError(f"timeout_seconds must be greater than 0, got {timeout_seconds!r}")
++
+         def decorator(fn: _CallableT) -> _CallableT:
+             self.add_tool(
+                 fn,
+@@ -731,6 +749,7 @@ class MCPServer(Generic[LifespanResultT]):
+                 icons=icons,
+                 meta=meta,
+                 structured_output=structured_output,
++                timeout_seconds=timeout_seconds,
+             )
+             return fn
+ 
+diff --git a/src/mcp/server/mcpserver/tools/base.py b/src/mcp/server/mcpserver/tools/base.py
+index 10a2d6c..705abdd 100644
+--- a/src/mcp/server/mcpserver/tools/base.py
++++ b/src/mcp/server/mcpserver/tools/base.py
+@@ -56,6 +56,9 @@ class Tool(BaseModel):
+     annotations: ToolAnnotations | None = Field(None, description="Optional annotations for the tool")
+     icons: list[Icon] | None = Field(default=None, description="Optional list of icons for this tool")
+     meta: dict[str, Any] | None = Field(default=None, description="Optional metadata for this tool")
++    timeout_seconds: float | None = Field(
++        default=None, gt=0, description="Seconds a call may run before it fails; None means no timeout"
++    )
+ 
+     @cached_property
+     def output_schema(self) -> dict[str, Any] | None:
+@@ -73,10 +76,18 @@ class Tool(BaseModel):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        timeout_seconds: float | None = None,
+     ) -> Tool:
+-        """Create a Tool from a function."""
++        """Create a Tool from a function.
++
++        Raises:
++            ValueError: If `timeout_seconds` is not `None` and is zero or negative.
++        """
+         func_name = name or fn.__name__
+ 
++        if timeout_seconds is not None and timeout_seconds <= 0:
++            raise ValueError(f"timeout_seconds must be greater than 0, got {timeout_seconds!r}")
++
+         validate_and_warn_tool_name(func_name)
+ 
+         if func_name == "<lambda>":
+@@ -129,6 +140,7 @@ class Tool(BaseModel):
+             annotations=annotations,
+             icons=icons,
+             meta=meta,
++            timeout_seconds=timeout_seconds,
+         )
+ 
+     async def run(
+diff --git a/src/mcp/server/mcpserver/tools/tool_manager.py b/src/mcp/server/mcpserver/tools/tool_manager.py
+index 9e7910e..3098489 100644
+--- a/src/mcp/server/mcpserver/tools/tool_manager.py
++++ b/src/mcp/server/mcpserver/tools/tool_manager.py
+@@ -3,6 +3,7 @@ from __future__ import annotations
+ from collections.abc import Callable
+ from typing import TYPE_CHECKING, Any
+ 
++import anyio
+ from mcp_types import Icon, ToolAnnotations
+ 
+ from mcp.server.mcpserver.exceptions import ToolError
+@@ -46,8 +47,13 @@ class ToolManager:
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        timeout_seconds: float | None = None,
+     ) -> Tool:
+-        """Add a tool to the server."""
++        """Add a tool to the server.
++
++        Raises:
++            ValueError: If `timeout_seconds` is not `None` and is zero or negative.
++        """
+         tool = Tool.from_function(
+             fn,
+             name=name,
+@@ -57,6 +63,7 @@ class ToolManager:
+             icons=icons,
+             meta=meta,
+             structured_output=structured_output,
++            timeout_seconds=timeout_seconds,
+         )
+         existing = self._tools.get(tool.name)
+         if existing:
+@@ -79,9 +86,19 @@ class ToolManager:
+         context: Context[LifespanContextT, RequestT],
+         convert_result: bool = False,
+     ) -> Any:
+-        """Call a tool by name with arguments."""
++        """Call a tool by name with arguments.
++
++        A tool registered with `timeout_seconds` is cancelled once it has run that long,
++        and the call raises `ToolError("Tool '<name>' timed out after <timeout>s")`.
++        """
+         tool = self.get_tool(name)
+         if not tool:
+             raise ToolError(f"Unknown tool: {name}")
+ 
+-        return await tool.run(arguments, context, convert_result=convert_result)
++        if tool.timeout_seconds is None:
++            return await tool.run(arguments, context, convert_result=convert_result)
++        try:
++            with anyio.fail_after(tool.timeout_seconds):
++                return await tool.run(arguments, context, convert_result=convert_result)
++        except TimeoutError as exc:
++            raise ToolError(f"Tool '{name}' timed out after {tool.timeout_seconds:g}s") from exc
+-- 
+2.54.0 (Apple Git-157)
+

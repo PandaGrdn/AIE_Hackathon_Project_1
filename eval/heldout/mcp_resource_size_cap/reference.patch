@@ -1,0 +1,294 @@
+From 2ef642aa8832cd535e2fbc7e4479d8f59a037cf6 Mon Sep 17 00:00:00 2001
+From: heldout <heldout@example.invalid>
+Date: Sat, 7 Nov 2026 13:13:58 -0800
+Subject: [PATCH] mcpserver: per-resource max_bytes cap enforced in
+ MCPServer.read_resource
+
+---
+ .../server/mcpserver/resources/__init__.py    |  3 +-
+ src/mcp/server/mcpserver/resources/base.py    |  7 +++
+ .../mcpserver/resources/resource_manager.py   | 45 +++++++++++++++++--
+ .../server/mcpserver/resources/templates.py   |  5 +++
+ src/mcp/server/mcpserver/server.py            | 30 ++++++++++---
+ 5 files changed, 80 insertions(+), 10 deletions(-)
+
+diff --git a/src/mcp/server/mcpserver/resources/__init__.py b/src/mcp/server/mcpserver/resources/__init__.py
+index f54ea44..db3116f 100644
+--- a/src/mcp/server/mcpserver/resources/__init__.py
++++ b/src/mcp/server/mcpserver/resources/__init__.py
+@@ -1,4 +1,4 @@
+-from .base import Resource
++from .base import Resource, content_size
+ from .resource_manager import ResourceManager
+ from .templates import DEFAULT_RESOURCE_SECURITY, ResourceSecurity, ResourceSecurityError, ResourceTemplate
+ from .types import (
+@@ -23,4 +23,5 @@ __all__ = [
+     "ResourceSecurity",
+     "ResourceSecurityError",
+     "DEFAULT_RESOURCE_SECURITY",
++    "content_size",
+ ]
+diff --git a/src/mcp/server/mcpserver/resources/base.py b/src/mcp/server/mcpserver/resources/base.py
+index a1d9ceb..91bed34 100644
+--- a/src/mcp/server/mcpserver/resources/base.py
++++ b/src/mcp/server/mcpserver/resources/base.py
+@@ -13,6 +13,13 @@ from pydantic import (
+ )
+ 
+ 
++def content_size(content: str | bytes) -> int:
++    """Size of resource content in bytes: UTF-8 encoded length for `str`, length for `bytes`."""
++    if isinstance(content, str):
++        return len(content.encode("utf-8"))
++    return len(content)
++
++
+ class Resource(BaseModel, abc.ABC):
+     """Base class for all resources."""
+ 
+diff --git a/src/mcp/server/mcpserver/resources/resource_manager.py b/src/mcp/server/mcpserver/resources/resource_manager.py
+index e56e3ba..746fc2c 100644
+--- a/src/mcp/server/mcpserver/resources/resource_manager.py
++++ b/src/mcp/server/mcpserver/resources/resource_manager.py
+@@ -25,26 +25,39 @@ if TYPE_CHECKING:
+ logger = get_logger(__name__)
+ 
+ 
++def _check_max_bytes(max_bytes: int | None) -> None:
++    if max_bytes is not None and max_bytes <= 0:
++        raise ValueError(f"max_bytes must be greater than 0, got {max_bytes!r}")
++
++
+ class ResourceManager:
+     """Manages MCPServer resources."""
+ 
+     def __init__(self, warn_on_duplicate_resources: bool = True, *, resources: list[Resource] | None = None):
+         self._resources: dict[str, Resource] = {}
+         self._templates: dict[str, ResourceTemplate] = {}
++        self._max_bytes: dict[str, int] = {}
+         self.warn_on_duplicate_resources = warn_on_duplicate_resources
+ 
+         for resource in resources or ():
+             self.add_resource(resource)
+ 
+-    def add_resource(self, resource: Resource) -> Resource:
++    def add_resource(self, resource: Resource, *, max_bytes: int | None = None) -> Resource:
+         """Add a resource to the manager.
+ 
+         Args:
+             resource: A Resource instance to add.
++            max_bytes: Largest content (in bytes) a read of this resource may return.
++                None means no cap.
+ 
+         Returns:
+-            The added resource. If a resource with the same URI already exists, returns the existing resource.
++            The added resource. If a resource with the same URI already exists, returns the existing resource
++            (and keeps its cap).
++
++        Raises:
++            ValueError: If `max_bytes` is not `None` and is zero or negative.
+         """
++        _check_max_bytes(max_bytes)
+         logger.debug(
+             "Adding resource",
+             extra={"uri": resource.uri, "type": type(resource).__name__, "resource_name": resource.name},
+@@ -55,6 +68,8 @@ class ResourceManager:
+                 logger.warning(f"Resource already exists: {resource.uri}")
+             return existing
+         self._resources[str(resource.uri)] = resource
++        if max_bytes is not None:
++            self._max_bytes[str(resource.uri)] = max_bytes
+         return resource
+ 
+     def add_template(
+@@ -69,8 +84,14 @@ class ResourceManager:
+         annotations: Annotations | None = None,
+         meta: dict[str, Any] | None = None,
+         security: ResourceSecurity = DEFAULT_RESOURCE_SECURITY,
++        max_bytes: int | None = None,
+     ) -> ResourceTemplate:
+-        """Add a template from a function."""
++        """Add a template from a function.
++
++        Raises:
++            ValueError: If `max_bytes` is not `None` and is zero or negative.
++        """
++        _check_max_bytes(max_bytes)
+         template = ResourceTemplate.from_function(
+             fn,
+             uri_template=uri_template,
+@@ -82,6 +103,7 @@ class ResourceManager:
+             annotations=annotations,
+             meta=meta,
+             security=security,
++            max_bytes=max_bytes,
+         )
+         self._templates[template.uri_template] = template
+         return template
+@@ -126,6 +148,23 @@ class ResourceManager:
+ 
+         raise ResourceNotFoundError(f"Unknown resource: {uri}")
+ 
++    def max_bytes_for(self, uri: AnyUrl | str) -> int | None:
++        """The size cap for reading `uri`, found the same way `get_resource` finds the resource.
++
++        Returns `None` when the matching resource or template has no cap, or nothing matches.
++        """
++        uri_str = str(uri)
++        if uri_str in self._resources:
++            return self._max_bytes.get(uri_str)
++        for template in self._templates.values():
++            try:
++                params = template.matches(uri_str)
++            except ResourceSecurityError:
++                return None
++            if params is not None:
++                return template.max_bytes
++        return None
++
+     def list_resources(self) -> list[Resource]:
+         """List all registered resources."""
+         logger.debug("Listing resources", extra={"count": len(self._resources)})
+diff --git a/src/mcp/server/mcpserver/resources/templates.py b/src/mcp/server/mcpserver/resources/templates.py
+index 621b2e9..1ec1c5c 100644
+--- a/src/mcp/server/mcpserver/resources/templates.py
++++ b/src/mcp/server/mcpserver/resources/templates.py
+@@ -117,6 +117,9 @@ class ResourceTemplate(BaseModel):
+     context_kwarg: str | None = Field(None, description="Name of the kwarg that should receive context")
+     parsed_template: UriTemplate = Field(exclude=True, description="Parsed RFC 6570 template")
+     security: ResourceSecurity = Field(exclude=True, description="Path-safety policy for extracted parameters")
++    max_bytes: int | None = Field(
++        default=None, gt=0, exclude=True, description="Largest content a read may return; None means no cap"
++    )
+ 
+     @classmethod
+     def from_function(
+@@ -132,6 +135,7 @@ class ResourceTemplate(BaseModel):
+         meta: dict[str, Any] | None = None,
+         context_kwarg: str | None = None,
+         security: ResourceSecurity = DEFAULT_RESOURCE_SECURITY,
++        max_bytes: int | None = None,
+     ) -> ResourceTemplate:
+         """Create a template from a function.
+ 
+@@ -172,6 +176,7 @@ class ResourceTemplate(BaseModel):
+             context_kwarg=context_kwarg,
+             parsed_template=parsed,
+             security=security,
++            max_bytes=max_bytes,
+         )
+ 
+     def matches(self, uri: str) -> dict[str, str | list[str]] | None:
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index 7efa291..ca2bb67 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -85,6 +85,7 @@ from mcp.server.mcpserver.resources import (
+     Resource,
+     ResourceManager,
+     ResourceSecurity,
++    content_size,
+ )
+ from mcp.server.mcpserver.tools import Tool, ToolManager
+ from mcp.server.mcpserver.utilities.context_injection import find_context_parameter
+@@ -593,7 +594,8 @@ class MCPServer(Generic[LifespanResultT]):
+ 
+         Raises:
+             ResourceNotFoundError: If no resource or template matches the URI.
+-            ResourceError: If the resource or template function raises `ResourceError`.
++            ResourceError: If the resource or template function raises `ResourceError`, or
++                the content is larger than the `max_bytes` the resource was registered with.
+             UnexpectedResourceError: If reading the resource (or creating it from a
+                 template) raises anything other than `ResourceError` or `MCPError`.
+                 `__cause__` is the original exception.
+@@ -609,6 +611,9 @@ class MCPServer(Generic[LifespanResultT]):
+             content = cast(object, await resource.read())
+             if not isinstance(content, str | bytes):
+                 raise TypeError(f"Resource.read() must return str or bytes, not {type(content).__name__}")
++            max_bytes = self._resource_manager.max_bytes_for(uri)
++            if max_bytes is not None and content_size(content) > max_bytes:
++                raise ResourceError(f"Resource '{uri}' exceeds max_bytes={max_bytes}")
+             return [ReadResourceContents(content=content, mime_type=resource.mime_type, meta=resource.meta)]
+         except (MCPError, ResourceError):
+             raise
+@@ -777,13 +782,18 @@ class MCPServer(Generic[LifespanResultT]):
+ 
+         return decorator
+ 
+-    def add_resource(self, resource: Resource) -> None:
++    def add_resource(self, resource: Resource, *, max_bytes: int | None = None) -> None:
+         """Add a resource to the server.
+ 
+         Args:
+             resource: A Resource instance to add
++            max_bytes: Largest content (in bytes; UTF-8 for text) a read may return. A larger
++                read fails with `ResourceError`. None (the default) means no cap.
++
++        Raises:
++            ValueError: If `max_bytes` is not `None` and is zero or negative.
+         """
+-        self._resource_manager.add_resource(resource)
++        self._resource_manager.add_resource(resource, max_bytes=max_bytes)
+ 
+     def resource(
+         self,
+@@ -797,6 +807,7 @@ class MCPServer(Generic[LifespanResultT]):
+         annotations: Annotations | None = None,
+         meta: dict[str, Any] | None = None,
+         security: ResourceSecurity | None = None,
++        max_bytes: int | None = None,
+     ) -> Callable[[_CallableT], _CallableT]:
+         """Decorator to register a function as a resource.
+ 
+@@ -825,6 +836,8 @@ class MCPServer(Generic[LifespanResultT]):
+             security: Path-safety policy for extracted template parameters.
+                 Defaults to the server's ``resource_security`` setting.
+                 Only applies to template resources.
++            max_bytes: Largest content (in bytes; UTF-8 for text) a read may return. A larger
++                read fails with `ResourceError`. None (the default) means no cap.
+ 
+         Example:
+             ```python
+@@ -850,9 +863,10 @@ class MCPServer(Generic[LifespanResultT]):
+         Raises:
+             InvalidUriTemplate: If ``uri`` is not a valid RFC 6570 template.
+             ValueError: If URI template parameters don't match the
+-                function's parameters, or if a parameter bound to a
++                function's parameters, if a parameter bound to a
+                 ``{?...}``/``{&...}`` query variable has no default
+-                (the client may omit it).
++                (the client may omit it), or if ``max_bytes`` is zero
++                or negative.
+             TypeError: If the decorator is applied without being called
+                 (``@resource`` instead of ``@resource("uri")``).
+         """
+@@ -863,6 +877,9 @@ class MCPServer(Generic[LifespanResultT]):
+                 "Did you forget to call it? Use @resource('uri') instead of @resource"
+             )
+ 
++        if max_bytes is not None and max_bytes <= 0:
++            raise ValueError(f"max_bytes must be greater than 0, got {max_bytes!r}")
++
+         # Parse once, early — surfaces malformed-template errors at
+         # decoration time with a clear position, and gives us correct
+         # variable names for all RFC 6570 operators.
+@@ -913,6 +930,7 @@ class MCPServer(Generic[LifespanResultT]):
+                     annotations=annotations,
+                     security=security if security is not None else self._resource_security,
+                     meta=meta,
++                    max_bytes=max_bytes,
+                 )
+             else:
+                 if func_params:
+@@ -941,7 +959,7 @@ class MCPServer(Generic[LifespanResultT]):
+                     annotations=annotations,
+                     meta=meta,
+                 )
+-                self.add_resource(resource)
++                self.add_resource(resource, max_bytes=max_bytes)
+             return fn
+ 
+         return decorator
+-- 
+2.54.0 (Apple Git-157)
+

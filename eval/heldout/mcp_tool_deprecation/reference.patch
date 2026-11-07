@@ -1,0 +1,229 @@
+From 1a0233a9616e0223165da6d04e6368966351833f Mon Sep 17 00:00:00 2001
+From: heldout <heldout@example.invalid>
+Date: Sat, 7 Nov 2026 13:11:21 -0800
+Subject: [PATCH] mcpserver: tool deprecation flag, listed in _meta and warned
+ on call results
+
+---
+ src/mcp/server/mcpserver/server.py            | 38 +++++++++++++++++--
+ src/mcp/server/mcpserver/tools/__init__.py    |  4 +-
+ src/mcp/server/mcpserver/tools/base.py        | 30 ++++++++++++++-
+ .../server/mcpserver/tools/tool_manager.py    |  8 +++-
+ 4 files changed, 73 insertions(+), 7 deletions(-)
+
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index 7efa291..b488e30 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -86,7 +86,7 @@ from mcp.server.mcpserver.resources import (
+     ResourceManager,
+     ResourceSecurity,
+ )
+-from mcp.server.mcpserver.tools import Tool, ToolManager
++from mcp.server.mcpserver.tools import Tool, ToolManager, deprecation_message
+ from mcp.server.mcpserver.utilities.context_injection import find_context_parameter
+ from mcp.server.mcpserver.utilities.logging import configure_logging, get_logger
+ from mcp.server.request_state import RequestStateBoundary, RequestStateSecurity
+@@ -525,11 +525,19 @@ class MCPServer(Generic[LifespanResultT]):
+                 output_schema=info.output_schema,
+                 annotations=info.annotations,
+                 icons=info.icons,
+-                _meta=info.meta,
++                _meta=self._listed_tool_meta(info),
+             )
+             for info in tools
+         ]
+ 
++    @staticmethod
++    def _listed_tool_meta(tool: Tool) -> dict[str, Any] | None:
++        """The tool's `_meta` as listed: its own metadata plus the deprecation flag when deprecated."""
++        if tool.deprecated is False:
++            return tool.meta
++        replacement = tool.deprecated if isinstance(tool.deprecated, str) else None
++        return {**(tool.meta or {}), "deprecated": True, "replacement": replacement}
++
+     async def call_tool(
+         self, name: str, arguments: dict[str, Any], context: Context[LifespanResultT, Any] | None = None
+     ) -> CallToolResult | InputRequiredResult:
+@@ -545,7 +553,13 @@ class MCPServer(Generic[LifespanResultT]):
+         """
+         if context is None:
+             context = Context(mcp_server=self, subscriptions=self._subscriptions)
+-        return await self._tool_manager.call_tool(name, arguments, context, convert_result=True)
++        tool = self._tool_manager.get_tool(name)
++        result = await self._tool_manager.call_tool(name, arguments, context, convert_result=True)
++        warning = deprecation_message(tool.name, tool.deprecated) if tool is not None else None
++        if warning is not None and isinstance(result, CallToolResult):
++            # A copy, so a CallToolResult the tool returned (and may reuse) is left untouched.
++            result = result.model_copy(update={"meta": {**(result.meta or {}), "deprecation_warning": warning}})
++        return result
+ 
+     async def list_resources(self) -> list[MCPResource]:
+         """List all available resources."""
+@@ -625,6 +639,7 @@ class MCPServer(Generic[LifespanResultT]):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        deprecated: bool | str = False,
+     ) -> None:
+         """Add a tool to the server.
+ 
+@@ -643,6 +658,13 @@ class MCPServer(Generic[LifespanResultT]):
+                 - If None, auto-detects based on the function's return type annotation
+                 - If True, creates a structured tool (return type annotation permitting)
+                 - If False, unconditionally creates an unstructured tool
++            deprecated: False (default), True, or the name of the tool to use instead.
++                A deprecated tool still runs; `list_tools` flags it in `_meta`
++                (`deprecated`, `replacement`) and each successful call's result carries
++                `_meta["deprecation_warning"]`.
++
++        Raises:
++            ValueError: If `deprecated` is an empty or whitespace-only string.
+         """
+         self._tool_manager.add_tool(
+             fn,
+@@ -653,6 +675,7 @@ class MCPServer(Generic[LifespanResultT]):
+             icons=icons,
+             meta=meta,
+             structured_output=structured_output,
++            deprecated=deprecated,
+         )
+ 
+     def remove_tool(self, name: str) -> None:
+@@ -675,6 +698,7 @@ class MCPServer(Generic[LifespanResultT]):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        deprecated: bool | str = False,
+     ) -> Callable[[_CallableT], _CallableT]:
+         """Decorator to register a tool.
+ 
+@@ -693,6 +717,13 @@ class MCPServer(Generic[LifespanResultT]):
+                 - If None, auto-detects based on the function's return type annotation
+                 - If True, creates a structured tool (return type annotation permitting)
+                 - If False, unconditionally creates an unstructured tool
++            deprecated: False (default), True, or the name of the tool to use instead.
++                A deprecated tool still runs; `list_tools` flags it in `_meta`
++                (`deprecated`, `replacement`) and each successful call's result carries
++                `_meta["deprecation_warning"]`.
++
++        Raises:
++            ValueError: If `deprecated` is an empty or whitespace-only string.
+ 
+         Example:
+             ```python
+@@ -731,6 +762,7 @@ class MCPServer(Generic[LifespanResultT]):
+                 icons=icons,
+                 meta=meta,
+                 structured_output=structured_output,
++                deprecated=deprecated,
+             )
+             return fn
+ 
+diff --git a/src/mcp/server/mcpserver/tools/__init__.py b/src/mcp/server/mcpserver/tools/__init__.py
+index ae9c656..6e36d08 100644
+--- a/src/mcp/server/mcpserver/tools/__init__.py
++++ b/src/mcp/server/mcpserver/tools/__init__.py
+@@ -1,4 +1,4 @@
+-from .base import Tool
++from .base import Tool, deprecation_message
+ from .tool_manager import ToolManager
+ 
+-__all__ = ["Tool", "ToolManager"]
++__all__ = ["Tool", "ToolManager", "deprecation_message"]
+diff --git a/src/mcp/server/mcpserver/tools/base.py b/src/mcp/server/mcpserver/tools/base.py
+index 10a2d6c..855ebb4 100644
+--- a/src/mcp/server/mcpserver/tools/base.py
++++ b/src/mcp/server/mcpserver/tools/base.py
+@@ -32,6 +32,24 @@ if TYPE_CHECKING:
+     from mcp.server.mcpserver.context import Context
+ 
+ 
++def deprecation_message(name: str, deprecated: bool | str) -> str | None:
++    """The warning for calling tool `name`, or `None` when it is not deprecated.
++
++    `deprecated` is `False` (not deprecated), `True` (deprecated, no replacement) or the
++    name of the tool to use instead.
++
++    Raises:
++        ValueError: If `deprecated` is an empty or whitespace-only string.
++    """
++    if deprecated is False:
++        return None
++    if deprecated is True:
++        return f"Tool '{name}' is deprecated"
++    if not deprecated.strip():
++        raise ValueError("deprecated must be True, False or a non-empty replacement hint")
++    return f"Tool '{name}' is deprecated; use '{deprecated}' instead"
++
++
+ class Tool(BaseModel):
+     """Internal tool registration info."""
+ 
+@@ -56,6 +74,9 @@ class Tool(BaseModel):
+     annotations: ToolAnnotations | None = Field(None, description="Optional annotations for the tool")
+     icons: list[Icon] | None = Field(default=None, description="Optional list of icons for this tool")
+     meta: dict[str, Any] | None = Field(default=None, description="Optional metadata for this tool")
++    deprecated: bool | str = Field(
++        default=False, description="True if deprecated, or the replacement hint (a tool name) when one exists"
++    )
+ 
+     @cached_property
+     def output_schema(self) -> dict[str, Any] | None:
+@@ -73,11 +94,17 @@ class Tool(BaseModel):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        deprecated: bool | str = False,
+     ) -> Tool:
+-        """Create a Tool from a function."""
++        """Create a Tool from a function.
++
++        Raises:
++            ValueError: If `deprecated` is an empty or whitespace-only string.
++        """
+         func_name = name or fn.__name__
+ 
+         validate_and_warn_tool_name(func_name)
++        deprecation_message(func_name, deprecated)  # validates the hint
+ 
+         if func_name == "<lambda>":
+             raise ValueError("You must provide a name for lambda functions")
+@@ -129,6 +156,7 @@ class Tool(BaseModel):
+             annotations=annotations,
+             icons=icons,
+             meta=meta,
++            deprecated=deprecated,
+         )
+ 
+     async def run(
+diff --git a/src/mcp/server/mcpserver/tools/tool_manager.py b/src/mcp/server/mcpserver/tools/tool_manager.py
+index 9e7910e..530354c 100644
+--- a/src/mcp/server/mcpserver/tools/tool_manager.py
++++ b/src/mcp/server/mcpserver/tools/tool_manager.py
+@@ -46,8 +46,13 @@ class ToolManager:
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        deprecated: bool | str = False,
+     ) -> Tool:
+-        """Add a tool to the server."""
++        """Add a tool to the server.
++
++        Raises:
++            ValueError: If `deprecated` is an empty or whitespace-only string.
++        """
+         tool = Tool.from_function(
+             fn,
+             name=name,
+@@ -57,6 +62,7 @@ class ToolManager:
+             icons=icons,
+             meta=meta,
+             structured_output=structured_output,
++            deprecated=deprecated,
+         )
+         existing = self._tools.get(tool.name)
+         if existing:
+-- 
+2.54.0 (Apple Git-157)
+

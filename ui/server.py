@@ -19,7 +19,9 @@ Snapshot format (see ui/README.md): a plain JSON dict of lists of model_dump() o
       "regions":  [FailureRegion.model_dump(mode="json"), ...],      # optional
       "runs":     [AgentRun.model_dump(mode="json"), ...],           # optional
       "failed_run_ids":   ["run id", ...],                          # optional
-      "verified_run_ids": ["run id", ...]                           # optional
+      "verified_run_ids": ["run id", ...],                          # optional
+      "divergences": [{**Divergence.model_dump(mode="json"),        # optional
+                       "failed_outcome": Outcome | null}, ...]      # (failed agent's own outcome)
     }
 """
 
@@ -35,7 +37,7 @@ from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 
-from core.models import AgentRun, Change, FailureRegion, Lesson, ReasoningStep, TrustScore
+from core.models import AgentRun, Change, Divergence, FailureRegion, Lesson, Outcome, ReasoningStep, TrustScore
 from core.store.memory import MemoryStore
 
 HERE = Path(__file__).resolve().parent
@@ -90,6 +92,81 @@ def _list_runs(store) -> list[AgentRun]:
     return []
 
 
+def _dump(x) -> dict:
+    if hasattr(x, "model_dump"):
+        return x.model_dump(mode="json")
+    return dict(jsonable_encoder(x))
+
+
+def _list_divergences(store) -> list[dict]:
+    """Divergences in the order they were recorded (oldest first), as JSON dicts.
+
+    Items of `store.divergences` may be `Divergence` models or plain dicts; extra dict keys
+    (agent_id, subtask_id, failed_outcome) are kept."""
+    items = getattr(store, "divergences", None)
+    if items is None:
+        db = getattr(store, "db", None)
+        items = list(db.divergences.find({}, {"_id": 0})) if db is not None else []
+    return [_dump(d) for d in items or ()]
+
+
+def _failed_outcome(store, run_id: str | None, entry: dict):
+    """The failed agent's own outcome on the breaking case: entry["failed_outcome"], else
+    store.failed_outcomes[run_id] (Outcome or dict), else None."""
+    o = entry.get("failed_outcome")
+    if o is None and run_id is not None:
+        o = (getattr(store, "failed_outcomes", None) or {}).get(run_id)
+    return _dump(o) if o is not None else None
+
+
+def _run_owners(store) -> dict[str, tuple[str | None, str | None]]:
+    """run_id -> (agent_id, subtask_id) from stored runs, steps and lessons' created_from."""
+    out: dict[str, tuple[str | None, str | None]] = {}
+
+    def put(rid, agent, sub):
+        if not rid:
+            return
+        a, st = out.get(rid, (None, None))
+        out[rid] = (a or agent, st or sub)
+
+    for r in _list_runs(store):
+        put(r.id, r.agent.id, r.subtask_id)
+    for d in _list_steps(store):
+        put(d.get("run_id"), d.get("agent_id"), d.get("subtask_id"))
+    for l in store.list_lessons():
+        cf = l.created_from or {}
+        put(cf.get("run_id"), cf.get("agent_id"), cf.get("subtask_id"))
+    return out
+
+
+DIVERGENCE_FIELDS = (
+    "run_id", "agent_id", "subtask_id", "step_index", "step_text", "signals", "confirmed",
+    "step_probabilities", "kind", "kind_confidence", "generalizes", "breaking_case",
+    "majority_outcome", "failed_outcome", "distance", "consensus_step_texts",
+)
+
+
+def divergence_view(store) -> list[dict]:
+    """What GET /api/divergences returns: newest first, with agent and subtask filled in."""
+    owners = _run_owners(store)
+    raw = _list_divergences(store)
+    out = []
+    for seq, d in enumerate(raw):
+        rid = d.get("run_id")
+        agent, sub = owners.get(rid, (None, None))
+        e = {k: d.get(k) for k in DIVERGENCE_FIELDS}
+        e["agent_id"] = d.get("agent_id") or agent
+        e["subtask_id"] = d.get("subtask_id") or sub
+        e["failed_outcome"] = _failed_outcome(store, rid, d)
+        e["signals"] = list(d.get("signals") or [])
+        e["confirmed"] = bool(d.get("confirmed"))
+        e["step_probabilities"] = dict(d.get("step_probabilities") or {})
+        e["consensus_step_texts"] = list(d.get("consensus_step_texts") or [])
+        e["seq"] = seq  # recording order, 0 = oldest
+        out.append(e)
+    return jsonable_encoder(out[::-1])
+
+
 def _run_verdicts(store) -> tuple[set[str], set[str]]:
     """(failed run ids, verified run ids) from whatever evidence the store holds.
 
@@ -139,6 +216,10 @@ def snapshot_store(store) -> dict:
         "runs": [r.model_dump(mode="json") for r in _list_runs(store)],
         "failed_run_ids": sorted(failed),
         "verified_run_ids": sorted(verified),
+        "divergences": [
+            {**d, "failed_outcome": _failed_outcome(store, d.get("run_id"), d)}
+            for d in _list_divergences(store)
+        ],
     })
 
 
@@ -166,6 +247,13 @@ def store_from_snapshot(data: dict) -> MemoryStore:
     store.steps.extend(dict(s) for s in data.get("steps", []))
     store.failed_run_ids = set(data.get("failed_run_ids", []))
     store.verified_run_ids = set(data.get("verified_run_ids", []))
+    store.divergences = []
+    store.failed_outcomes = {}
+    for d in data.get("divergences") or []:  # absent in snapshots written before divergences
+        div = Divergence.model_validate(d)
+        store.divergences.append(div)
+        if d.get("failed_outcome") is not None:
+            store.failed_outcomes[div.run_id] = Outcome.model_validate(d["failed_outcome"])
     return store
 
 
@@ -264,6 +352,10 @@ def make_app(store=None) -> FastAPI:
                 "failed": f,
             })
         return jsonable_encoder(out)
+
+    @app.get("/api/divergences")
+    def divergences():
+        return divergence_view(get())
 
     @app.get("/api/regions")
     def regions():

@@ -44,6 +44,7 @@ def run(
     fake: bool = typer.Option(False, "--fake", help="Offline: deterministic fake decomposer/spec/swarm/reflector, no API calls"),
     reference_dir: str = typer.Option(None, "--reference-dir", help="With --fake: reference implementation mirroring the repo layout (default: <task dir>/reference)"),
     heldout_dir: str = typer.Option(None, "--heldout-dir", help="Held-out folder (default: eval/heldout)"),
+    snapshot: str = typer.Option(None, "--snapshot", help="Write the UI snapshot JSON here after every subtask (serve with SWARM_SNAPSHOT=<path> uvicorn ui.server:app)"),
 ):
     """Run a long task end to end."""
     from core.decompose.decomposer import decompose, load_task
@@ -57,7 +58,7 @@ def run(
         task = decompose(load_task(task_file))
         print(f"[bold]{task.title}[/] → {len(task.subtasks)} subtasks")
         runner = make_heldout_runner(store, heldout_dir=heldout_dir) if heldout else None
-        print(run_task(task, store, runner))
+        print(run_task(task, store, runner, snapshot_path=snapshot))
         return
 
     from functools import partial
@@ -74,6 +75,7 @@ def run(
     summary = run_task(
         task, store, runner,
         swarm_fn=fake_swarm(ref), spec_fn=partial(fake_spec_tests, reference_dir=ref), reflect_fn=fake_reflect, n_fuzz=FAKE_N_FUZZ,
+        snapshot_path=snapshot,
     )
     summary.pop("per_subtask", None)
     print(summary)

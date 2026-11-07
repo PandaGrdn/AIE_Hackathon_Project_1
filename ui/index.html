@@ -15,6 +15,9 @@
     --red: #ff5d5d;
     --grey: #8b95a3;
     --accent: #7cc4ff;
+    --amber: #ffb547;
+    --track: #1c2430;
+    --bar-dim: #4a5566;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -63,10 +66,52 @@
   .legend { display: flex; flex-wrap: wrap; gap: 22px; padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 16px; }
   .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
   .err { color: var(--red); font-size: 15px; }
+  /* ---------- root cause ---------- */
+  #rootcause { display: grid; gap: 16px; }
+  .rc-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px 20px; }
+  .rc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 12px; }
+  .rc-agent { font-weight: 700; font-size: 22px; }
+  .rc-sub { color: var(--muted); font-size: 17px; }
+  .rc-head .spacer { flex: 1; }
+  .kind.bug { background: rgba(255,93,93,.16); color: var(--red); border: 1px solid var(--red); }
+  .kind.spec_ambiguity { background: rgba(255,181,71,.16); color: var(--amber); border: 1px solid var(--amber); }
+  .kind.acceptable_variation, .kind.unknown { background: rgba(139,149,163,.16); color: var(--grey); border: 1px solid var(--grey); }
+  .kind .conf { font-weight: 400; margin-left: 6px; }
+  .check { font-size: 17px; white-space: nowrap; }
+  .check.yes { color: var(--green); }
+  .check.no { color: var(--muted); }
+  .rc-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 18px 28px; }
+  .rc-label { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 6px; }
+  .evidence { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; align-items: baseline; }
+  .evidence dt { color: var(--muted); font-size: 16px; }
+  .evidence dd { margin: 0; overflow-wrap: anywhere; }
+  .evidence .actual { color: var(--red); }
+  .probs { display: grid; grid-template-columns: max-content minmax(0, 1fr) 4.2em; gap: 6px 12px; align-items: center; }
+  .probs .lab { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .probs .lab.chosen { color: var(--text); font-weight: 700; }
+  .probs .track { height: 16px; background: var(--track); border-radius: 4px; position: relative; }
+  .probs .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--bar-dim); min-width: 2px; }
+  .probs .fill.chosen { background: var(--accent); }
+  .probs .track.chosen { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .probs .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .probs .v.chosen { color: var(--text); font-weight: 700; }
+  .probs-note { color: var(--muted); font-size: 16px; margin-top: 8px; }
+  .step-text { margin-top: 12px; border-left: 4px solid var(--accent); padding: 8px 14px; background: rgba(124,196,255,.06); border-radius: 0 8px 8px 0; overflow-wrap: anywhere; }
+  .step-text .meta { color: var(--muted); font-size: 14px; margin-bottom: 4px; }
+  .meter { display: flex; align-items: center; gap: 12px; }
+  .meter .track { width: 220px; flex: 0 1 220px; height: 12px; background: var(--track); border-radius: 6px; overflow: hidden; }
+  .meter .fill { display: block; height: 100%; background: var(--accent); border-radius: 6px; }
+  .meter b { font-variant-numeric: tabular-nums; }
+  .signals { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sig { font-size: 15px; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+  .sig.on { border-color: var(--accent); color: var(--text); background: rgba(124,196,255,.12); }
+  .sig.on::before { content: "● "; color: var(--accent); }
+  .rc-foot { display: flex; flex-wrap: wrap; gap: 18px 36px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
   @media (max-width: 800px) {
     body { padding: 16px; font-size: 17px; }
     th, td { padding: 8px 10px; }
     .panel { overflow-x: auto; }
+    .rc-body { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
 </head>
@@ -80,6 +125,11 @@
 <section id="changelog">
   <h2>Changelog <span class="n" id="changes-n"></span></h2>
   <div class="panel" id="changes"></div>
+</section>
+
+<section id="rootcause-section">
+  <h2>Root cause <span class="n" id="rootcause-n"></span></h2>
+  <div id="rootcause"></div>
 </section>
 
 <section id="trust-section">
@@ -102,6 +152,7 @@
       <span><i style="background:var(--red)"></i>failed-run step</span>
       <span><i style="border:2px solid var(--grey);background:transparent"></i>run verdict unknown</span>
       <span><i style="border:2px dashed var(--red);background:transparent"></i>failure region (approx.)</span>
+      <span><i style="border:3px solid var(--amber);background:transparent"></i>root-cause step (SubQ / path)</span>
       <span>PCA of step embeddings, computed in the browser</span>
     </div>
   </div>
@@ -193,6 +244,91 @@ function renderLessons(ls) {
   $("lessons").innerHTML = `<table><thead><tr><th>Lesson</th><th>Hits</th><th>Status</th><th>Confidence</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+// ---------- root cause (SubQ Snap localization) ----------
+const SIGNALS = ["subq", "path", "locality", "live_timing"];
+const KIND_LABEL = { bug: "bug", spec_ambiguity: "spec ambiguity", acceptable_variation: "acceptable variation" };
+const stepNum = (lab) => { const m = /^S(\d+)$/.exec(lab); return m ? +m[1] : Infinity; };
+const jv = (v) => { try { return JSON.stringify(v); } catch (_) { return String(v); } };
+
+function fmtCall(c) {
+  if (!c) return null;
+  const parts = (c.args || []).map(jv).concat(Object.entries(c.kwargs || {}).sort().map(([k, v]) => `${k}=${jv(v)}`));
+  return `${c.function}(${parts.join(", ")})`;
+}
+
+function fmtOutcome(o) {
+  if (!o) return null;
+  if (o.timed_out) return "timed out";
+  if (!o.ok) return `raised ${o.exception || "an exception"}`;
+  return `returned ${jv(o.value)}`;
+}
+
+// latest divergence per run (divs arrive newest first)
+function rootByRun(divs) {
+  const m = {};
+  divs.forEach((d) => { if (d.run_id && !(d.run_id in m)) m[d.run_id] = d; });
+  return m;
+}
+
+function probChart(d, runSteps) {
+  const probs = d.step_probabilities || {};
+  const chosen = "S" + d.step_index;
+  const textOf = {};
+  runSteps.forEach((s) => { textOf["S" + s.step_index] = s.text; });
+  const labels = Array.from(new Set(Object.keys(probs).concat(Object.keys(textOf), [chosen]))).sort((a, b) => stepNum(a) - stepNum(b));
+  const hasProbs = Object.keys(probs).length > 0;
+  const rows = labels.map((lab) => {
+    const p = probs[lab], on = lab === chosen ? " chosen" : "";
+    const w = p === undefined ? 0 : Math.max(0, Math.min(1, p)) * 100;
+    const tip = `${lab}: ${p === undefined ? "no probability" : "P(root cause) " + pct(p)}${textOf[lab] ? " — " + textOf[lab] : ""}`;
+    return `<span class="lab mono${on}">${esc(lab)}</span>
+      <span class="track${on}" title="${esc(tip)}">${p === undefined && !on ? "" : `<span class="fill${on}" style="width:${w.toFixed(1)}%"></span>`}</span>
+      <span class="v${on}">${p === undefined ? "–" : pct(p)}</span>`;
+  }).join("");
+  const note = hasProbs ? "" : `<div class="probs-note">No SubQ probabilities for this run: step chosen by the ${esc((d.signals || []).join(" + ") || "path")} signal.</div>`;
+  return `<div class="rc-label">SubQ P(root cause) per step</div><div class="probs">${rows}</div>${note}`;
+}
+
+function renderRootCause(payload) {
+  const [divs, steps] = payload;
+  $("rootcause-n").textContent = divs.length ? `${divs.length} failed run${divs.length === 1 ? "" : "s"} localized` : "";
+  if (!divs.length) { $("rootcause").innerHTML = '<div class="panel"><div class="empty">No failed run localized yet.</div></div>'; return; }
+  const byRun = {};
+  steps.forEach((s) => { (byRun[s.run_id] = byRun[s.run_id] || []).push(s); });
+  $("rootcause").innerHTML = divs.map((d) => {
+    const kind = d.kind || "unknown";
+    const kindPill = `<span class="pill kind ${esc(kind)}">${esc(KIND_LABEL[kind] || "kind unknown")}${d.kind_confidence != null ? `<span class="conf">${pct(d.kind_confidence)}</span>` : ""}</span>`;
+    const check = d.confirmed
+      ? '<span class="check yes">✓ confirmed by replay</span>'
+      : '<span class="check no">○ not confirmed</span>';
+    const call = fmtCall(d.breaking_case), exp = fmtOutcome(d.majority_outcome), act = fmtOutcome(d.failed_outcome);
+    const evidence = `<div class="rc-label">Failing input</div><dl class="evidence">
+        <dt>input</dt><dd class="mono">${call ? esc(call) : '<span class="muted">not recorded</span>'}</dd>
+        <dt>expected</dt><dd class="mono">${exp ? esc(exp) : '<span class="muted">not recorded</span>'}</dd>
+        <dt>actual</dt><dd class="mono ${act ? "actual" : ""}">${act ? esc(act) : '<span class="muted">not recorded</span>'}</dd>
+      </dl>`;
+    const pChosen = (d.step_probabilities || {})["S" + d.step_index];
+    const stepBox = `<div class="step-text"><div class="meta">root cause · step S${esc(d.step_index)}${pChosen != null ? ` · P ${pct(pChosen)}` : ""}</div>${esc(d.step_text)}</div>`;
+    const gen = d.generalizes;
+    const meter = `<div><div class="rc-label">Generalizes</div>${gen == null ? '<span class="muted">–</span>'
+      : `<div class="meter"><span class="track"><span class="fill" style="width:${(100 * Math.max(0, Math.min(1, gen))).toFixed(0)}%"></span></span><b>${pct(gen)}</b></div>`}</div>`;
+    const sig = `<div><div class="rc-label">Signals</div><div class="signals">${SIGNALS.concat((d.signals || []).filter((x) => !SIGNALS.includes(x)))
+      .map((x) => `<span class="sig ${(d.signals || []).includes(x) ? "on" : ""}">${esc(x)}</span>`).join("")}</div></div>`;
+    return `<article class="rc-card">
+      <div class="rc-head">
+        <span class="rc-agent mono">${esc(d.agent_id || "unknown agent")}</span>
+        <span class="rc-sub">subtask ${esc(d.subtask_id || "?")} · run ${esc(d.run_id)}</span>
+        <span class="spacer"></span>${kindPill}${check}
+      </div>
+      <div class="rc-body">
+        <div>${evidence}${stepBox}</div>
+        <div>${probChart(d, (byRun[d.run_id] || []).filter((s) => s.step_index != null))}</div>
+      </div>
+      <div class="rc-foot">${meter}${sig}</div>
+    </article>`;
+  }).join("");
+}
+
 // ---------- PCA by power iteration (no d x d matrix: Cv = X^T (X v) / n) ----------
 function topComponents(X, k, iters) {
   const n = X.length, d = X[0].length, comps = [];
@@ -219,7 +355,10 @@ function topComponents(X, k, iters) {
 }
 
 function renderMap(payload) {
-  const [steps, regions] = payload;
+  const [steps, regions, divs] = payload;
+  const roots = rootByRun(divs || []);
+  const isRoot = (s) => { const d = roots[s.run_id]; return !!d && d.step_index === s.step_index; };
+  const subqP = (s) => { const d = roots[s.run_id]; return d ? (d.step_probabilities || {})["S" + s.step_index] : undefined; };
   const svg = $("map");
   const W = svg.clientWidth || 1000, H = svg.clientHeight || 560, pad = 36;
   const withEmb = steps.filter((s) => Array.isArray(s.embedding) && s.embedding.length);
@@ -260,6 +399,11 @@ function renderMap(payload) {
     const stroke = f === true ? "#ffb3b3" : "var(--grey)";
     out += `<circle data-i="${i}" cx="${sx(P[i][0]).toFixed(1)}" cy="${sy(P[i][1]).toFixed(1)}" r="${f === true ? 9 : 7}" fill="${fill}" fill-opacity="${f === true ? 0.95 : 0.7}" stroke="${stroke}" stroke-width="${f === null || f === undefined ? 2 : 1}" style="cursor:pointer"/>`;
   });
+  // root-cause rings on top; they don't take the pointer, so hover still hits the step point
+  P.forEach((p, i) => {
+    if (!isRoot(pts[i])) return;
+    out += `<circle cx="${sx(p[0]).toFixed(1)}" cy="${sy(p[1]).toFixed(1)}" r="16" fill="none" stroke="var(--amber)" stroke-width="3" pointer-events="none"/>`;
+  });
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.innerHTML = out;
 
@@ -269,7 +413,10 @@ function renderMap(payload) {
     if (!(t instanceof SVGCircleElement) || t.dataset.i === undefined) { tip.style.display = "none"; return; }
     const s = pts[+t.dataset.i];
     const verdict = s.failed === true ? '<span class="down">failed run</span>' : s.failed === false ? "verified run" : "verdict unknown";
-    tip.innerHTML = `<div class="meta">${verdict} · ${esc(s.agent_id)} · run ${esc(s.run_id)} · step ${esc(s.step_index)}</div>${esc(s.text)}`;
+    const p = subqP(s);
+    const rc = isRoot(s) ? `<div class="meta" style="color:var(--amber)">root cause${p != null ? ` · SubQ P ${pct(p)}` : " · path signal"}</div>`
+      : p != null ? `<div class="meta">SubQ P(root cause) ${pct(p)}</div>` : "";
+    tip.innerHTML = `<div class="meta">${verdict} · ${esc(s.agent_id)} · run ${esc(s.run_id)} · step ${esc(s.step_index)}</div>${rc}${esc(s.text)}`;
     const b = wrap.getBoundingClientRect();
     tip.style.display = "block";
     const left = Math.min(ev.clientX - b.left + 16, b.width - tip.offsetWidth - 8);
@@ -293,13 +440,14 @@ function changed(key, text) {
 
 async function refresh() {
   try {
-    const [summary, changes, trust, lessons, steps, regions] = await Promise.all(
-      ["/api/summary", "/api/changes", "/api/trust", "/api/lessons", "/api/steps", "/api/regions"].map(getJSON));
+    const [summary, changes, trust, lessons, steps, regions, divs] = await Promise.all(
+      ["/api/summary", "/api/changes", "/api/trust", "/api/lessons", "/api/steps", "/api/regions", "/api/divergences"].map(getJSON));
     if (changed("summary", summary)) renderSummary(JSON.parse(summary));
     if (changed("changes", changes)) renderChanges(JSON.parse(changes));
+    if (changed("rootcause", divs + steps)) renderRootCause([JSON.parse(divs), JSON.parse(steps)]);
     if (changed("trust", trust)) renderTrust(JSON.parse(trust));
     if (changed("lessons", lessons)) renderLessons(JSON.parse(lessons));
-    if (changed("map", steps + regions)) renderMap([JSON.parse(steps), JSON.parse(regions)]);
+    if (changed("map", steps + regions + divs)) renderMap([JSON.parse(steps), JSON.parse(regions), JSON.parse(divs)]);
     $("live").innerHTML = `<b>●</b> live · updated ${new Date().toLocaleTimeString()}`;
   } catch (e) {
     $("live").innerHTML = `<span class="err">refresh failed: ${esc(e.message)}</span>`;

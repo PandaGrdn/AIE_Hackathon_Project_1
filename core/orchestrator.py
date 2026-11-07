@@ -134,6 +134,10 @@ def run_subtask(
         if bc and div.breaking_case is None:
             div.breaking_case, div.majority_outcome = bc
         divergences.append(div)
+        if failed_out is not None:  # the "actual" outcome for the UI card
+            fo = getattr(store, "failed_outcomes", None) or {}
+            fo[run.id] = failed_out
+            store.failed_outcomes = fo
         probs = f" p={div.step_probabilities.get(f'S{div.step_index}', 0):.2f}" if div.step_probabilities else ""
         console.print(f"[magenta]root cause ({run.agent.id}): step {div.step_index} via {'+'.join(div.signals) or 'path'}{probs}"
                       + (f", kind={div.kind} ({div.kind_confidence:.2f})" if div.kind else ""))

@@ -1,0 +1,8 @@
+[
+  {"name": "content_size", "file": "src/mcp/server/mcpserver/resources/base.py", "params": ["content: str | bytes"], "returns": "int"},
+  {"name": "ResourceManager.add_resource", "file": "src/mcp/server/mcpserver/resources/resource_manager.py", "params": ["resource: Resource", "max_bytes: int | None = None"], "returns": "Resource"},
+  {"name": "ResourceManager.add_template", "file": "src/mcp/server/mcpserver/resources/resource_manager.py", "params": ["fn: Callable[..., Any]", "uri_template: str", "name: str | None = None", "title: str | None = None", "description: str | None = None", "mime_type: str | None = None", "icons: list[Icon] | None = None", "annotations: Annotations | None = None", "meta: dict[str, Any] | None = None", "security: ResourceSecurity = DEFAULT_RESOURCE_SECURITY", "max_bytes: int | None = None"], "returns": "ResourceTemplate"},
+  {"name": "MCPServer.add_resource", "file": "src/mcp/server/mcpserver/server.py", "params": ["resource: Resource", "max_bytes: int | None = None"], "returns": "None"},
+  {"name": "MCPServer.resource", "file": "src/mcp/server/mcpserver/server.py", "params": ["uri: str", "name: str | None = None", "title: str | None = None", "description: str | None = None", "mime_type: str | None = None", "icons: list[Icon] | None = None", "annotations: Annotations | None = None", "meta: dict[str, Any] | None = None", "security: ResourceSecurity | None = None", "max_bytes: int | None = None"], "returns": "Callable[[_CallableT], _CallableT]"},
+  {"name": "MCPServer.read_resource", "file": "src/mcp/server/mcpserver/server.py", "params": ["uri: AnyUrl | str", "context: Context[LifespanResultT, Any] | None = None"], "returns": "Iterable[ReadResourceContents] | InputRequiredResult"}
+]

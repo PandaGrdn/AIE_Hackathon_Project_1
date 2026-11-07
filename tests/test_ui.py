@@ -13,10 +13,13 @@ from core.models import (
     Change,
     ChangeKind,
     ChangeStatus,
+    Divergence,
     Lesson,
+    Outcome,
     ReasoningStep,
     TrustScore,
 )
+from core.models import TestCase as Case
 from core.store.memory import MemoryStore
 from ui.server import load_snapshot, make_app, snapshot_store, write_snapshot
 
@@ -65,8 +68,10 @@ def test_index_serves_html_with_sections(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
-    for heading in ("Changelog", "Trust leaderboard", "Lessons", "Reasoning map"):
+    for heading in ("Changelog", "Root cause", "Trust leaderboard", "Lessons", "Reasoning map"):
         assert heading in r.text
+    assert r.text.index("Changelog") < r.text.index("Root cause") < r.text.index("Trust leaderboard")
+    assert "/api/divergences" in r.text
 
 
 def test_changes(client):
@@ -154,3 +159,85 @@ def test_snapshot_roundtrip(store, tmp_path, monkeypatch):
     steps = {s["run_id"]: s["failed"] for s in c.get("/api/steps").json()}
     assert steps == {"run-bad": True, "run-ok": False}
     assert [x["id"] for x in c.get("/api/changes").json()] == ["C1"]
+
+
+# ---------- root cause (divergences) ----------
+
+
+@pytest.fixture
+def div_store(store) -> MemoryStore:
+    """Two failed runs localized: one by SubQ Snap (probabilities), one by the path signal only."""
+    agent_path = AgentIdentity(id="gpt-mini", provider="openai", model="gpt-mini")
+    run_path = AgentRun(id="run-path", subtask_id="st3", agent=agent_path, sandbox_path="/tmp/c")
+    store.save_run(run_path)  # agent/subtask derivable from the stored run (no steps for it)
+    case = Case(id="c100", function="tier", args=[100])
+    store.divergences = [
+        Divergence(
+            run_id="run-bad", step_index=0, step_text="assumption: 'over' includes equal | action: use >=",
+            distance=0.0, consensus_step_texts=["assumption: 'over' is strict"],
+            breaking_case=case, majority_outcome=Outcome(ok=True, value="standard"),
+            signals=["subq", "path"], confirmed=True,
+            step_probabilities={"S0": 0.82, "S1": 0.18}, kind="bug", kind_confidence=0.9, generalizes=0.75,
+        ),
+        Divergence(
+            run_id="run-path", step_index=2, step_text="assumption: round half up | action: round()",
+            distance=0.41, consensus_step_texts=[], signals=["path"],
+        ),
+    ]
+    store.failed_outcomes = {"run-bad": Outcome(ok=True, value="premium")}
+    return store
+
+
+def test_divergences_endpoint(div_store):
+    body = TestClient(make_app(div_store)).get("/api/divergences").json()
+    assert [d["run_id"] for d in body] == ["run-path", "run-bad"]  # newest first
+    path, subq = body
+    assert subq["agent_id"] == "gemini-pro" and subq["subtask_id"] == "st2"  # from stored steps
+    assert subq["step_index"] == 0 and "includes equal" in subq["step_text"]
+    assert subq["step_probabilities"] == {"S0": 0.82, "S1": 0.18}
+    assert subq["kind"] == "bug" and subq["kind_confidence"] == 0.9 and subq["generalizes"] == 0.75
+    assert subq["signals"] == ["subq", "path"] and subq["confirmed"] is True
+    assert subq["breaking_case"]["function"] == "tier" and subq["breaking_case"]["args"] == [100]
+    assert subq["majority_outcome"]["value"] == "standard"
+    assert subq["failed_outcome"]["value"] == "premium"
+
+    assert path["agent_id"] == "gpt-mini" and path["subtask_id"] == "st3"  # from the stored run
+    assert path["step_probabilities"] == {} and path["kind"] is None and path["generalizes"] is None
+    assert path["signals"] == ["path"] and path["confirmed"] is False
+    assert path["breaking_case"] is None and path["failed_outcome"] is None
+
+
+def test_divergences_empty_without_store_attribute(client):
+    assert client.get("/api/divergences").json() == []
+
+
+def test_divergences_accepts_plain_dicts(store):
+    store.divergences = [{"run_id": "run-bad", "step_index": 0, "step_text": "t", "signals": ["subq"],
+                          "failed_outcome": {"ok": False, "exception": "KeyError"}}]
+    [d] = TestClient(make_app(store)).get("/api/divergences").json()
+    assert d["agent_id"] == "gemini-pro" and d["failed_outcome"]["exception"] == "KeyError"
+    assert d["step_probabilities"] == {} and d["confirmed"] is False
+
+
+def test_snapshot_roundtrips_divergences(div_store, tmp_path):
+    before = TestClient(make_app(div_store)).get("/api/divergences").json()
+    snap = snapshot_store(div_store)
+    assert [d["run_id"] for d in snap["divergences"]] == ["run-bad", "run-path"]  # recording order
+
+    loaded = load_snapshot(write_snapshot(div_store, tmp_path / "snap.json"))
+    assert all(isinstance(d, Divergence) for d in loaded.divergences)
+    assert loaded.divergences[0].step_probabilities == {"S0": 0.82, "S1": 0.18}
+    assert loaded.divergences[0].breaking_case.args == [100]
+    assert TestClient(make_app(loaded)).get("/api/divergences").json() == before
+
+
+def test_old_snapshot_without_divergences_loads(store, tmp_path):
+    import json
+
+    data = snapshot_store(store)
+    del data["divergences"]
+    path = tmp_path / "old.json"
+    path.write_text(json.dumps(data))
+    loaded = load_snapshot(path)
+    assert loaded.divergences == []
+    assert TestClient(make_app(loaded)).get("/api/divergences").json() == []
