@@ -1,0 +1,107 @@
+{
+  "task_title": "Tiered pricing module",
+  "subtasks": [
+    {
+      "title": "Tier classification",
+      "spec": "Classify a non-negative USD amount into a pricing tier. tier_for(amount) returns exactly one of the lowercase strings \"basic\", \"plus\", \"pro\". Boundaries, stated exactly: amount < 0 raises ValueError; 0 <= amount < 100 returns \"basic\" (0 is basic, 99.99 is basic, 100 is NOT basic); 100 <= amount <= 1000 returns \"plus\" (both 100 and 1000 are plus, the lower edge is inclusive and the upper edge is inclusive); amount > 1000 returns \"pro\" (1000.01 is pro, 1000 is not). Both int and float amounts are accepted and classified by value (100 and 100.0 give the same tier). Property: tier_for is monotonic in amount under the order basic < plus < pro, so a larger amount never yields a lower tier.",
+      "files": [
+        "pricing/tiers.py"
+      ],
+      "depends_on_titles": [],
+      "interface": [
+        {
+          "name": "tier_for",
+          "file": "pricing/tiers.py",
+          "params": [
+            "amount: float"
+          ],
+          "returns": "str"
+        }
+      ],
+      "tags": [
+        "boundary",
+        "classification",
+        "validation"
+      ]
+    },
+    {
+      "title": "Discount rates",
+      "spec": "Return the discount rate for a tier and a unit count, as a float fraction (0.05 means 5%). Base rate by tier: \"basic\" -> 0.0, \"plus\" -> 0.05, \"pro\" -> 0.10. Volume bonus: when units is at least 50 (units >= 50, so 50 qualifies and 49 does not) add exactly 2 percentage points (0.02) to the base rate; the bonus is additive, not multiplicative (plus with 50 units is 0.07, not 0.051). The only possible results are therefore 0.0, 0.05, 0.10 for units < 50 and 0.02, 0.07, 0.12 for units >= 50, and the returned float must compare equal (==) to those decimal literals with no floating-point accumulation error (0.07, not 0.07000000000000001). Tier names are exactly the strings returned by tier_for in pricing/tiers.py and are case-sensitive: any other string (for example \"Basic\", \"\", \" plus\", \"gold\") raises ValueError. units is a non-negative int: units < 0 raises ValueError; units == 0 is valid and gets no bonus. Property: for a fixed tier the rate never decreases as units grows.",
+      "files": [
+        "pricing/discounts.py"
+      ],
+      "depends_on_titles": [
+        "Tier classification"
+      ],
+      "interface": [
+        {
+          "name": "discount_rate",
+          "file": "pricing/discounts.py",
+          "params": [
+            "tier: str",
+            "units: int"
+          ],
+          "returns": "float"
+        }
+      ],
+      "tags": [
+        "boundary",
+        "lookup",
+        "float-precision",
+        "validation"
+      ]
+    },
+    {
+      "title": "Price quote",
+      "spec": "Quote the price of buying units units at a unit price of amount USD. quote(amount, units) returns a new dict with exactly the four keys \"tier\", \"rate\", \"subtotal\", \"total\". \"tier\" is the tier of the unit price: it must equal tier_for(amount) from pricing/tiers.py (decided by amount, not by the subtotal). \"rate\" must equal discount_rate(tier, units) from pricing/discounts.py and is returned as given, not re-rounded. The unrounded subtotal is amount * units and the unrounded total is that unrounded subtotal * (1 - rate); \"subtotal\" and \"total\" are those two values each rounded to 2 decimal places with round half to even applied to the binary float value as computed, i.e. the result must equal Python's built-in round(x, 2) (exact ties go to the even cent: 0.125 -> 0.12, 0.375 -> 0.38; never round half up, and do not convert through a decimal string, which changes results for values such as 2.675 whose float is just below the tie). The total is computed from the unrounded subtotal, not from the rounded one. \"subtotal\" and \"total\" are always floats, also for whole or zero results (0.0, not 0). Errors: a negative amount raises ValueError (as tier_for does) and negative units raise ValueError (as discount_rate does). Properties: total <= subtotal; total == subtotal when rate is 0.0; units == 0 gives subtotal 0.0 and total 0.0.",
+      "files": [
+        "pricing/quote.py"
+      ],
+      "depends_on_titles": [
+        "Tier classification",
+        "Discount rates"
+      ],
+      "interface": [
+        {
+          "name": "quote",
+          "file": "pricing/quote.py",
+          "params": [
+            "amount: float",
+            "units: int"
+          ],
+          "returns": "dict"
+        }
+      ],
+      "tags": [
+        "rounding",
+        "composition",
+        "float-precision"
+      ]
+    },
+    {
+      "title": "Quote summary",
+      "spec": "Summarize a list of quotes into totals by tier. Each element of quotes is a dict shaped like the return value of quote() in pricing/quote.py, with keys \"tier\", \"rate\", \"subtotal\", \"total\". summarize(quotes) returns a new dict with exactly the four keys \"basic\", \"plus\", \"pro\", \"grand_total\": each tier key holds the sum of the \"total\" values of the quotes with that tier, and \"grand_total\" holds the sum of the \"total\" values of all quotes (summed from the raw totals, not from the rounded per-tier sums). All four keys are always present and every value is a float; a tier with no quotes is 0.0. An empty list returns {\"basic\": 0.0, \"plus\": 0.0, \"pro\": 0.0, \"grand_total\": 0.0}. Each of the four values is rounded to 2 decimal places with round half to even applied to the binary float value as computed, i.e. the result must equal Python's built-in round(x, 2) (exact ties go to the even cent: 0.125 -> 0.12, 0.375 -> 0.38; never round half up, and do not convert through a decimal string, which changes results for values such as 2.675 whose float is just below the tie), so floating-point accumulation noise never shows (totals 0.1 and 0.2 summarize to 0.3). A quote whose \"tier\" is not one of \"basic\", \"plus\", \"pro\" raises ValueError. The input list and its dicts are not mutated. Properties: the result does not depend on the order of quotes; every value is >= 0.0 for quotes produced by quote().",
+      "files": [
+        "pricing/summary.py"
+      ],
+      "depends_on_titles": [
+        "Price quote"
+      ],
+      "interface": [
+        {
+          "name": "summarize",
+          "file": "pricing/summary.py",
+          "params": [
+            "quotes: list[dict]"
+          ],
+          "returns": "dict"
+        }
+      ],
+      "tags": [
+        "aggregation",
+        "empty-input",
+        "rounding"
+      ]
+    }
+  ]
+}
