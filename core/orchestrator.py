@@ -91,7 +91,8 @@ def run_subtask(
 
     # 0. independent spec tests, authored before any implementation exists (cached per subtask)
     spec = spec_fn(subtask, repo)
-    console.print(f"spec tests: {len(spec.cases)} cases, {len(spec.properties)} properties")
+    n_mod_tests = sum(src.count("def test") for src in getattr(spec, "modules", {}).values())
+    console.print(f"spec tests: {len(getattr(spec, 'modules', {}))} hidden module(s) / {n_mod_tests} tests, {len(spec.cases)} cases, {len(spec.properties)} properties")
 
     # 1. context
     lessons_block, lesson_ids = build_context(subtask, store)
