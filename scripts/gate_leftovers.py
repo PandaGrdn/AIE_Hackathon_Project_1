@@ -26,6 +26,7 @@ def main() -> int:
     ap.add_argument("--heldout-swarm-size", type=int, default=1)
     ap.add_argument("--agents", default="gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--out", default=None, help="write the gated snapshot here (default: in place)")
     args = ap.parse_args()
 
     import os
@@ -49,7 +50,7 @@ def main() -> int:
     for l in leftovers:
         ch = evaluate_change(Change(kind=ChangeKind.context, ref_id=l.id, description=f"lesson: {l.text}"), store, run_heldout)
         print(f"{ch.status}: {l.text[:80]} — {ch.reason} {ch.heldout_before} -> {ch.heldout_after}")
-        write_snapshot(store, args.snapshot)
+        write_snapshot(store, args.out or args.snapshot)
     return 0
 
 
