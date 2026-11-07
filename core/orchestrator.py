@@ -39,7 +39,7 @@ N_FUZZ = 200  # fuzz draws per interface function in cross_test; tests and the o
 
 SwarmFn = Callable[[Subtask, list[AgentIdentity], Path, list[str], Store], Awaitable[list[AgentRun]]]
 SpecFn = Callable[[Subtask, Path], SpecTests]
-ReflectFn = Callable[[str, AgentRun, Divergence, Store], Lesson]
+ReflectFn = Callable[..., Lesson]  # (spec, failed, div, store, result=CrossTestResult | None)
 # (spec, failed, verified, breaking, failed_outcome) -> Divergence | None
 LocateFn = Callable[[str, AgentRun, list[AgentRun], Any, Any], Divergence | None]
 
@@ -102,7 +102,8 @@ def run_subtask(
     store.save_manifest(RunManifest(task_id=task.id, subtask_id=subtask.id, agent_ids=[a.id for a in agents], lessons_used=lesson_ids))
 
     # 4–5. cross-test
-    result = cross_test(subtask, runs, weights_for(runs, store), spec_cases=spec.cases, n_fuzz=n_fuzz)
+    # `spec` carries the hidden pytest modules + expectations; `repo` supplies the regression suite.
+    result = cross_test(subtask, runs, weights_for(runs, store), spec=spec, repo=repo, n_fuzz=n_fuzz)
     console.print(f"verified: {len(result.verified_runs)}  failed: {len(result.failed_runs)}  cases: {len(result.cases)}")
     report.update(
         verified=len(result.verified_runs), failed=len(result.failed_runs),
@@ -146,7 +147,11 @@ def run_subtask(
             report.setdefault("ambiguity_flags", []).append({"run_id": run.id, "step_index": div.step_index, "step": div.step_text})
             console.print(f"[yellow]spec ambiguity flagged at step {div.step_index}; no lesson")
             continue
-        lesson = reflect_fn(subtask.spec, run, div, store)
+        # pass the harness result so the reflector sees the failed run's actual outcome; fakes may not take it
+        try:
+            lesson = reflect_fn(subtask.spec, run, div, store, result=result)
+        except TypeError:
+            lesson = reflect_fn(subtask.spec, run, div, store)
         if div.generalizes is not None and div.generalizes < lesson.confidence:
             lesson.confidence = float(div.generalizes)  # SubQ doubts this generalizes: start the lesson lower
             store.upsert_lesson(lesson)
