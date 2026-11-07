@@ -140,10 +140,12 @@ Four stacked canvases, bottom to top:
    radius follows luminance above the ground colour, and a 4x4 Bayer dither thins the dot grid as
    tone falls, so peaks are big dense dots and troughs sparse small ones. Pitch: `pitchCss`
    (buttons fine 3 / medium 4 / coarse 6 css px).
-3. `sprites` (2D, `image-rendering: pixelated`, twice the dot grid): step pins, trails as fading
-   polylines, flipped beetles, live beetles. Nothing on the ground is drawn after a beetle, so the
-   terrain can never cover one. (The earlier bug: beetles and ground cells were depth-sorted by
-   horizontal distance from the camera, which let cells paint over beetles.)
+3. `sprites` (2D, `image-rendering: pixelated`, twice the dot grid): step pins, flipped beetles,
+   live beetles as 14x16 pixel sprites (`SPRITE_A`/`SPRITE_B` leg beats, `SPRITE_DEAD`, a salt
+   `stripe` for the second agent of a company; palettes in `SKIN`), rotated to the heading in
+   22.5 degree steps. Nothing on the ground is drawn after a beetle, so the terrain can never
+   cover one. (The earlier bug: beetles and ground cells were depth-sorted by horizontal distance
+   from the camera, which let cells paint over beetles.)
 4. `labels`: crisp text for the flipped beetle and the followed agent.
 
 How it works, top to bottom of the script:
@@ -158,14 +160,21 @@ How it works, top to bottom of the script:
   elevation ramp (`RAMP`), hillshade from the bilinear slope, contour lines every `CONT` height
   units in bark. `drawMap2D` draws the visible tiles through one canvas transform (yaw, zoom).
 - **Beetles** `makeBeetles()`: one per agent, colour from the agent id prefix (`meta`, `gemini`,
-  `claude`, `openai`, `subq`, see `COMPANY`). Waypoints are the run's steps in `step_index` order
-  with a small waver between steps. A waypoint whose step is the divergence's `step_index` is the
-  root: the beetle flips there and stays (`world.corpses`). Each beetle keeps its own `trail`.
+  `claude`, `openai`, `subq`, see `COMPANY`). The knots are the run's steps in `step_index` order
+  and `spline()` runs a Catmull-Rom curve through them (8 samples per segment), so the path bends
+  instead of turning at each step. The knot whose step is the divergence's `step_index` is the
+  root: the beetle flips there and stays (`world.corpses`).
+- **Tracks** `stampTrack()`: a world-space canvas (`track`, `TRACK_R` cells each way at
+  `TRACK_PPC` px per cell) that beetles stamp as they walk: two footprints and a faint centre in a
+  lighter tint of the company colour. `drawMap2D` draws it over the tiles before the halftone, so
+  a track is bigger, coloured dots in the ground itself, and it stays until the loop restarts.
+- **Modes**: `recorded run` loads once; `live run` polls the four endpoints every 3 s and rebuilds
+  beetles when the step count changes (`setMode`, `load(poll)`).
 - **Camera** `updateCamera()`: follows one agent (`world.follow`, from the legend; by default the
   beetle that will flip, then the swarm) or the swarm centroid, backing off with its spread
   (`wantDist`). Top-down, with a slow yaw drift.
-- **Beetle** `drawBeetle()`: three ellipse domes with a lighter cap, six legs in a tripod gait,
-  two antennae, outline in the darker company shade; scale `BS`.
+- **Beetle** `drawBeetle()` / `drawSprite()`: the pixel sprite at `BEETLE_CELLS` world cells long,
+  pixel size rounded to whole sprite pixels.
 
 Knobs worth touching first: `PAL`, `RAMP` and `CONT` (map look), the `density` and `r` lines in
-`FS` (dot size and thinning), `BS` (beetle size), `SPEED`, `TRAIL_LIFE`, `wantDist` (zoom).
+`FS` (dot size and thinning), `SKIN` and the `SPRITE_*` bitmaps, `BEETLE_CELLS`, `SPEED`, `stampTrack` tints, `wantDist` (zoom).

@@ -43,6 +43,10 @@
   <h1>Reasoning terrain</h1>
   <span class="caption" id="caption">loading the swarm</span>
   <span class="spacer"></span>
+  <span class="caption">mode</span>
+  <button id="m-rec" aria-pressed="true">recorded run</button>
+  <button id="m-live" aria-pressed="false">live run</button>
+  <span class="caption" id="live-note"></span>
   <span class="caption">dots</span>
   <button data-pitch="3" aria-pressed="false">fine</button>
   <button data-pitch="4" aria-pressed="true">medium</button>
@@ -59,7 +63,7 @@
 <section class="sheet">
   <h2>What you are looking at</h2>
   <p>Every reasoning step of every agent run is embedded and projected with PCA onto the ground. Height is how often agents reasoned there, so consensus paths rise into ridges and the lesson's failure region sinks into a pit. Past the data the ground continues as dunes without end, and the camera follows the swarm. Each beetle is one agent in its company's color, walking its real steps in order and leaving its path behind it. A beetle that reaches the step SubQ blamed flips onto its back and stays there.</p>
-  <p>The ground is printed as halftone dots: higher ground gets bigger, denser dots. Beetles and their paths are drawn on a layer above the ground, so nothing ever covers them. Click an agent in the legend to follow it.</p>
+  <p>The ground is printed as halftone dots: higher ground gets bigger, denser dots. Each beetle's track is pressed into the ground itself, so it is printed with the same dots and stays. The beetles are pixel sprites on a layer above, so nothing ever covers them. Click an agent in the legend to follow it; live run polls the store and turns new runs into beetles.</p>
   <h2>Palette, as a desert</h2>
   <div class="swatches" id="swatches"></div>
 </section>
@@ -77,10 +81,31 @@ const lighten = (h, f) => "#" + [1, 3, 5].map((i) => { const v = parseInt(h.slic
 const shade = (h, f) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(h.slice(i, i + 2), 16) * f).toString(16).padStart(2, "0")).join("");
 
 const SPEED = 3.2;        // cells per second
-const TRAIL_LIFE = 40;    // seconds a path stays visible
 const HSCALE = 4.2;       // height of the tallest ridge, in cells
 const SIG2 = 2 * 3.2 * 3.2;
-const BS = 1.25;          // beetle scale (about 3 cells long)
+const BEETLE_CELLS = 4.2;  // beetle length in world cells
+// darker, muted company palettes: outline, shell, highlight
+const SKIN = {
+  meta:   ["#0F1A2E", "#27406A", "#4E6FA3"],
+  gemini: ["#1F1730", "#4B3F6B", "#7D6CA3"],
+  claude: ["#3A1E12", "#8A4E38", "#B97A62"],
+  openai: ["#0E2A22", "#1E5C48", "#3E8C72"],
+  subq:   ["#2A2922", "#6E6A5E", "#A39D8E"],
+};
+// top-down darkling beetle, 14 x 16: # outline, o shell, + highlight, l leg, s stripe (second agent of a company)
+const SPRITE_A = [
+  "..l........l..", "...l......l...", "....#oooo#....", "....#o++o#....", "...#oooooo#...", ".l.#o+oooo#.l.", "l..#oooooo#..l",
+  "..#ooo##ooo#..", ".l#o+o##o+o#l.", "l.#ooo##ooo#.l", "..#ooo##ooo#..", ".l#ooo##ooo#l.", "l.#ooo##ooo#.l", "...#oo##oo#...", "....#o##o#....", ".....####.....",
+];
+const SPRITE_B = [  // legs on the other beat
+  ".l..........l.", "..l........l..", "....#oooo#....", "....#o++o#....", "...#oooooo#...", "l..#o+oooo#..l", ".l.#oooooo#.l.",
+  "..#ooo##ooo#..", "l.#o+o##o+o#.l", ".l#ooo##ooo#l.", "..#ooo##ooo#..", "l.#ooo##ooo#.l", ".l#ooo##ooo#l.", "...#oo##oo#...", "....#o##o#....", ".....####.....",
+];
+const SPRITE_DEAD = [
+  "..............", "l.l........l.l", ".l.l.#oo#.l.l.", "..l.#o++o#.l..", "...#o++++o#...", "l..#o++++o#..l", ".l.#o++++o#.l.",
+  "..l#++++++#l..", "..l#++++++#l..", ".l.#o++++o#.l.", "l..#o++++o#..l", "...#o++++o#...", "..l.#o++o#.l..", ".l.l.#oo#.l.l.", "l.l........l.l", "..............",
+];
+const stripe = (rows) => rows.map((r, y) => (y >= 8 && y <= 13) ? r.replace(/(#o)o(o)/g, "$1s$2").replace(/(o)o(o#)/g, "$1s$2") : r);
 
 // ---------- PCA ----------
 function topComponents(X, k, iters) {
@@ -171,26 +196,36 @@ function layout() {
   return true;
 }
 
+function catmull(p0, p1, p2, p3, u) {
+  const u2 = u * u, u3 = u2 * u;
+  return [
+    0.5 * ((2 * p1.x) + (-p0.x + p2.x) * u + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * u2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * u3),
+    0.5 * ((2 * p1.y) + (-p0.y + p2.y) * u + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * u2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * u3),
+  ];
+}
+// a smooth curve through the knots; each knot's step/root flag lands on the sample that reaches it
+function spline(knots, per) {
+  const out = [{ x: knots[0].x, y: knots[0].y }];
+  for (let i = 0; i < knots.length - 1; i++) {
+    const p0 = knots[Math.max(0, i - 1)], p1 = knots[i], p2 = knots[i + 1], p3 = knots[Math.min(knots.length - 1, i + 2)];
+    for (let k = 1; k <= per; k++) { const [x, y] = catmull(p0, p1, p2, p3, k / per); out.push(k === per ? { x, y, step: p2.step, root: p2.root, exit: p2.exit } : { x, y }); }
+  }
+  return out;
+}
 function makeBeetles() {
-  const beetles = []; let k = 0;
+  const beetles = []; let k = 0; const seen = {};
   world.byAgent.forEach((runs, agent) => {
-    const co = companyOf(agent), color = cssVar(co.key);
-    const wps = [];
+    const co = companyOf(agent), skin = SKIN[co.key] || SKIN.subq;
+    const nth = (seen[co.key] = (seen[co.key] || 0) + 1);  // second agent of a company gets the stripe
+    const knots = [];
     const ang = (k / world.byAgent.size) * Math.PI * 2 + 0.4;
     const first = runs[0].steps[0];
-    wps.push({ x: first.x + Math.cos(ang) * 46, y: first.y + Math.sin(ang) * 46 });
-    runs.forEach((run) => {
-      run.steps.forEach((s, i) => {
-        if (i > 0) {  // a slight waver between steps; the path is the reasoning path
-          const a = run.steps[i - 1], dx = s.x - a.x, dy = s.y - a.y, len = Math.hypot(dx, dy) || 1;
-          const amp = (0.4 + 0.9 * hash(i, k)) * (i % 2 ? 1 : -1);
-          wps.push({ x: (a.x + s.x) / 2 - (dy / len) * amp, y: (a.y + s.y) / 2 + (dx / len) * amp });
-        }
-        wps.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null });
-      });
-    });
-    wps.push({ x: first.x + Math.cos(ang + 2.6) * 50, y: first.y + Math.sin(ang + 2.6) * 50, exit: true });
-    beetles.push({ agent, co, color, dark: shade(color, 0.55), wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), trail: [], lastStamp: null });
+    knots.push({ x: first.x + Math.cos(ang) * 46, y: first.y + Math.sin(ang) * 46 });
+    knots.push({ x: first.x + Math.cos(ang + 0.5) * 24, y: first.y + Math.sin(ang + 0.5) * 24 });
+    runs.forEach((run) => run.steps.forEach((s) => knots.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null })));
+    knots.push({ x: first.x + Math.cos(ang + 2.6) * 50, y: first.y + Math.sin(ang + 2.6) * 50, exit: true });
+    const wps = spline(knots, 8);
+    beetles.push({ agent, co, skin, striped: nth > 1, color: skin[1], wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
     k++;
   });
   return beetles;
@@ -225,6 +260,24 @@ function project(x, y) {
 
 // ---------- 2D relief map: shaded height, contour lines, cached per 32-cell tile ----------
 const TILE = 32, PPC = 14;  // cells per tile, pixels per cell in the cache
+// tracks: what the beetles leave on the ground. World-space, drawn into the scene before the halftone,
+// so a track is bigger, coloured dots in the ground itself, not a line painted over it. It stays.
+const TRACK_R = 120, TRACK_PPC = 6;
+const track = document.createElement("canvas"); track.width = track.height = TRACK_R * 2 * TRACK_PPC;
+const tctx = track.getContext("2d");
+function stampTrack(x, y, color, heading) {
+  const px = (x + TRACK_R) * TRACK_PPC, py = (y + TRACK_R) * TRACK_PPC;
+  // two footprints either side of the body line, like a beetle's leg tracks, plus a faint drag down the middle
+  const nx = -Math.sin(heading) * 0.55 * TRACK_PPC, ny = Math.cos(heading) * 0.55 * TRACK_PPC;
+  // lit, not dug: a lighter tint of the company colour, so the ground's dots grow and take the colour along the track
+  tctx.fillStyle = lighten(color, 0.45); tctx.globalAlpha = 0.85;
+  tctx.beginPath(); tctx.arc(px + nx, py + ny, 0.3 * TRACK_PPC, 0, 7); tctx.fill();
+  tctx.beginPath(); tctx.arc(px - nx, py - ny, 0.3 * TRACK_PPC, 0, 7); tctx.fill();
+  tctx.fillStyle = lighten(color, 0.2); tctx.globalAlpha = 0.4;
+  tctx.beginPath(); tctx.arc(px, py, 0.55 * TRACK_PPC, 0, 7); tctx.fill();
+  tctx.globalAlpha = 1;
+}
+function clearTracks() { tctx.clearRect(0, 0, track.width, track.height); }
 const LIGHT2 = [-0.6, 0.5];
 const RAMP = [[PAL.soil, 0], [PAL.scrub, 0.22], [PAL.sage, 0.5], [lighten(PAL.sage, 0.5), 0.78], [PAL.salt, 1]].map(([h, t]) => [hex2rgb(h), t]);
 const BARK = hex2rgb(PAL.bark);
@@ -277,25 +330,11 @@ function drawMap2D(ctx, scale) {  // scale: scene pixels per sprite pixel
   const tx0 = Math.floor((cam.tx - half) / TILE), tx1 = Math.floor((cam.tx + half) / TILE), ty0 = Math.floor((cam.ty - half) / TILE), ty1 = Math.floor((cam.ty + half) / TILE);
   ctx.imageSmoothingEnabled = true;
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) ctx.drawImage(tile(tx, ty), tx * TILE, ty * TILE, TILE + 0.02, TILE + 0.02);
+  ctx.drawImage(track, -TRACK_R, -TRACK_R, TRACK_R * 2, TRACK_R * 2);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-// ---------- beetles and trails ----------
-function drawTrails2D(ctx, t) {
-  const k = kScale();
-  for (const b of world.beetles) {
-    const tr = b.trail; if (tr.length < 2) continue;
-    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1.5, 0.16 * k); ctx.strokeStyle = b.color;
-    for (let i = 1; i < tr.length; i++) {
-      const age = t - tr[i].t, f = Math.max(0, 1 - age / TRAIL_LIFE);
-      if (f <= 0) continue;
-      const p = project(tr[i - 1].x, tr[i - 1].y), q = project(tr[i].x, tr[i].y);
-      ctx.globalAlpha = 0.15 + 0.75 * f;
-      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
-    }
-  }
-  ctx.globalAlpha = 1;
-}
+// ---------- beetles: pixel sprites ----------
 function drawPins(ctx) {
   const k = kScale();
   for (const s of world.pts) {
@@ -305,44 +344,23 @@ function drawPins(ctx) {
   }
   ctx.globalAlpha = 1;
 }
-
-// a darkling beetle: three domed segments, six legs in a tripod gait, two antennae
+function drawSprite(ctx, rows, skin, x, y, heading, px) {
+  const pal = { "#": skin[0], "l": skin[0], "o": skin[1], "+": skin[2], "s": PAL.salt };
+  const w = rows[0].length * px, h = rows.length * px;
+  // the sprite faces up; rotate to the heading in 22.5 degree steps so pixels stay crisp
+  const q = Math.round((heading + Math.PI / 2) / (Math.PI / 8)) * (Math.PI / 8);
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.rotate(q); ctx.translate(-w / 2, -h / 2);
+  rows.forEach((row, ry) => { for (let rx = 0; rx < row.length; rx++) { const c = pal[row[rx]]; if (c) { ctx.fillStyle = c; ctx.fillRect(rx * px, ry * px, px, px); } } });
+  ctx.restore();
+}
 function drawBeetle(ctx, b, t, flipped) {
-  const fwd = [Math.cos(b.heading), Math.sin(b.heading), 0], rgt = [-fwd[1], fwd[0], 0];
-  const L = (al, si, up) => [b.x + (fwd[0] * al + rgt[0] * si) * BS, b.y + (fwd[1] * al + rgt[1] * si) * BS, up];
-  const poly = (al, up, rx, ry) => { const pts = []; let d = 0; for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2, w = L(al + rx * Math.cos(a), ry * Math.sin(a), up), q = project(w[0], w[1]); if (!q) return null; pts.push(q); d += q[2]; } pts.d = d / 16; return pts; };
-  const fill = (p) => { ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.closePath(); ctx.fill(); };
-  const stroke = (p) => { ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.closePath(); ctx.stroke(); };
-  const scale = kScale();
-  const body = flipped ? PAL.sage : b.color, outline = flipped ? shade(PAL.sage, 0.5) : b.dark;
-  const parts = [];
-  // legs first (under the shell)
-  const gait = reduced ? 0 : t * 9 + b.phase;
-  [[0.5, 0.75], [0.1, 0.15], [-0.35, -0.45]].forEach(([al, swing], li) => [1, -1].forEach((side) => {
-    const ph = gait + ((li + (side > 0 ? 0 : 1)) % 2) * Math.PI;
-    const lift = flipped ? 0.06 * Math.sin(t * 2 + li) : Math.max(0, Math.sin(ph)) * 0.22;
-    const sw = flipped ? 0 : Math.cos(ph) * 0.18;
-    const hip = L(al, side * 0.36, 0), knee = L(al + swing * 0.2 + sw, side * (flipped ? 0.6 : 0.78), 0), foot = L(al + swing * (flipped ? 0.1 : 0.45) + sw * 1.5, side * (flipped ? 1.25 : 1.1), 0);
-    const a = project(hip[0], hip[1]), k = project(knee[0], knee[1]), f = project(foot[0], foot[1]);
-    if (a && k && f) parts.push({ d: k[2] + 0.2, draw: () => { ctx.strokeStyle = outline; ctx.lineWidth = Math.max(1.2, 0.09 * BS * scale); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); } });
-  }));
-  [1, -1].forEach((side) => {
-    const a0 = L(1.0, side * 0.1, 0), f0 = L(1.55, side * 0.42, 0), a = project(a0[0], a0[1]), f = project(f0[0], f0[1]);
-    if (a && f) parts.push({ d: a[2] + 0.1, draw: () => { ctx.strokeStyle = outline; ctx.lineWidth = Math.max(1, 0.06 * BS * scale); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); } });
-  });
-  const dome = (al, up, rx, ry, col) => {
-    const base_ = poly(al, up, rx, ry), top = poly(al - 0.1, up + 0.2, rx * 0.6, ry * 0.58);
-    if (!base_) return;
-    parts.push({ d: base_.d, draw: () => {
-      ctx.fillStyle = col; fill(base_);
-      ctx.strokeStyle = outline; ctx.lineWidth = Math.max(1, 0.04 * BS * scale); stroke(base_);
-      if (top) { ctx.fillStyle = lighten(col, flipped ? 0.1 : 0.3); fill(top); }
-    } });
-  };
-  dome(-0.6, 0.3, 0.8, 0.58, body); dome(0.3, 0.3, 0.42, 0.42, body); dome(0.88, 0.28, 0.26, 0.22, flipped ? PAL.sage : b.dark);
-  if (flipped) { const bl = poly(-0.3, 0.42, 0.5, 0.34); if (bl) parts.push({ d: bl.d - 0.01, draw: () => { ctx.fillStyle = PAL.salt; fill(bl); } }); }
-  parts.sort((p, q) => q.d - p.d).forEach((p) => p.draw());
-  b.screen = project(b.x, b.y);
+  const k = kScale(), px = Math.max(1, Math.round((k * BEETLE_CELLS) / 16));
+  const p = project(b.x, b.y);
+  let rows = flipped ? SPRITE_DEAD : (reduced || Math.floor(t * 8) % 2 === 0 ? SPRITE_A : SPRITE_B);
+  if (b.striped && !flipped) rows = stripe(rows);
+  const skin = flipped ? ["#2A2922", "#6E6A5E", PAL.salt] : b.skin;
+  drawSprite(ctx, rows, skin, p[0], p[1], flipped ? 0 : b.heading, px);
+  b.screen = p;
 }
 
 // ---------- simulation ----------
@@ -361,14 +379,13 @@ function stepSim(dt, t) {
     b.y = a.y + (z.y - a.y) * u + wob * ((z.x - a.x) / len);
     const dx = b.x - px, dy = b.y - py;
     if (Math.hypot(dx, dy) > 1e-4) { const want = Math.atan2(dy, dx); let d = want - b.heading; d = Math.atan2(Math.sin(d), Math.cos(d)); b.heading += d * Math.min(1, 6 * dt); }
-    if (!b.lastStamp || Math.hypot(b.x - b.lastStamp[0], b.y - b.lastStamp[1]) > 0.35) { b.trail.push({ x: b.x, y: b.y, t }); b.lastStamp = [b.x, b.y]; }
-    while (b.trail.length && t - b.trail[0].t > TRAIL_LIFE) b.trail.shift();
+    if (!b.lastStamp || Math.hypot(b.x - b.lastStamp[0], b.y - b.lastStamp[1]) > 0.3) { stampTrack(b.x, b.y, b.color, b.heading); b.lastStamp = [b.x, b.y]; }
     if (b.t >= 1) {
-      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, dark: b.dark, agent: b.agent, heading: b.heading, phase: b.phase, label: rootLabel(z.root) }); }
+      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, skin: b.skin, agent: b.agent, heading: b.heading, phase: b.phase, label: rootLabel(z.root) }); }
       else { b.i++; b.t = 0; }
     }
   }
-  if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 12))) { world.beetles = makeBeetles(); world.corpses = []; }
+  if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 12))) { world.beetles = makeBeetles(); world.corpses = []; clearTracks(); }
 }
 function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
 
@@ -427,7 +444,6 @@ function render(t) {
   // everything that moves, above the ground: nothing can cover a beetle
   pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, sprites.width, sprites.height);
   drawPins(pctx);
-  drawTrails2D(pctx, t);
   for (const c of world.corpses) drawBeetle(pctx, c, t, true);
   for (const b of world.beetles) if (!b.done && !b.flipped) drawBeetle(pctx, b, t, false);
   const k = (pitchCss * dpr) / 2;  // sprite px -> device px
@@ -454,20 +470,30 @@ async function getJSON(p) { const r = await fetch(p, { cache: "no-store" }); if 
 function renderLegend() {
   const trust = Object.fromEntries((world.data.trust || []).map((t) => [t.agent_id, t.score]));
   $("legend").innerHTML = `<button data-agent="" aria-pressed="${world.follow ? "false" : "true"}">follow the swarm</button>` + world.beetles.map((b) =>
-    `<button data-agent="${b.agent}" aria-pressed="${world.follow === b.agent}"><span class="sp" style="background:${b.color}"></span><b>${b.agent}</b> ${b.co.name}${trust[b.agent] != null ? `, trust ${trust[b.agent].toFixed(2)}` : ""}</button>`).join("");
+    `<button data-agent="${b.agent}" aria-pressed="${world.follow === b.agent}"><span class="sp" style="background:${b.skin[1]}"></span><b>${b.agent}</b> ${b.co.name}${trust[b.agent] != null ? `, trust ${trust[b.agent].toFixed(2)}` : ""}</button>`).join("");
   $("legend").querySelectorAll("button").forEach((btn) => { btn.onclick = () => { world.follow = btn.dataset.agent || null; renderLegend(); }; });
 }
-async function load() {
+let mode = "recorded", pollTimer = null, lastStepCount = -1;
+function setMode(m) {
+  mode = m; $("m-rec").setAttribute("aria-pressed", String(m === "recorded")); $("m-live").setAttribute("aria-pressed", String(m === "live"));
+  clearInterval(pollTimer); pollTimer = null; $("live-note").textContent = "";
+  if (m === "live") { $("live-note").textContent = "polling the store every 3 s; new runs become beetles"; pollTimer = setInterval(() => load(true), 3000); }
+}
+$("m-rec").onclick = () => setMode("recorded");
+$("m-live").onclick = () => setMode("live");
+async function load(poll = false) {
   try {
     const [steps, divs, regions, trust] = await Promise.all(["/api/steps", "/api/divergences", "/api/regions", "/api/trust"].map(getJSON));
+    if (poll && steps.length === lastStepCount) return;  // nothing new
+    lastStepCount = steps.length;
     world.data = { steps, divs, regions, trust };
     if (!layout()) { $("caption").textContent = "no reasoning steps with embeddings yet"; return; }
-    world.beetles = makeBeetles(); world.corpses = [];
+    world.beetles = makeBeetles(); world.corpses = []; clearTracks();
     const doomed = world.beetles.find((b) => b.wps.some((w) => w.root)); if (doomed) world.follow = doomed.agent;
     cam.tx = world.beetles.reduce((s, b) => s + b.wps[1].x, 0) / world.beetles.length; cam.ty = world.beetles.reduce((s, b) => s + b.wps[1].y, 0) / world.beetles.length;
-    if (reduced) world.beetles.forEach((b) => { const l = b.wps[b.wps.length - 2]; b.x = l.x; b.y = l.y; b.wps.forEach((w) => b.trail.push({ x: w.x, y: w.y, t: now() })); });
+    if (reduced) world.beetles.forEach((b) => { const l = b.wps[b.wps.length - 2]; b.x = l.x; b.y = l.y; b.wps.forEach((w, i) => { if (i) stampTrack(w.x, w.y, b.color, Math.atan2(w.y - b.wps[i - 1].y, w.x - b.wps[i - 1].x)); }); });
     const flipped = Object.keys(world.roots).filter((rid) => [...world.byAgent.values()].some((rs) => rs.some((r) => r.rid === rid))).length;
-    $("caption").textContent = `${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped`;
+    $("caption").textContent = `${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped${poll ? ", updated " + new Date().toLocaleTimeString() : ""}`;
     renderLegend();
   } catch (e) { $("caption").textContent = `could not load the swarm: ${e.message}`; }
 }
