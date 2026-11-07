@@ -130,8 +130,21 @@ directly and hands `summarize` a proxy with a safe sort), but the CLI and other 
 ## Concept page: `/concept` (`ui/concept.html`)
 
 A second page, same server and endpoints, that draws the swarm as beetles walking their reasoning
-paths over a relief map of the reasoning space. Self-contained (no build step, no CDN); it reads
+paths over a halftone map of the reasoning space. Self-contained (no build step, no CDN); it reads
 `/api/steps`, `/api/divergences`, `/api/regions` and `/api/trust`.
+
+Four stacked canvases, bottom to top:
+
+1. `scene` (hidden): the ground at one pixel per halftone dot, from `drawMap2D`.
+2. `dots` (WebGL): the halftone. The fragment shader `FS` turns each scene pixel into a dot whose
+   radius follows luminance above the ground colour, and a 4x4 Bayer dither thins the dot grid as
+   tone falls, so peaks are big dense dots and troughs sparse small ones. Pitch: `pitchCss`
+   (buttons fine 3 / medium 4 / coarse 6 css px).
+3. `sprites` (2D, `image-rendering: pixelated`, twice the dot grid): step pins, trails as fading
+   polylines, flipped beetles, live beetles. Nothing on the ground is drawn after a beetle, so the
+   terrain can never cover one. (The earlier bug: beetles and ground cells were depth-sorted by
+   horizontal distance from the camera, which let cells paint over beetles.)
+4. `labels`: crisp text for the flipped beetle and the followed agent.
 
 How it works, top to bottom of the script:
 
@@ -141,24 +154,18 @@ How it works, top to bottom of the script:
 - **Heightfield** `hCell(ix, iy)`: value-noise dunes everywhere plus a soft-saturating density of
   step positions inside the data bbox (ridges where agents reasoned) minus a gaussian per failure
   region (pits). Memoised per integer cell, so the world is unbounded.
+- **Ground tiles** `renderTile`: 32-cell tiles at `PPC` pixels per cell, cached in `world.tiles`:
+  elevation ramp (`RAMP`), hillshade from the bilinear slope, contour lines every `CONT` height
+  units in bark. `drawMap2D` draws the visible tiles through one canvas transform (yaw, zoom).
 - **Beetles** `makeBeetles()`: one per agent, colour from the agent id prefix (`meta`, `gemini`,
   `claude`, `openai`, `subq`, see `COMPANY`). Waypoints are the run's steps in `step_index` order
   with a small waver between steps. A waypoint whose step is the divergence's `step_index` is the
   root: the beetle flips there and stays (`world.corpses`). Each beetle keeps its own `trail`.
 - **Camera** `updateCamera()`: follows one agent (`world.follow`, from the legend; by default the
-  beetle that will flip, then the swarm) or the swarm centroid, backing off with its spread.
-  `cam.ortho` is the 2D map (default); `cam.pitch` tilts the 3D view.
-- **2D map** `drawMap2D()`: the ground is rendered per pixel into 32-cell tiles (`renderTile`,
-  `PPC` pixels per cell, cached in `world.tiles`): elevation ramp (`RAMP`), hillshade from the
-  bilinear slope, contour lines every `CONT` height units in bark. Tiles are drawn through one
-  canvas transform, so the yaw drift and zoom are free. Then step pins, trails as fading
-  polylines, corpses and beetles, always on top: nothing occludes a beetle in 2D.
-- **3D view** `drawScene3D()`: flat-shaded cells and beetles in one list sorted by true view
-  depth (the earlier bug was sorting by horizontal distance, which let ground cells paint over
-  beetles). Fog into soil, posterised tone.
-- **Beetle** `drawBeetle()`: three projected ellipsoid domes with a lighter cap, six legs in a
-  tripod gait, two antennae, outline in the darker company shade; scale `BS`. Labels are drawn
-  crisp on a second canvas.
+  beetle that will flip, then the swarm) or the swarm centroid, backing off with its spread
+  (`wantDist`). Top-down, with a slow yaw drift.
+- **Beetle** `drawBeetle()`: three ellipse domes with a lighter cap, six legs in a tripod gait,
+  two antennae, outline in the darker company shade; scale `BS`.
 
-Knobs worth touching first: `PAL`, `RAMP` and `CONT` (map look), `BS` (beetle size), `SPEED`,
-`TRAIL_LIFE`, `wantDist` in `updateCamera` (zoom), and the elevation/hillshade mix in `renderTile`.
+Knobs worth touching first: `PAL`, `RAMP` and `CONT` (map look), the `density` and `r` lines in
+`FS` (dot size and thinning), `BS` (beetle size), `SPEED`, `TRAIL_LIFE`, `wantDist` (zoom).

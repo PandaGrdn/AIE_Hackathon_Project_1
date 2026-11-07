@@ -20,8 +20,10 @@
   button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 2px 10px; cursor: pointer; }
   button[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
   button:focus-visible { outline: 2px solid var(--claude); outline-offset: 2px; }
-  #wrap { position: relative; border: 1px solid var(--rule); height: 74vh; min-height: 440px; overflow: hidden; background: var(--soil); }
+  #wrap { position: relative; border: 1px solid var(--rule); height: 74vh; min-height: 440px; overflow: hidden; background: var(--ground); }
   #wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #scene { display: none; }
+  #sprites { image-rendering: pixelated; }
   #legend { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 12px 2px 0; color: var(--mute); }
   #legend button { border: none; padding: 0; color: var(--mute); }
   #legend button b { color: var(--ink); font-weight: 600; }
@@ -41,12 +43,15 @@
   <h1>Reasoning terrain</h1>
   <span class="caption" id="caption">loading the swarm</span>
   <span class="spacer"></span>
-  <span class="caption">view</span>
-  <button id="v2d" aria-pressed="true">2D</button>
-  <button id="v3d" aria-pressed="false">3D</button>
+  <span class="caption">dots</span>
+  <button data-pitch="3" aria-pressed="false">fine</button>
+  <button data-pitch="4" aria-pressed="true">medium</button>
+  <button data-pitch="6" aria-pressed="false">coarse</button>
 </header>
 <div id="wrap">
-  <canvas id="view" role="img" aria-label="Map of the reasoning space with a beetle for each agent walking its reasoning path"></canvas>
+  <canvas id="scene"></canvas>
+  <canvas id="dots" role="img" aria-label="Halftone map of the reasoning space with a beetle for each agent walking its reasoning path"></canvas>
+  <canvas id="sprites" aria-hidden="true"></canvas>
   <canvas id="labels" aria-hidden="true"></canvas>
 </div>
 <div id="legend"></div>
@@ -54,7 +59,7 @@
 <section class="sheet">
   <h2>What you are looking at</h2>
   <p>Every reasoning step of every agent run is embedded and projected with PCA onto the ground. Height is how often agents reasoned there, so consensus paths rise into ridges and the lesson's failure region sinks into a pit. Past the data the ground continues as dunes without end, and the camera follows the swarm. Each beetle is one agent in its company's color, walking its real steps in order and leaving its path behind it. A beetle that reaches the step SubQ blamed flips onto its back and stays there.</p>
-  <p>Click an agent in the legend to follow it. 3D shows the same ground in perspective.</p>
+  <p>The ground is printed as halftone dots: higher ground gets bigger, denser dots. Beetles and their paths are drawn on a layer above the ground, so nothing ever covers them. Click an agent in the legend to follow it.</p>
   <h2>Palette, as a desert</h2>
   <div class="swatches" id="swatches"></div>
 </section>
@@ -192,7 +197,7 @@ function makeBeetles() {
 }
 
 // ---------- camera ----------
-const cam = { ortho: true, yaw: 0.9, pitch: 1.22, dist: 30, tx: 0, ty: 0, tz: 0, eye: [0, 0, 0], R: [1, 0, 0], U: [0, 0, 1], F: [0, 1, 0], focal: 1, W: 1, H: 1, g: [0, 1], r: [1, 0] };
+const cam = { yaw: 0.9, dist: 30, tx: 0, ty: 0, focal: 1, W: 1, H: 1, g: [0, 1], r: [1, 0] };  // W, H in sprite pixels
 const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 function updateCamera(dt) {
@@ -208,34 +213,20 @@ function updateCamera(dt) {
   }
   if (n) { const k = 1 - Math.pow(0.08, dt); cam.tx += (fx - cam.tx) * k; cam.ty += (fy - cam.ty) * k; }
   cam.dist += (wantDist - cam.dist) * (1 - Math.pow(0.2, dt));
-  cam.tz += (hAt(cam.tx, cam.ty) - cam.tz) * (1 - Math.pow(0.1, dt));
   if (!reduced) cam.yaw += 0.03 * dt;
   // 2D frame: g is screen-up on the ground, r is screen-right
   cam.g = [Math.cos(cam.yaw), Math.sin(cam.yaw)]; cam.r = [Math.sin(cam.yaw), -Math.cos(cam.yaw)];
-  // 3D frame
-  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-  cam.eye = [cam.tx - cam.dist * cp * Math.cos(cam.yaw), cam.ty - cam.dist * cp * Math.sin(cam.yaw), cam.tz + cam.dist * sp];
-  const F = norm([cam.tx - cam.eye[0], cam.ty - cam.eye[1], cam.tz - cam.eye[2]]);
-  const R = norm(cross(F, [0, 0, 1])), U = cross(R, F);
-  cam.F = F; cam.R = R; cam.U = U;
 }
 const kScale = () => cam.focal / cam.dist;  // 2D: pixels per cell
-function project(x, y, z) {
-  if (cam.ortho) {
-    const k = kScale(), dx = x - cam.tx, dy = y - cam.ty;
-    return [cam.W / 2 + k * (dx * cam.r[0] + dy * cam.r[1]), cam.H / 2 - k * (dx * cam.g[0] + dy * cam.g[1]), cam.dist];
-  }
-  const dx = x - cam.eye[0], dy = y - cam.eye[1], dz = z - cam.eye[2];
-  const cz = dx * cam.F[0] + dy * cam.F[1] + dz * cam.F[2];
-  if (cz < 0.6) return null;
-  const cx = dx * cam.R[0] + dy * cam.R[1] + dz * cam.R[2], cy = dx * cam.U[0] + dy * cam.U[1] + dz * cam.U[2];
-  return [cam.W / 2 + (cx / cz) * cam.focal, cam.H / 2 - (cy / cz) * cam.focal, cz];
+function project(x, y) {
+  const k = kScale(), dx = x - cam.tx, dy = y - cam.ty;
+  return [cam.W / 2 + k * (dx * cam.r[0] + dy * cam.r[1]), cam.H / 2 - k * (dx * cam.g[0] + dy * cam.g[1]), cam.dist];
 }
 
 // ---------- 2D relief map: shaded height, contour lines, cached per 32-cell tile ----------
 const TILE = 32, PPC = 14;  // cells per tile, pixels per cell in the cache
 const LIGHT2 = [-0.6, 0.5];
-const RAMP = [[PAL.soil, 0], [PAL.scrub, 0.3], [PAL.sage, 0.62], [lighten(PAL.sage, 0.5), 0.86], [PAL.salt, 1]].map(([h, t]) => [hex2rgb(h), t]);
+const RAMP = [[PAL.soil, 0], [PAL.scrub, 0.22], [PAL.sage, 0.5], [lighten(PAL.sage, 0.5), 0.78], [PAL.salt, 1]].map(([h, t]) => [hex2rgb(h), t]);
 const BARK = hex2rgb(PAL.bark);
 function rampAt(t) {
   t = Math.max(0, Math.min(1, t));
@@ -277,8 +268,8 @@ function tile(tx, ty) {
   if (!t) { t = renderTile(tx, ty); world.tiles.set(key, t); }
   return t;
 }
-function drawMap2D(ctx) {
-  const k = kScale(), W = cam.W, H = cam.H;
+function drawMap2D(ctx, scale) {  // scale: scene pixels per sprite pixel
+  const k = kScale() * scale, W = cam.W * scale, H = cam.H * scale;
   // world -> screen as a canvas transform
   ctx.setTransform(k * cam.r[0], -k * cam.g[0], k * cam.r[1], -k * cam.g[1],
     W / 2 - k * (cam.tx * cam.r[0] + cam.ty * cam.r[1]), H / 2 + k * (cam.tx * cam.g[0] + cam.ty * cam.g[1]));
@@ -287,54 +278,6 @@ function drawMap2D(ctx) {
   ctx.imageSmoothingEnabled = true;
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) ctx.drawImage(tile(tx, ty), tx * TILE, ty * TILE, TILE + 0.02, TILE + 0.02);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-}
-
-// ---------- 3D view: flat-shaded cells, depth-sorted with the beetles by true view depth ----------
-const LIGHT = norm([-0.55, 0.35, 0.75]);
-const VIEW_R = 56, FOG0 = 40, FOG1 = 70;
-const RAMP3 = [PAL.soil, PAL.scrub, PAL.bark, PAL.sage, PAL.salt].map(hex2rgb), FOG_RGB = hex2rgb(PAL.soil);
-function rampColor3(v, fog) {
-  v = Math.max(0, Math.min(0.999, v)); const i = Math.floor(v * (RAMP3.length - 1)), f = v * (RAMP3.length - 1) - i;
-  const a = RAMP3[i], b = RAMP3[Math.min(RAMP3.length - 1, i + 1)];
-  const c = [0, 1, 2].map((k) => (a[k] + (b[k] - a[k]) * f) * (1 - fog) + FOG_RGB[k] * fog);
-  return `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
-}
-function drawScene3D(ctx, t) {
-  const W = cam.W, H = cam.H;
-  const hz = H / 2 - cam.focal * Math.tan(cam.pitch);
-  ctx.fillStyle = PAL.ground; ctx.fillRect(0, 0, W, H);
-  const sky = ctx.createLinearGradient(0, hz - H * 0.3, 0, hz);
-  sky.addColorStop(0, PAL.ground); sky.addColorStop(0.7, PAL.soil); sky.addColorStop(1, PAL.bark);
-  ctx.fillStyle = sky; ctx.fillRect(0, hz - H * 0.3, W, H * 0.3);
-  ctx.fillStyle = PAL.soil; ctx.fillRect(0, Math.max(0, hz), W, H);
-  const cx0 = Math.round(cam.tx), cy0 = Math.round(cam.ty);
-  const items = [];
-  for (let iy = cy0 - VIEW_R; iy <= cy0 + VIEW_R; iy++) for (let ix = cx0 - VIEW_R; ix <= cx0 + VIEW_R; ix++) {
-    const h00 = hCell(ix, iy), h10 = hCell(ix + 1, iy), h01 = hCell(ix, iy + 1), h11 = hCell(ix + 1, iy + 1);
-    const pc = project(ix + 0.5, iy + 0.5, (h00 + h10 + h01 + h11) / 4);
-    if (!pc) continue;
-    items.push({ kind: "cell", ix, iy, h: [h00, h10, h01, h11], depth: pc[2] });
-  }
-  for (const b of world.beetles) if (!b.done && !b.flipped) { const p = project(b.x, b.y, hAt(b.x, b.y) + 0.3 * BS); if (p) items.push({ kind: "beetle", b, depth: p[2] - 0.7 }); }
-  for (const c of world.corpses) { const p = project(c.x, c.y, hAt(c.x, c.y) + 0.3 * BS); if (p) items.push({ kind: "corpse", c, depth: p[2] - 0.7 }); }
-  for (const b of world.beetles) for (const q of b.trail) { const p = project(q.x, q.y, hAt(q.x, q.y) + 0.06); if (p) items.push({ kind: "trailpt", b, q, depth: p[2] - 0.3 }); }
-  items.sort((a, b) => b.depth - a.depth);
-  for (const it of items) {
-    if (it.kind === "cell") {
-      const { ix, iy, h: [h00, h10, h01, h11] } = it;
-      const p00 = project(ix, iy, h00), p10 = project(ix + 1, iy, h10), p01 = project(ix, iy + 1, h01), p11 = project(ix + 1, iy + 1, h11);
-      if (!p00 || !p10 || !p01 || !p11) continue;
-      const n = norm([h00 - h10 + h01 - h11, h00 - h01 + h10 - h11, 2]);
-      const lam = Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
-      const elev = Math.max(0, Math.min(1, ((h00 + h11) / 2 + 0.6) / (HSCALE + 0.6)));
-      const v = 0.14 + 0.5 * Math.pow(lam, 1.8) + 0.34 * elev * elev;
-      const fog = Math.max(0, Math.min(1, (it.depth - FOG0) / (FOG1 - FOG0)));
-      ctx.fillStyle = rampColor3(v, fog); ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.6;
-      ctx.beginPath(); ctx.moveTo(p00[0], p00[1]); ctx.lineTo(p10[0], p10[1]); ctx.lineTo(p11[0], p11[1]); ctx.lineTo(p01[0], p01[1]); ctx.closePath(); ctx.fill(); ctx.stroke();
-    } else if (it.kind === "trailpt") drawTrailDot(ctx, it.b, it.q, t);
-    else if (it.kind === "beetle") drawBeetle(ctx, it.b, t, false);
-    else drawBeetle(ctx, it.c, t, true);
-  }
 }
 
 // ---------- beetles and trails ----------
@@ -346,25 +289,19 @@ function drawTrails2D(ctx, t) {
     for (let i = 1; i < tr.length; i++) {
       const age = t - tr[i].t, f = Math.max(0, 1 - age / TRAIL_LIFE);
       if (f <= 0) continue;
-      const p = project(tr[i - 1].x, tr[i - 1].y, 0), q = project(tr[i].x, tr[i].y, 0);
+      const p = project(tr[i - 1].x, tr[i - 1].y), q = project(tr[i].x, tr[i].y);
       ctx.globalAlpha = 0.15 + 0.75 * f;
       ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
 }
-function drawTrailDot(ctx, b, q, t) {
-  const age = t - q.t, f = Math.max(0, 1 - age / TRAIL_LIFE); if (f <= 0) return;
-  const p = project(q.x, q.y, hAt(q.x, q.y) + 0.06); if (!p) return;
-  ctx.globalAlpha = 0.2 + 0.7 * f; ctx.fillStyle = b.color;
-  ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(1, 0.12 * cam.focal / p[2]), 0, 7); ctx.fill(); ctx.globalAlpha = 1;
-}
 function drawPins(ctx) {
   const k = kScale();
   for (const s of world.pts) {
-    const p = project(s.x, s.y, hAt(s.x, s.y) + 0.05); if (!p) continue;
+    const p = project(s.x, s.y);
     ctx.fillStyle = s.failed === true ? PAL.bark : PAL.salt; ctx.globalAlpha = 0.35;
-    ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(1.2, 0.1 * (cam.ortho ? k : cam.focal / p[2])), 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(1, 0.1 * k), 0, 7); ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
@@ -372,12 +309,11 @@ function drawPins(ctx) {
 // a darkling beetle: three domed segments, six legs in a tripod gait, two antennae
 function drawBeetle(ctx, b, t, flipped) {
   const fwd = [Math.cos(b.heading), Math.sin(b.heading), 0], rgt = [-fwd[1], fwd[0], 0];
-  const base = [b.x, b.y, hAt(b.x, b.y)];
-  const L = (al, si, up) => [base[0] + (fwd[0] * al + rgt[0] * si) * BS, base[1] + (fwd[1] * al + rgt[1] * si) * BS, base[2] + (flipped ? 0.95 - up : up) * BS];
-  const poly = (al, up, rx, ry) => { const pts = []; let d = 0; for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2, w = L(al + rx * Math.cos(a), ry * Math.sin(a), up), q = project(w[0], w[1], w[2]); if (!q) return null; pts.push(q); d += q[2]; } pts.d = d / 16; return pts; };
+  const L = (al, si, up) => [b.x + (fwd[0] * al + rgt[0] * si) * BS, b.y + (fwd[1] * al + rgt[1] * si) * BS, up];
+  const poly = (al, up, rx, ry) => { const pts = []; let d = 0; for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2, w = L(al + rx * Math.cos(a), ry * Math.sin(a), up), q = project(w[0], w[1]); if (!q) return null; pts.push(q); d += q[2]; } pts.d = d / 16; return pts; };
   const fill = (p) => { ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.closePath(); ctx.fill(); };
   const stroke = (p) => { ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.closePath(); ctx.stroke(); };
-  const scale = cam.ortho ? kScale() : cam.focal / (project(base[0], base[1], base[2])?.[2] || cam.dist);
+  const scale = kScale();
   const body = flipped ? PAL.sage : b.color, outline = flipped ? shade(PAL.sage, 0.5) : b.dark;
   const parts = [];
   // legs first (under the shell)
@@ -386,12 +322,12 @@ function drawBeetle(ctx, b, t, flipped) {
     const ph = gait + ((li + (side > 0 ? 0 : 1)) % 2) * Math.PI;
     const lift = flipped ? 0.06 * Math.sin(t * 2 + li) : Math.max(0, Math.sin(ph)) * 0.22;
     const sw = flipped ? 0 : Math.cos(ph) * 0.18;
-    const hip = L(al, side * 0.36, 0.28), knee = L(al + swing * 0.2 + sw, side * 0.78, flipped ? -0.02 + lift : 0.46 + lift * 0.5), foot = L(al + swing * 0.45 + sw * 1.5, side * 1.1, flipped ? -0.22 + lift : lift);
-    const a = project(...hip), k = project(...knee), f = project(...foot);
+    const hip = L(al, side * 0.36, 0), knee = L(al + swing * 0.2 + sw, side * (flipped ? 0.6 : 0.78), 0), foot = L(al + swing * (flipped ? 0.1 : 0.45) + sw * 1.5, side * (flipped ? 1.25 : 1.1), 0);
+    const a = project(hip[0], hip[1]), k = project(knee[0], knee[1]), f = project(foot[0], foot[1]);
     if (a && k && f) parts.push({ d: k[2] + 0.2, draw: () => { ctx.strokeStyle = outline; ctx.lineWidth = Math.max(1.2, 0.09 * BS * scale); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); } });
   }));
   [1, -1].forEach((side) => {
-    const a = project(...L(1.0, side * 0.1, 0.32)), f = project(...L(1.55, side * 0.42, flipped ? -0.1 : 0.5));
+    const a0 = L(1.0, side * 0.1, 0), f0 = L(1.55, side * 0.42, 0), a = project(a0[0], a0[1]), f = project(f0[0], f0[1]);
     if (a && f) parts.push({ d: a[2] + 0.1, draw: () => { ctx.strokeStyle = outline; ctx.lineWidth = Math.max(1, 0.06 * BS * scale); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); } });
   });
   const dome = (al, up, rx, ry, col) => {
@@ -406,7 +342,7 @@ function drawBeetle(ctx, b, t, flipped) {
   dome(-0.6, 0.3, 0.8, 0.58, body); dome(0.3, 0.3, 0.42, 0.42, body); dome(0.88, 0.28, 0.26, 0.22, flipped ? PAL.sage : b.dark);
   if (flipped) { const bl = poly(-0.3, 0.42, 0.5, 0.34); if (bl) parts.push({ d: bl.d - 0.01, draw: () => { ctx.fillStyle = PAL.salt; fill(bl); } }); }
   parts.sort((p, q) => q.d - p.d).forEach((p) => p.draw());
-  b.screen = project(base[0], base[1], base[2] + 0.35 * BS);
+  b.screen = project(b.x, b.y);
 }
 
 // ---------- simulation ----------
@@ -436,30 +372,69 @@ function stepSim(dt, t) {
 }
 function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
 
-// ---------- compose ----------
-const view = $("view"), vctx = view.getContext("2d"), labels = $("labels"), lctx = labels.getContext("2d");
-let dpr = 1;
+// ---------- compose: the ground goes through the halftone, beetles sit on a pixel layer above ----------
+const scene = $("scene"), sctx = scene.getContext("2d"), dots = $("dots"), sprites = $("sprites"), pctx = sprites.getContext("2d"), labels = $("labels"), lctx = labels.getContext("2d");
+let gl, tex, uRes, uPitch, pitchCss = 4, dpr = 1;
+const VS = "attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }";
+const FS = `precision mediump float; uniform sampler2D t; uniform vec2 res; uniform float pitch; uniform vec3 bg;
+void main(){
+  vec2 cell = floor(gl_FragCoord.xy / pitch); vec2 ctr = (cell + 0.5) * pitch;
+  vec3 c = texture2D(t, ctr / res).rgb;
+  float lum = dot(c, vec3(0.299, 0.587, 0.114)); float bl = dot(bg, vec3(0.299, 0.587, 0.114));
+  float f = clamp((lum - bl) / (1.0 - bl), 0.0, 1.0);
+  // ordered dither (Bayer 4x4): the share of dots present ramps with tone, so low ground thins out
+  vec2 bc = mod(cell, 4.0);
+  float bayer = 0.0;
+  if (bc.y < 1.0) bayer = bc.x < 1.0 ? 0.0 : bc.x < 2.0 ? 8.0 : bc.x < 3.0 ? 2.0 : 10.0;
+  else if (bc.y < 2.0) bayer = bc.x < 1.0 ? 12.0 : bc.x < 2.0 ? 4.0 : bc.x < 3.0 ? 14.0 : 6.0;
+  else if (bc.y < 3.0) bayer = bc.x < 1.0 ? 3.0 : bc.x < 2.0 ? 11.0 : bc.x < 3.0 ? 1.0 : 9.0;
+  else bayer = bc.x < 1.0 ? 15.0 : bc.x < 2.0 ? 7.0 : bc.x < 3.0 ? 13.0 : 5.0;
+  float density = smoothstep(0.0, 0.5, f) * 0.78 + 0.22 * step(0.02, f);
+  float vis = density > (bayer + 0.5) / 16.0 ? 1.0 : 0.0;
+  float r = 0.5 * pitch * (0.14 + 0.92 * sqrt(f));
+  float d = distance(gl_FragCoord.xy, ctr);
+  float a = vis * (1.0 - smoothstep(r - 0.6, r + 0.6, d));
+  gl_FragColor = vec4(mix(bg, c, a), 1.0);
+}`;
+function initGL() {
+  gl = dots.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+  if (!gl) return false;
+  const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); return x; };
+  const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  uRes = gl.getUniformLocation(prog, "res"); uPitch = gl.getUniformLocation(prog, "pitch");
+  const bg = hex2rgb(PAL.ground); gl.uniform3f(gl.getUniformLocation(prog, "bg"), bg[0] / 255, bg[1] / 255, bg[2] / 255);
+  return true;
+}
 function resize() {
   const r = $("wrap").getBoundingClientRect();
   dpr = Math.min(2, window.devicePixelRatio || 1);
-  view.width = labels.width = Math.round(r.width * dpr); view.height = labels.height = Math.round(r.height * dpr);
-  cam.W = view.width; cam.H = view.height; cam.focal = cam.H * 0.8;
+  const pitch = pitchCss * dpr;
+  dots.width = labels.width = Math.round(r.width * dpr); dots.height = labels.height = Math.round(r.height * dpr);
+  scene.width = Math.ceil(dots.width / pitch); scene.height = Math.ceil(dots.height / pitch);      // one scene pixel per dot
+  sprites.width = scene.width * 2; sprites.height = scene.height * 2;                                 // beetles at twice the dot grid
+  cam.W = sprites.width; cam.H = sprites.height; cam.focal = cam.H * 0.8;
+  if (gl) { gl.viewport(0, 0, dots.width, dots.height); gl.uniform2f(uRes, dots.width, dots.height); gl.uniform1f(uPitch, pitch); }
 }
 function render(t) {
-  if (cam.ortho) {
-    drawMap2D(vctx);
-    drawPins(vctx);
-    drawTrails2D(vctx, t);
-    // in 2D nothing stands in front of a beetle: they always draw last
-    for (const c of world.corpses) drawBeetle(vctx, c, t, true);
-    for (const b of world.beetles) if (!b.done && !b.flipped) drawBeetle(vctx, b, t, false);
-  } else {
-    drawScene3D(vctx, t);
-  }
+  drawMap2D(sctx, 0.5);
+  if (gl) { gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, scene); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+  // everything that moves, above the ground: nothing can cover a beetle
+  pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, sprites.width, sprites.height);
+  drawPins(pctx);
+  drawTrails2D(pctx, t);
+  for (const c of world.corpses) drawBeetle(pctx, c, t, true);
+  for (const b of world.beetles) if (!b.done && !b.flipped) drawBeetle(pctx, b, t, false);
+  const k = (pitchCss * dpr) / 2;  // sprite px -> device px
   lctx.clearRect(0, 0, labels.width, labels.height);
   lctx.font = `600 ${Math.round(13 * dpr)}px ui-monospace, 'SF Mono', Menlo, Consolas, monospace`; lctx.textBaseline = "middle";
   const tag = (s, text, color) => {
-    if (!s) return; const x = s[0] + 16 * dpr, y = s[1] - 16 * dpr, w = lctx.measureText(text).width + 12 * dpr;
+    if (!s) return; const x = s[0] * k + 16 * dpr, y = s[1] * k - 16 * dpr, w = lctx.measureText(text).width + 12 * dpr;
     lctx.fillStyle = PAL.ground; lctx.fillRect(x - 6 * dpr, y - 10 * dpr, w, 20 * dpr);
     lctx.fillStyle = color; lctx.fillText(text, x, y);
   };
@@ -496,12 +471,12 @@ async function load() {
     renderLegend();
   } catch (e) { $("caption").textContent = `could not load the swarm: ${e.message}`; }
 }
-$("v3d").onclick = () => { cam.ortho = false; $("v3d").setAttribute("aria-pressed", "true"); $("v2d").setAttribute("aria-pressed", "false"); };
-$("v2d").onclick = () => { cam.ortho = true; $("v2d").setAttribute("aria-pressed", "true"); $("v3d").setAttribute("aria-pressed", "false"); };
+document.querySelectorAll("button[data-pitch]").forEach((btn) => { btn.onclick = () => { pitchCss = +btn.dataset.pitch; document.querySelectorAll("button[data-pitch]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn))); resize(); }; });
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(resize, 150); });
 $("swatches").innerHTML = [["#22231A", "ground", "page"], ["#2E2F23", "soil", "lowest ground, pits"], ["#464831", "scrub", "low ground"], ["#87826E", "sage", "slopes"], ["#734E30", "bark", "contour lines"], ["#F1EBE4", "salt", "ridge tops, text, bellies"], ["#0866FF", "Meta", "meta beetles"], ["#9168C0", "Gemini", "gemini beetles"], ["#D97757", "Claude", "claude beetles"]]
   .map(([hex, name, role]) => `<div class="sw"><i style="background:${hex}"></i><b>${name}</b> ${hex}<small>${role}</small></div>`).join("");
 
+if (!initGL()) $("caption").textContent = "WebGL is unavailable, so the halftone cannot render";
 resize();
 load();
 requestAnimationFrame(frame);
