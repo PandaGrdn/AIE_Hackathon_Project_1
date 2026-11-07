@@ -135,7 +135,8 @@ def check_property(prop: SpecProperty, args: list, result: object) -> bool:
 #      record an AmbiguityFlag(case_id, expected, majority) instead of failing anyone.
 #   3. for properties: check_property on every (run, case) for the property's function; a violation
 #      fails that run on that case even when the whole swarm agrees (shared-blind-spot catch).
-#   4. agent tests (cross-test matrix) feed the reflector only.
+#   4. verified_runs = runs passing every hidden case and property; fuzz-majority disagreements
+#      go to the reflector as evidence only. Agents' own tests are never run by the harness.
 
 
 def _extract_json(text: str) -> str:

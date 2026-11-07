@@ -2,7 +2,7 @@
 
 Test independence: verdict inputs are (1) spec tests and properties from `spec_tests.py`,
 written before the swarm from spec + interface + base repo only, (2) fuzz cases from the
-type hints. Agents' own tests are tie-breaker evidence only. See outline §5.5.
+type hints. Agents' own tests are never used. See outline §5.5.
 
 Each (run, case) executes `python -I -c <exec> <impl_dir> <file> <func> <args_json>`
 with a timeout, so a hanging or crashing implementation can't take the harness down.
@@ -91,6 +91,6 @@ def breaking_case(result: CrossTestResult, run_id: str) -> tuple[TestCase, Outco
     return None
 
 
-# TODO(C): cross-test matrix — run each run's tests/ dir against every other run's sandbox
-# via `python -I -m pytest <tests_dir> --rootdir <impl_dir>`; a test that passes on most
-# verified impls but fails on a given impl is extra evidence for the reflector.
+# Agents' own tests are deliberately NOT run against other implementations: they are derived
+# from the agent's code and would share its misunderstanding. Verdict = hidden spec tests +
+# properties (see spec_tests.py); fuzz majority is secondary evidence only.
