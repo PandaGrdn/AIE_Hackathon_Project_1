@@ -23,26 +23,29 @@ swarm eval                            # run held-out eval and print metrics
 swarm reflect --run-id <id>           # re-run reflection on a stored run
 ```
 
-## Layout
+## Layout and owners
+
+Task split, hour by hour: [docs/TASKS.md](docs/TASKS.md). Each person owns disjoint files.
 
 ```
 core/
-  decompose/   long task → subtasks, interface pinning            (owner: A)
-  context/     lesson retrieval, failure-region live check        (owner: D)
-  swarm/       router, runner, sandbox, prompts, log_step tool    (owner: B)
-  paths/       step embedder, path alignment, divergence          (owner: C)
-  harness/     hypothesis strategies, cross-test, majority        (owner: C)
-  reflect/     reflector, lesson schema, dedup                    (owner: D)
-  changes/     change proposer, held-out gate, versioning         (owner: D)
-  store/       MongoDB + in-memory store                          (owner: D)
-  llm/         thin clients for SubQ, Meta, Gemini, Anthropic     (owner: B)
-  orchestrator.py   the per-subtask loop
-  cli.py
-demo_task/     the long task and the repo it runs against         (owner: A)
-eval/          held-out subtasks, reference impls, metrics        (owner: A)
-ui/            reasoning map, changelog, trust leaderboard
-docker/        agent sandbox image
-tests/
+  decompose/   long task → subtasks, interface pinning            Ethan Liu
+  context/     lesson retrieval, failure-region live check        Ethan Li
+  swarm/       router, runner, sandbox, prompts, log_step tool    Lucas Chen
+  paths/       step embedder, path alignment, divergence          Ethan Li
+  harness/     hypothesis strategies, cross-test, majority        Ethan Li
+  reflect/     reflector, lesson schema, dedup                    Ethan Li
+  changes/     change proposer, held-out gate, trust              Ethan Li
+  store/       MongoDB + in-memory store                          Ethan Li
+  llm/         thin clients for SubQ, Meta, Gemini, Anthropic     Lucas Chen
+  orchestrator.py   the per-subtask loop                          Ethan Liu
+  cli.py                                                          Ethan Liu
+  models.py, config.py   shared schemas and settings              Ethan Liu (ask for changes)
+demo_task/     the long task and the repo it runs against         Ethan Liu
+eval/          held-out subtasks, reference impls, metrics        Ethan Liu
+ui/            changelog, trust leaderboard, reasoning map        Ethan Liu
+docker/        agent sandbox image                                Lucas Chen
+tests/         one file per area, named after it
 ```
 
 Everything in this repo was built during the hackathon. Third-party libraries are listed in `pyproject.toml`.
