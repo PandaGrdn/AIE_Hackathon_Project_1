@@ -139,7 +139,11 @@ def run_subtask(
 
     # 6. commit + advance
     agreement = min((mv.agreement for mv in result.majority.values()), default=0.0)
-    if not result.verified_runs or agreement <= settings.majority_ambiguous_threshold:
+    # With hidden pytest modules the verdict is absolute (a verified run passed every hidden test and the
+    # regression suite), so one verified run is enough to advance. The fuzz-majority agreement check only
+    # applies to the case-based verdict (pure subtasks, offline fakes), where the majority IS the oracle.
+    pytest_verdict = bool(getattr(spec, "modules", None))
+    if not result.verified_runs or (not pytest_verdict and agreement <= settings.majority_ambiguous_threshold):
         # Learn from the all-fail before giving up: reflect every failed run into a lesson, then retry once
         # with those lessons in the agents' context. Trust still moves on this attempt.
         lessons_now = _reflect_failures(subtask, runs, result, store, locate_fn, reflect_fn, report)
