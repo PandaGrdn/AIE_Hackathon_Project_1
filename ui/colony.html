@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Colony</title>
+<style>
+:root{
+  --bg:#0e0d0b;--panel:#15130f;--panel2:#1b1813;--line:#2a261e;--ink:#ece6d8;--mute:#9a917f;--dim:#625a4b;
+  --ok:#7fd49a;--bad:#ff6b5e;--amber:#f2b552;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.app{display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr) 384px;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:26px;padding:12px 22px;border-bottom:1px solid var(--line);min-width:0}
+.brand{display:flex;flex-direction:column;min-width:150px}
+.brand b{letter-spacing:.32em;font-size:13px}
+.brand span{color:var(--mute);font-size:12px}
+.round{flex:1;min-width:0}
+.round .k{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.round .v{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-block;margin-left:10px;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1px solid currentColor;vertical-align:3px}
+.metric{display:flex;flex-direction:column;align-items:flex-end}
+.metric .k{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.metric .v{font:600 22px/1.15 var(--mono)}
+.metric .v small{font-size:12px;color:var(--mute);font-weight:500}
+.metric.big .v{font-size:30px;color:var(--ok)}
+.stage{position:relative;min-height:0;min-width:0}
+canvas#map{position:absolute;inset:0;width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s}
+.overlay.bottom{align-items:flex-end;padding-bottom:18px}
+.overlay.bottom .card{padding:16px 24px;max-width:640px}
+.overlay.bottom .card h1{font-size:22px}
+.compare.row4{grid-template-columns:repeat(4,auto);gap:4px 22px;margin-top:12px;justify-content:center;text-align:center}
+.card{background:rgba(21,19,15,.92);border:1px solid var(--line);border-radius:14px;padding:26px 30px;max-width:560px;text-align:center;backdrop-filter:blur(6px)}
+.card h1{margin:0 0 6px;font-size:30px;letter-spacing:.02em}
+.card p{margin:0;color:var(--mute)}
+.compare{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px 22px;margin-top:18px;text-align:left;font-family:var(--mono)}
+.compare .h{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.compare .up{color:var(--ok)}
+aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+.sec h2{margin:0 0 2px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600}
+.sec .sub{color:var(--dim);font:11px var(--mono);margin-bottom:10px}
+.board{position:relative;height:376px}
+.row{position:absolute;left:0;right:0;height:46px;display:grid;grid-template-columns:18px 34px minmax(0,1fr) 92px;align-items:center;gap:8px;padding:0 6px;border-radius:9px;will-change:transform}
+.row.out{opacity:.45}
+.row .rk{font:600 12px var(--mono);color:var(--dim);text-align:right}
+.row canvas{width:34px;height:34px}
+.row .nm{min-width:0}
+.row .nm b{display:block;font:600 13px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .nm i{display:block;font-style:normal;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .nm i.ok{color:var(--ok)}.row .nm i.bad{color:var(--bad)}.row .nm i.work{color:var(--amber)}
+.row .sc{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.row .num{font:600 15px var(--mono)}
+.row .bar{width:86px;height:4px;background:#2a261e;border-radius:3px;overflow:hidden}
+.row .bar span{display:block;height:100%;border-radius:3px}
+.row .d{position:absolute;right:100px;top:13px;font:600 11px var(--mono);padding:1px 6px;border-radius:5px;opacity:0;transition:opacity .25s}
+.row .d.up{color:#0e0d0b;background:var(--ok)}.row .d.dn{color:#0e0d0b;background:var(--bad)}
+.cut{position:absolute;left:0;right:0;border-top:1px dashed #4a4334;font:10px var(--mono);color:var(--dim);letter-spacing:.08em}
+.cut span{position:absolute;right:4px;top:-8px;background:var(--panel);padding:0 6px}
+.lesson{min-height:118px}
+.lesson .id{font:600 12px var(--mono);color:var(--amber)}
+.lesson .tx{margin:6px 0 8px;font-size:14px;line-height:1.45}
+.lesson .meta{font:11px var(--mono);color:var(--mute)}
+.lesson .st{margin-top:8px;font:600 12px var(--mono)}
+.gbar{height:4px;background:#2a261e;border-radius:3px;margin-top:6px;overflow:hidden}
+.gbar span{display:block;height:100%;background:var(--amber)}
+.log{flex:1;min-height:0;overflow:hidden}
+.log ul{list-style:none;margin:0;padding:0}
+.log li{display:grid;grid-template-columns:38px 8px 1fr;gap:8px;align-items:baseline;padding:4px 0;font-size:12.5px;color:#cfc8b8;animation:in .35s ease}
+.log li time{font:11px var(--mono);color:var(--dim)}
+.log li .dot{width:7px;height:7px;border-radius:50%;background:var(--mute);transform:translateY(-1px)}
+.log li.ok .dot{background:var(--ok)}.log li.bad .dot{background:var(--bad)}.log li.amber .dot{background:var(--amber)}.log li.info .dot{background:#7aa7ff}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}}
+footer{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-top:1px solid var(--line)}
+button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:600 12px var(--mono);cursor:pointer}
+button:hover{border-color:#4a4334}
+.tl{flex:1;position:relative;height:28px;cursor:pointer}
+.tl .track{position:absolute;left:0;right:0;top:12px;height:4px;background:#2a261e;border-radius:3px}
+.tl .fill{position:absolute;left:0;top:12px;height:4px;background:var(--ink);border-radius:3px}
+.tl .mk{position:absolute;top:0;font:10px var(--mono);color:var(--dim);transform:translateX(2px)}
+.tl .tick{position:absolute;top:9px;width:1px;height:10px;background:#4a4334}
+.clock{font:12px var(--mono);color:var(--mute);min-width:84px;text-align:right}
+.keys{font:11px var(--mono);color:var(--dim)}
+@media (max-width:980px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 56vh auto auto;height:auto}
+  aside{border-left:0;border-top:1px solid var(--line)}
+  header{flex-wrap:wrap;gap:12px 20px}
+  .keys{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><b>COLONY</b><span>a coding swarm that learns from every fall</span></div>
+    <div class="round"><div class="k" id="roundK">Intro</div><div class="v"><span id="roundV">Seven agents, three subtasks</span><span class="pill" id="phase">ready</span></div></div>
+    <div class="metric"><div class="k">Verified this subtask</div><div class="v" id="mVer">–</div></div>
+    <div class="metric"><div class="k">Lessons</div><div class="v" id="mLes">0 <small>adopted</small></div></div>
+    <div class="metric big"><div class="k">Held-out pass rate</div><div class="v" id="mHeld">50%</div></div>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="map"></canvas>
+    <div class="overlay" id="intro"><div class="card"><h1>The colony gets better</h1><p>Each beetle is a coding agent. When one falls into a pit, the colony plants a flag there, and only the flags that pass the held-out test stay.</p></div></div>
+    <div class="overlay bottom" id="outro"><div class="card">
+      <h1>Subtask 1 → Subtask 3</h1>
+      <p>Same swarm, same task. The only difference is what the colony has learned.</p>
+      <div class="compare row4">
+        <span class="h">verified</span><span class="h">falls into known pits</span><span class="h">held-out pass rate</span><span class="h">lessons</span>
+        <span>3/6 → <b class="up">5/6</b></span><span><b class="up">0</b></span><span>50% → <b class="up">79%</b></span><span>3 adopted · 1 rolled back</span>
+      </div>
+    </div></div>
+  </div>
+
+  <aside>
+    <div class="sec">
+      <h2>Trust leaderboard</h2>
+      <div class="sub">trust = (verified + 1) / (verified + failed + 2)</div>
+      <div class="board" id="board"></div>
+    </div>
+    <div class="sec lesson" id="lesson">
+      <h2>Latest lesson</h2>
+      <div class="sub">written by the reflector, scored by SubQ</div>
+      <div id="lessonBody" class="meta">No falls yet.</div>
+    </div>
+    <div class="sec log"><h2>Run log</h2><ul id="log"></ul></div>
+  </aside>
+
+  <footer>
+    <button id="play">▶ play</button>
+    <div class="tl" id="tl"><div class="track"></div><div class="fill" id="fill"></div></div>
+    <div class="clock" id="clock">0:00 / 0:00</div>
+    <button id="speed">1×</button>
+    <span class="keys">space play · ←/→ beats · 1-3 subtask · R restart</span>
+  </footer>
+</div>
+
+<script>
+// ---------- hardcoded scenario (swap for real run data later) ----------
+const W = 1000, H = 600;
+const INTRO = 3, RD = 30, OUTRO = 14;
+const P = { WALK: 1.2, VERIFY: 15, TRUST: 16, REFLECT: 18, GATE: 21, GATE_DUR: 2.2, GATE_GAP: 2.6, END: 27 };
+
+const AGENTS = [ // roster order = router tie-break order (core/llm/clients.py)
+  { id: 'gemini-t2',     co: 'Google',    model: 'gemini-3.8-flash',  paint: 'gemini', trail: '#7d86f5' },
+  { id: 'gemini-t7-alt', co: 'Google',    model: 'gemini-3.8-flash',  paint: 'gemini', trail: '#9a7ef2', stripe: true },
+  { id: 'claude-t2',     co: 'Anthropic', model: 'claude-sonnet-5-5', paint: '#D97757', trail: '#e08665' },
+  { id: 'claude-t7-alt', co: 'Anthropic', model: 'claude-sonnet-5-5', paint: '#D97757', trail: '#e9a183', stripe: true },
+  { id: 'openai-t2',     co: 'OpenAI',    model: 'gpt-5.4-mini',      paint: '#17181b', trail: '#d9d6cf', outline: '#e9e6df' },
+  { id: 'meta-code-t2',  co: 'Meta',      model: 'muse-wonder-1.0',   paint: '#0866FF', trail: '#3b86ff' },
+  { id: 'meta-spark-t5', co: 'Meta',      model: 'muse-spark-1.3',    paint: '#0866FF', trail: '#6aa3ff', stripe: true },
+];
+const NEST = { x: 82, y: 300 }, FOOD = { x: 928, y: 300 };
+const PITS = {
+  A: { x: 395, y: 212, assume: 'assumed an empty config means "use defaults"' },
+  B: { x: 575, y: 398, assume: 'named the key `retry`; the interface pins `retries`' },
+  C: { x: 742, y: 236, assume: 'parsed --since as local time' },
+};
+const ROUNDS = [
+  { sub: 'S1', title: 'Parse the config file', pit: 'A',
+    fail: { 'gemini-t7-alt': 3, 'openai-t2': 3, 'meta-code-t2': 4 }, tempt: {},
+    lessons: [{ id: 'L1', from: 'gemini-t7-alt', step: 3, conf: 0.86, adopt: true, before: 50, after: 64,
+      text: 'An empty config file is an error. Raise ConfigError; never fall back to defaults.' }] },
+  { sub: 'S2', title: 'Retry policy from config', pit: 'B',
+    fail: { 'openai-t2': 4, 'claude-t7-alt': 5 }, tempt: { 'gemini-t2': 'A', 'meta-spark-t5': 'A' },
+    lessons: [
+      { id: 'L2', from: 'openai-t2', step: 4, conf: 0.91, adopt: true, before: 64, after: 71,
+        text: 'Use the pinned key name `retries` exactly as the interface spells it.' },
+      { id: 'L3', from: 'claude-t7-alt', step: 5, conf: 0.38, adopt: false, before: 71, after: 68,
+        text: 'Wrap config loading in a broad try/except so a bad retry value never crashes.' }] },
+  { sub: 'S3', title: '--since filter in the CLI', pit: 'C',
+    fail: { 'meta-code-t2': 4 }, tempt: { 'claude-t2': 'A', 'gemini-t7-alt': 'B', 'claude-t7-alt': 'B' },
+    lessons: [{ id: 'L4', from: 'meta-code-t2', step: 4, conf: 0.88, adopt: true, before: 71, after: 79,
+      text: 'Timestamps in --since are UTC. Parse with tz=UTC, never local time.' }] },
+];
+const TOTAL = INTRO + RD * ROUNDS.length + OUTRO;
+
+// ---------- helpers ----------
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rnd = mulberry32(11);
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+const byId = Object.fromEntries(AGENTS.map((a, i) => [a.id, { ...a, i }]));
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const pct = x => Math.round(x * 100);
+
+// ---------- build the deterministic timeline ----------
+const counts = Object.fromEntries(AGENTS.map(a => [a.id, { v: 0, f: 0 }]));
+const scoreOf = id => (counts[id].v + 1) / (counts[id].v + counts[id].f + 2);
+const order = sc => AGENTS.map((a, i) => ({ id: a.id, i, s: sc[a.id] })).sort((x, y) => y.s - x.s || x.i - y.i).map(o => o.id);
+const SNAPS = [Object.fromEntries(AGENTS.map(a => [a.id, scoreOf(a.id)]))];
+const ORDERS = [order(SNAPS[0])];
+const EVENTS = [], LESSONS = [], PIT_REVEAL = {};
+const adopted = {}; // pit -> lesson id
+const R = [];
+
+function catmull(pts, n = 18) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    for (let j = 0; j < n; j++) {
+      const t = j / n, t2 = t * t, t3 = t2 * t;
+      out.push({
+        x: .5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: .5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      });
+    }
+  }
+  out.push({ ...pts[pts.length - 1] });
+  return out;
+}
+const RAD = 80;
+function repel(poly, pits, keepEnd) {
+  let push = {};
+  poly.forEach((p, i) => {
+    if (i === 0 || (keepEnd && i === poly.length - 1)) return;
+    for (const k of pits) {
+      const c = PITS[k], dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1;
+      if (d < RAD) { push[k] = Math.max(push[k] || 0, RAD - d); p.x = c.x + dx / d * RAD; p.y = c.y + dy / d * RAD; }
+    }
+  });
+  return push;
+}
+function smooth(poly, passes) {
+  for (let s = 0; s < passes; s++) {
+    const c = poly.map(p => ({ ...p }));
+    for (let i = 2; i < poly.length - 2; i++) {
+      poly[i].x = (c[i - 2].x + c[i - 1].x + c[i].x + c[i + 1].x + c[i + 2].x) / 5;
+      poly[i].y = (c[i - 2].y + c[i - 1].y + c[i].y + c[i + 1].y + c[i + 2].y) / 5;
+    }
+  }
+}
+
+function buildRun(id, k, rd, T0) {
+  const lane = 300 + (k - 2.5) * 54 + (rnd() - .5) * 18;
+  const failStep = rd.fail[id], pit = PITS[rd.pit];
+  const pts = [{ x: NEST.x + 14, y: NEST.y + (k - 2.5) * 7 }];
+  const xs = [235, 400, 570, 740];
+  if (failStep) {
+    for (const x of xs) {
+      if (x >= pit.x - 50) break;
+      const f = (x - NEST.x) / (pit.x - NEST.x);
+      pts.push({ x, y: lerp(lane, pit.y, f * f) + (rnd() - .5) * 26 });
+    }
+    const fi = Object.keys(rd.fail).indexOf(id); pts.push({ x: pit.x + (fi - 1) * 13, y: pit.y + ((fi % 2) - .5) * 12 });
+  } else {
+    for (const x of xs) {
+      const tp = rd.tempt[id];
+      const y = tp && Math.abs(x - PITS[tp].x) < 60 ? PITS[tp].y + (rnd() - .5) * 8 : lane + (rnd() - .5) * 40;
+      pts.push({ x, y });
+    }
+    pts.push({ x: FOOD.x - 34 - (k % 2) * 8, y: FOOD.y + (k - 2.5) * 17 });
+  }
+  const poly = catmull(pts);
+  const known = Object.keys(adopted);
+  const push = repel(poly, known, !!failStep);
+  for (let it = 0; it < 8; it++) { smooth(poly, 3); repel(poly, known, !!failStep); }
+  smooth(poly, 1);
+  const cum = [0];
+  for (let i = 1; i < poly.length; i++) cum.push(cum[i - 1] + Math.hypot(poly[i].x - poly[i - 1].x, poly[i].y - poly[i - 1].y));
+  const len = cum[cum.length - 1];
+  const t0 = T0 + P.WALK + k * .13 + rnd() * .25;
+  const dur = failStep ? len / (78 + rnd() * 14) : 10.4 + rnd() * 1.7;
+  const run = { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep || 0, pit: rd.pit,
+    nSteps: failStep || 5 + Math.floor(rnd() * 3), avoid: [] };
+  for (const [pk, amt] of Object.entries(push)) {
+    if (amt < 14) continue;
+    let best = 0, bd = 1e9;
+    poly.forEach((p, i) => { const d = Math.hypot(p.x - PITS[pk].x, p.y - PITS[pk].y); if (d < bd) { bd = d; best = i; } });
+    run.avoid.push({ pit: pk, lesson: adopted[pk], t: t0 + cum[best] / len * dur });
+  }
+  return run;
+}
+
+ROUNDS.forEach((rd, ri) => {
+  const T0 = INTRO + ri * RD;
+  const ord = ORDERS[ri], team = ord.slice(0, 6), bench = ord.slice(6);
+  const runs = team.map((id, k) => buildRun(id, k, rd, T0));
+  EVENTS.push({ t: T0 + .2, kind: 'info', text: `${rd.sub} · router picks the top 6 by trust; ${bench.join(', ')} sits out` });
+  for (const r of runs) {
+    if (r.fail) EVENTS.push({ t: r.arrive, kind: 'bad', text: `${r.id} fell into pit ${r.pit} at step ${r.fail}: ${PITS[r.pit].assume}` });
+    for (const a of r.avoid) EVENTS.push({ t: a.t, kind: 'ok', text: `${r.id} steered around pit ${a.pit} using lesson ${a.lesson}` });
+  }
+  const fallers = runs.filter(r => r.fail);
+  PIT_REVEAL[rd.pit] = Math.min(...fallers.map(r => r.arrive));
+  const verified = runs.filter(r => !r.fail);
+  EVENTS.push({ t: T0 + P.VERIFY, kind: 'info', text: `Hidden tests: ${verified.length}/6 verified on ${rd.sub}` });
+  const winner = verified.slice().sort((a, b) => SNAPS[ri][b.id] - SNAPS[ri][a.id] || byId[a.id].i - byId[b.id].i)[0];
+  team.forEach(id => rd.fail[id] ? counts[id].f++ : counts[id].v++);
+  SNAPS.push(Object.fromEntries(AGENTS.map(a => [a.id, scoreOf(a.id)])));
+  ORDERS.push(order(SNAPS[ri + 1]));
+  EVENTS.push({ t: T0 + P.TRUST, kind: 'amber', text: 'Trust: ' + team.map(id => `${id} ${pct(SNAPS[ri][id])}→${pct(SNAPS[ri + 1][id])}`).join(', ') });
+  EVENTS.push({ t: T0 + P.TRUST + .4, kind: 'ok', text: `Committed ${winner.id}'s code for ${rd.sub} (highest-trust verified run)` });
+  rd.lessons.forEach((L, j) => {
+    const rise = T0 + P.REFLECT + j * .9, g0 = T0 + P.GATE + j * P.GATE_GAP, g1 = g0 + P.GATE_DUR;
+    const lesson = { ...L, ri, pit: rd.pit, j, rise, g0, g1 };
+    LESSONS.push(lesson);
+    EVENTS.push({ t: rise, kind: 'amber', text: `Reflector wrote ${L.id} from ${L.from}'s step ${L.step} · SubQ confidence ${L.conf.toFixed(2)}` });
+    EVENTS.push({ t: g1, kind: L.adopt ? 'ok' : 'bad', text: `Held-out gate ${L.id}: ${L.before}% → ${L.after}% · ${L.adopt ? 'adopted' : 'rolled back'}` });
+    if (L.adopt) adopted[rd.pit] = L.id;
+  });
+  R.push({ ...rd, T0, team, bench, runs, verified: verified.length, updateT: T0 + P.TRUST });
+});
+EVENTS.sort((a, b) => a.t - b.t);
+const OUTRO_T = INTRO + RD * ROUNDS.length;
+const BEATS = [0, INTRO, ...R.flatMap(r => [r.T0, r.T0 + P.WALK, r.T0 + P.VERIFY, r.T0 + P.REFLECT, r.T0 + P.GATE, r.T0 + P.END]), OUTRO_T].sort((a, b) => a - b);
+
+// ---------- time queries ----------
+function roundAt(t) { return t < INTRO ? -1 : Math.min(ROUNDS.length, Math.floor((t - INTRO) / RD)); }
+function posAt(run, t) {
+  const p = clamp((t - run.t0) / run.dur), d = p * run.len, c = run.cum;
+  let lo = 0, hi = c.length - 1;
+  while (lo < hi - 1) { const m = (lo + hi) >> 1; if (c[m] <= d) lo = m; else hi = m; }
+  const a = run.poly[lo], b = run.poly[hi], f = (d - c[lo]) / ((c[hi] - c[lo]) || 1);
+  return { x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), ang: Math.atan2(b.y - a.y, b.x - a.x), p, idx: lo };
+}
+function trustAt(t) {
+  let k = 0; while (k < R.length && t >= R[k].updateT) k++;
+  if (k === 0) return { sc: SNAPS[0], from: ORDERS[0], to: ORDERS[0], e: 1, k };
+  const e = ease(clamp((t - R[k - 1].updateT) / 1.2));
+  const sc = Object.fromEntries(AGENTS.map(a => [a.id, lerp(SNAPS[k - 1][a.id], SNAPS[k][a.id], e)]));
+  return { sc, from: ORDERS[k - 1], to: ORDERS[k], e, k };
+}
+function heldAt(t) {
+  let v = 50;
+  for (const L of LESSONS) if (L.adopt && t >= L.g1) v = lerp(L.before, L.after, ease(clamp((t - L.g1) / .8)));
+  return v;
+}
+
+// ---------- beetle ----------
+function paintFor(c, a, flipped) {
+  if (flipped) return '#bdb3a0';
+  if (a.paint === 'gemini') { const g = c.createLinearGradient(-11, -6, 9, 6); g.addColorStop(0, '#4C8DF6'); g.addColorStop(1, '#A970F0'); return g; }
+  return a.paint;
+}
+function drawBeetle(c, x, y, ang, a, o = {}) {
+  const s = o.scale || 1.55, ph = o.phase || 0, fl = !!o.flipped;
+  c.save(); c.translate(x, y); c.rotate(ang); c.scale(s, s); c.globalAlpha = o.alpha ?? 1;
+  c.lineCap = 'round';
+  c.strokeStyle = fl ? '#2b261d' : '#060505'; c.lineWidth = 1.15;
+  for (let i = 0; i < 3; i++) for (const sd of [-1, 1]) {
+    const bx = -4 + i * 5, w = Math.sin(ph * (fl ? 2.2 : 1) + i * 2.1 + (sd > 0 ? Math.PI : 0)) * (fl ? 3.2 : 2.1);
+    c.beginPath(); c.moveTo(bx, sd * 3); c.lineTo(bx + w + (i - 1) * 2.2, sd * 8.2); c.lineTo(bx + w + (i - 1) * 4.2, sd * (fl ? 10 : 11.2)); c.stroke();
+  }
+  c.lineWidth = .9;
+  for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(12.5, sd * 1.4); c.quadraticCurveTo(15.5, sd * 2.2, 17, sd * 5); c.stroke(); }
+  c.fillStyle = paintFor(c, a, fl);
+  c.beginPath(); c.ellipse(-2, 0, 9.2, 6.4, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = fl ? '#a59a85' : (a.paint === 'gemini' ? '#3f63c9' : a.paint);
+  c.beginPath(); c.ellipse(7.2, 0, 3.6, 4.7, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#0b0a08'; c.beginPath(); c.ellipse(11.2, 0, 2.6, 2.9, 0, 0, Math.PI * 2); c.fill();
+  if (fl) {
+    c.strokeStyle = 'rgba(40,34,25,.6)'; c.lineWidth = .7;
+    for (let i = -6; i <= 3; i += 3) { c.beginPath(); c.moveTo(i, -5); c.quadraticCurveTo(i - 1.5, 0, i, 5); c.stroke(); }
+  } else {
+    c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = .7; c.beginPath(); c.moveTo(4.4, 0); c.lineTo(-11, 0); c.stroke();
+    if (a.stripe) { c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1.2; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(3, sd * 3.2); c.lineTo(-8.5, sd * 3.2); c.stroke(); } }
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.ellipse(.5, -2.7, 3.4, 1.2, -.15, 0, Math.PI * 2); c.fill();
+  }
+  c.strokeStyle = a.outline || 'rgba(0,0,0,.55)'; c.lineWidth = a.outline ? .8 : .6;
+  c.beginPath(); c.ellipse(-2, 0, 9.2, 6.4, 0, 0, Math.PI * 2); c.stroke();
+  c.restore();
+}
+
+// ---------- canvas ----------
+const stage = document.getElementById('stage'), cv = document.getElementById('map'), ctx = cv.getContext('2d');
+let view = { s: 1, ox: 0, oy: 0, dpr: 1 }, bg = null;
+function resize() {
+  const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr);
+  const s = Math.min(r.width / W, r.height / H);
+  view = { s, ox: (r.width - W * s) / 2, oy: (r.height - H * s) / 2, dpr };
+  bg = document.createElement('canvas'); bg.width = cv.width; bg.height = cv.height;
+  const b = bg.getContext('2d');
+  b.fillStyle = '#0e0d0b'; b.fillRect(0, 0, bg.width, bg.height);
+  b.setTransform(dpr * s, 0, 0, dpr * s, dpr * view.ox, dpr * view.oy);
+  const ext = 140;
+  for (let y = -ext; y < H + ext; y += 8) for (let x = -ext; x < W + ext; x += 8) {
+    const ox = (Math.floor(y / 8) % 2) * 4;
+    const h = .5 + .22 * Math.sin((x + ox) * .011 + Math.sin(y * .007) * 2) + .16 * Math.sin(y * .017 + x * .004) + .1 * Math.sin((x + y) * .023);
+    const path = Math.exp(-Math.pow((y - 300) / 230, 2));
+    const r = .35 + 2.1 * clamp(h * .75 + path * .2);
+    b.fillStyle = `rgba(${150 + h * 40},${128 + h * 30},${96 + h * 20},${.16 + h * .18})`;
+    b.beginPath(); b.arc(x + ox, y, r, 0, Math.PI * 2); b.fill();
+  }
+}
+window.addEventListener('resize', resize);
+
+function trailPath(run, upto) {
+  ctx.beginPath(); ctx.moveTo(run.poly[0].x, run.poly[0].y);
+  for (let i = 1; i <= upto; i++) ctx.lineTo(run.poly[i].x, run.poly[i].y);
+}
+function label(text, x, y, color = '#9a917f', align = 'center', size = 10.5) {
+  ctx.font = `600 ${size}px ui-monospace,SFMono-Regular,Menlo,monospace`; ctx.textAlign = align; ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function drawNestFood(t, ri) {
+  ctx.save();
+  const g = ctx.createRadialGradient(NEST.x, NEST.y, 4, NEST.x, NEST.y, 60);
+  g.addColorStop(0, 'rgba(242,181,82,.28)'); g.addColorStop(1, 'rgba(242,181,82,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(NEST.x, NEST.y, 60, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(242,181,82,.5)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(NEST.x, NEST.y, 30, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  label('NEST', NEST.x, NEST.y + 50);
+  const r = R[clamp(ri, 0, R.length - 1)], lt = t - r.T0;
+  const glow = ri >= 0 && ri < R.length && lt >= P.VERIFY && lt < P.VERIFY + 2 ? 1 - (lt - P.VERIFY) / 2 : 0;
+  const fg = ctx.createRadialGradient(FOOD.x, FOOD.y, 4, FOOD.x, FOOD.y, 70 + glow * 30);
+  fg.addColorStop(0, `rgba(127,212,154,${.3 + glow * .4})`); fg.addColorStop(1, 'rgba(127,212,154,0)');
+  ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(FOOD.x, FOOD.y, 100, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(127,212,154,.7)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(FOOD.x, FOOD.y, 22, 0, Math.PI * 2); ctx.stroke();
+  if (glow) { ctx.strokeStyle = `rgba(127,212,154,${glow})`; ctx.beginPath(); ctx.arc(FOOD.x, FOOD.y, 22 + (1 - glow) * 90, 0, Math.PI * 2); ctx.stroke(); }
+  label(r.sub, FOOD.x, FOOD.y + 4, '#7fd49a', 'center', 12);
+  label(r.title, 992, FOOD.y - 78, '#cfc8b8', 'right', 11);
+  label('hidden tests', FOOD.x, FOOD.y + 44);
+  ctx.restore();
+}
+function drawPits(t) {
+  for (const [k, c] of Object.entries(PITS)) {
+    const t0 = PIT_REVEAL[k]; if (t0 === undefined || t < t0) continue;
+    const e = ease(clamp((t - t0) / .6));
+    const g = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, 34 * e);
+    g.addColorStop(0, 'rgba(3,2,1,1)'); g.addColorStop(.6, 'rgba(8,6,4,.85)'); g.addColorStop(1, 'rgba(8,6,4,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, 34 * e, 0, Math.PI * 2); ctx.fill();
+    const safe = Object.values(LESSONS).some(L => L.pit === k && L.adopt && t >= L.g1);
+    ctx.strokeStyle = safe ? 'rgba(127,212,154,.55)' : 'rgba(255,107,94,.45)'; ctx.lineWidth = 1.2; ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.arc(c.x, c.y, 24 * e, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    if (safe) { ctx.strokeStyle = 'rgba(127,212,154,.14)'; ctx.beginPath(); ctx.arc(c.x, c.y, RAD, 0, Math.PI * 2); ctx.stroke(); }
+    label(`pit ${k}`, c.x, c.y + 40 * e, '#8a8070');
+  }
+}
+function drawFlags(t) {
+  for (const L of LESSONS) {
+    if (t < L.rise) continue;
+    const c = PITS[L.pit], fx = c.x + 18 + L.j * 22, fy = c.y - 14;
+    const e = ease(clamp((t - L.rise) / .6)), h = 30 * e;
+    const gone = !L.adopt && t >= L.g1, ga = gone ? clamp((t - L.g1) / 1.6) : 0;
+    let col = '#f2b552'; if (t >= L.g1) col = L.adopt ? '#7fd49a' : '#ff6b5e';
+    ctx.save(); ctx.globalAlpha = 1 - ga;
+    if (gone) { ctx.translate(fx, fy); ctx.rotate(ga * 1.1); ctx.translate(-fx, -fy + ga * 10); }
+    ctx.strokeStyle = '#d8d0bf'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - h); ctx.stroke();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(fx, fy - h); ctx.lineTo(fx + 20 * e, fy - h + 6); ctx.lineTo(fx, fy - h + 12); ctx.fill();
+    ctx.restore();
+    if (gone) {
+      ctx.fillStyle = `rgba(255,107,94,${1 - ga})`;
+      for (let i = 0; i < 9; i++) { const a = i * 2.3, sp = 6 + (i % 4) * 5; ctx.fillRect(fx + Math.cos(a) * sp * ga * 2, fy - 14 + Math.sin(a) * sp * ga + ga * ga * 30, 2, 2); }
+    }
+    if (!gone || ga < 1) label(L.id, fx + 4, fy - h - 4, col, 'left', 10);
+    if (t >= L.g0 && t < L.g1 + .3) {
+      const p = clamp((t - L.g0) / P.GATE_DUR);
+      ctx.strokeStyle = '#f2b552'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx + 6, fy - h + 6, 18, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke();
+      label(`held-out ${Math.round(lerp(L.before, L.after, ease(p)))}%`, fx + 30, fy - h + 10, '#f2b552', 'left', 10);
+    }
+  }
+}
+function drawRound(r, t, alpha) {
+  const lt = t - r.T0, ghost = r.T0 + RD <= t;
+  for (const run of r.runs) {
+    const a = byId[run.id];
+    if (ghost) { ctx.globalAlpha = .1; ctx.strokeStyle = a.trail; ctx.lineWidth = 1; trailPath(run, run.poly.length - 1); ctx.stroke(); ctx.globalAlpha = 1; continue; }
+    if (t < run.t0) { drawBeetle(ctx, run.poly[0].x - 6, run.poly[0].y, 0, a, { alpha: clamp((t - r.T0) / .8) * alpha }); continue; }
+    const pos = posAt(run, t);
+    ctx.globalAlpha = .1 + .5 * alpha; ctx.strokeStyle = a.trail; ctx.lineWidth = 1.8; trailPath(run, pos.idx); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    for (let s = 1; s <= run.nSteps; s++) {
+      const f = s / run.nSteps; if (pos.p < f - 1e-6) break;
+      const pp = posAt({ ...run, t0: 0, dur: 1 }, f), bad = run.fail && s === run.nSteps;
+      ctx.fillStyle = bad ? '#ff6b5e' : a.trail; ctx.globalAlpha = alpha;
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, bad ? 3.4 : 2.4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    const fell = run.fail && pos.p >= 1, moving = pos.p < 1;
+    const sink = fell ? clamp((t - run.arrive) / .5) : 0;
+    drawBeetle(ctx, pos.x, pos.y, pos.ang + (fell ? sink * .6 : 0), a, { phase: moving ? (t - run.t0) * 15 : (fell ? t * 9 : 0), flipped: fell && sink > .5, alpha, scale: 1.55 * (1 - sink * .15) });
+    for (const av of run.avoid) {
+      const d = t - av.t; if (d < -.6 || d > 2.6) continue;
+      label(`↺ ${av.lesson}`, pos.x, pos.y - 20, `rgba(127,212,154,${alpha * clamp(1 - Math.abs(d - 1) / 1.6)})`, 'center', 10.5);
+    }
+    if (lt >= P.VERIFY) {
+      const e = ease(clamp((lt - P.VERIFY - run.k * .08) / .35)); if (e <= 0) continue;
+      const ok = !run.fail, bx = pos.x + 10, by = pos.y - 16;
+      ctx.globalAlpha = alpha; ctx.fillStyle = ok ? '#7fd49a' : '#ff6b5e';
+      ctx.beginPath(); ctx.arc(bx, by, 7 * e, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1.8; ctx.beginPath();
+      if (ok) { ctx.moveTo(bx - 3, by); ctx.lineTo(bx - .8, by + 2.4); ctx.lineTo(bx + 3.2, by - 2.6); }
+      else { ctx.moveTo(bx - 2.6, by - 2.6); ctx.lineTo(bx + 2.6, by + 2.6); ctx.moveTo(bx + 2.6, by - 2.6); ctx.lineTo(bx - 2.6, by + 2.6); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
+}
+function drawOutro(t) {
+  const e = ease(clamp((t - OUTRO_T) / 1.2));
+  const first = R[0], last = R[R.length - 1];
+  for (const run of first.runs) { ctx.globalAlpha = .55 * e; ctx.strokeStyle = '#c4574c'; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); trailPath(run, run.poly.length - 1); ctx.stroke(); }
+  ctx.setLineDash([]);
+  for (const run of last.runs) {
+    const a = byId[run.id];
+    ctx.globalAlpha = .9 * e; ctx.strokeStyle = a.trail; ctx.lineWidth = 2.2; trailPath(run, run.poly.length - 1); ctx.stroke();
+    const end = run.poly[run.poly.length - 1], prev = run.poly[run.poly.length - 3];
+    ctx.globalAlpha = 1; drawBeetle(ctx, end.x, end.y, Math.atan2(end.y - prev.y, end.x - prev.x), a, { flipped: !!run.fail, alpha: e, phase: run.fail ? t * 9 : 0 });
+  }
+  ctx.globalAlpha = 1;
+  label('- - -  subtask 1 trails', 24, 30, `rgba(196,87,76,${e})`, 'left', 11);
+  label('———  subtask 3 trails', 24, 48, `rgba(236,230,216,${e})`, 'left', 11);
+}
+
+// ---------- side panel ----------
+const board = document.getElementById('board');
+const ROW_H = 49;
+const rows = {};
+for (const a of AGENTS) {
+  const el = document.createElement('div'); el.className = 'row';
+  el.innerHTML = `<span class="rk"></span><canvas width="68" height="68"></canvas><div class="nm"><b>${a.id}</b><i></i></div><div class="sc"><span class="num"></span><div class="bar"><span style="background:${a.trail}"></span></div></div><span class="d"></span>`;
+  board.appendChild(el);
+  const ic = el.querySelector('canvas').getContext('2d'); ic.scale(2, 2); drawBeetle(ic, 17, 17, -Math.PI / 2, a, { scale: 1.15 });
+  rows[a.id] = { el, rk: el.querySelector('.rk'), st: el.querySelector('i'), num: el.querySelector('.num'), bar: el.querySelector('.bar span'), d: el.querySelector('.d'), cache: {} };
+}
+const cut = document.createElement('div'); cut.className = 'cut'; cut.innerHTML = '<span>router picks top 6 ↑ · bench ↓</span>';
+board.appendChild(cut);
+cut.style.top = (6 * ROW_H + 2) + 'px';
+
+function set(o, key, el, prop, val) { if (o.cache[key] !== val) { o.cache[key] = val; if (prop === 'text') el.textContent = val; else if (prop === 'class') el.className = val; else el.style[prop] = val; } }
+
+function statusOf(id, t) {
+  const ri = roundAt(t);
+  if (ri < 0) return ['ready', ''];
+  if (ri >= R.length) { const c = counts[id]; return [`${c.v} verified · ${c.f} failed`, '']; }
+  const r = R[ri], lt = t - r.T0, run = r.runs.find(x => x.id === id);
+  if (!run) return ['benched for ' + r.sub, ''];
+  if (t < run.t0) return ['leaving the nest', ''];
+  if (t < run.arrive) { const p = (t - run.t0) / run.dur; return [`working · step ${Math.min(run.nSteps, Math.floor(p * run.nSteps) + 1)}`, 'work']; }
+  if (lt < P.VERIFY) return run.fail ? [`fell into pit ${run.pit} · step ${run.fail}`, 'bad'] : ['done · awaiting tests', ''];
+  return run.fail ? ['failed hidden tests', 'bad'] : ['verified ✓', 'ok'];
+}
+
+function updatePanel(t) {
+  const tr = trustAt(t), ri = roundAt(t);
+  const posFrom = Object.fromEntries(tr.from.map((id, i) => [id, i])), posTo = Object.fromEntries(tr.to.map((id, i) => [id, i]));
+  for (const a of AGENTS) {
+    const o = rows[a.id], y = lerp(posFrom[a.id], posTo[a.id], tr.e) * ROW_H, sc = tr.sc[a.id];
+    set(o, 'y', o.el, 'transform', `translateY(${y.toFixed(1)}px)`);
+    set(o, 'rk', o.rk, 'text', String(posTo[a.id] + 1));
+    set(o, 'num', o.num, 'text', String(pct(sc)));
+    set(o, 'bar', o.bar, 'width', `${(sc * 100).toFixed(1)}%`);
+    const [txt, cls] = statusOf(a.id, t);
+    set(o, 'st', o.st, 'text', txt); set(o, 'stc', o.st, 'class', cls);
+    const inRound = ri >= 0 && ri < R.length && R[ri].team.includes(a.id);
+    set(o, 'out', o.el, 'class', 'row' + (ri >= 0 && ri < R.length && !inRound ? ' out' : ''));
+    let dtxt = '', dcls = 'd';
+    if (tr.k > 0 && t - R[tr.k - 1].updateT < 5 && R[tr.k - 1].team.includes(a.id)) {
+      const dv = pct(SNAPS[tr.k][a.id]) - pct(SNAPS[tr.k - 1][a.id]);
+      dtxt = (dv > 0 ? '+' : '−') + Math.abs(dv); dcls = 'd ' + (dv > 0 ? 'up' : 'dn');
+    }
+    set(o, 'dt', o.d, 'text', dtxt); set(o, 'dc', o.d, 'class', dcls); set(o, 'do', o.d, 'opacity', dtxt ? '1' : '0');
+  }
+}
+
+const lessonBody = document.getElementById('lessonBody');
+let lessonKey = '';
+function updateLesson(t) {
+  const L = [...LESSONS].reverse().find(l => t >= l.rise);
+  let key = 'none', html = 'No falls yet.';
+  if (L) {
+    let st, bar = '';
+    if (t < L.g0) st = '<span style="color:var(--amber)">waiting for the held-out gate</span>';
+    else if (t < L.g1) { const p = clamp((t - L.g0) / P.GATE_DUR); st = `<span style="color:var(--amber)">held-out gate running · ${Math.round(lerp(L.before, L.after, ease(p)))}%</span>`; bar = `<div class="gbar"><span style="width:${(p * 100).toFixed(0)}%"></span></div>`; }
+    else st = L.adopt ? `<span style="color:var(--ok)">adopted · held-out ${L.before}% → ${L.after}%</span>` : `<span style="color:var(--bad)">rolled back · held-out ${L.before}% → ${L.after}%</span>`;
+    key = L.id + st + bar;
+    html = `<div class="id">${L.id} · pit ${L.pit}</div><div class="tx">${L.text}</div><div class="meta">from ${L.from}, step ${L.step} · SubQ confidence ${L.conf.toFixed(2)}</div><div class="st">${st}</div>${bar}`;
+  }
+  if (key !== lessonKey) { lessonKey = key; lessonBody.innerHTML = html; lessonBody.className = L ? '' : 'meta'; }
+}
+
+const logEl = document.getElementById('log');
+let logCount = -1;
+function updateLog(t) {
+  const n = EVENTS.filter(e => e.t <= t).length;
+  if (n === logCount) return;
+  logCount = n;
+  logEl.innerHTML = EVENTS.slice(Math.max(0, n - 12), n).reverse().map(e => `<li class="${e.kind}"><time>${fmt(e.t)}</time><span class="dot"></span><span>${e.text}</span></li>`).join('');
+}
+
+const $ = id => document.getElementById(id);
+const PHASES = [[P.WALK, 'routing', '#7aa7ff'], [P.VERIFY, 'agents working', '#f2b552'], [P.REFLECT, 'hidden tests', '#7fd49a'], [P.GATE, 'reflecting', '#f2b552'], [P.END, 'held-out gate', '#f2b552'], [RD, 'next subtask', '#9a917f']];
+function updateHeader(t) {
+  const ri = roundAt(t);
+  let k = 'Intro', v = 'Seven agents, three subtasks', ph = ['ready', '#9a917f'], ver = '–';
+  if (ri >= R.length) { k = 'Result'; v = 'What the colony learned'; ph = ['done', '#7fd49a']; ver = `${R[R.length - 1].verified}/6`; }
+  else if (ri >= 0) {
+    const r = R[ri], lt = t - r.T0;
+    k = `Subtask ${ri + 1} of ${R.length}`; v = `${r.sub} · ${r.title}`;
+    const f = PHASES.find(p => lt < p[0]); ph = [f[1], f[2]];
+    ver = lt >= P.VERIFY ? `${r.verified}/6` : '…';
+  }
+  $('roundK').textContent = k; $('roundV').textContent = v;
+  const pe = $('phase'); if (pe.textContent !== ph[0]) { pe.textContent = ph[0]; pe.style.color = ph[1]; }
+  $('mVer').textContent = ver;
+  const ad = LESSONS.filter(L => L.adopt && t >= L.g1).length, rb = LESSONS.filter(L => !L.adopt && t >= L.g1).length;
+  $('mLes').innerHTML = `${ad} <small>adopted</small>${rb ? ` · ${rb} <small>rolled back</small>` : ''}`;
+  $('mHeld').textContent = Math.round(heldAt(t)) + '%';
+}
+
+// ---------- main loop + controls ----------
+const params = new URLSearchParams(location.search);
+let T = clamp(parseFloat(params.get('t')) || 0, 0, TOTAL), playing = !params.has('paused') && !params.has('t'), speed = 1, last = performance.now();
+
+function render() {
+  const { s, ox, oy, dpr } = view;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (bg) ctx.drawImage(bg, 0, 0); else ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+  const ri = roundAt(T);
+  drawNestFood(T, ri);
+  if (T >= OUTRO_T) { drawPits(T); drawFlags(T); drawOutro(T); }
+  else {
+    for (let i = 0; i < Math.min(ri, R.length); i++) drawRound(R[i], T, 1);
+    drawPits(T); drawFlags(T);
+    if (ri >= 0) { const lt = T - R[ri].T0; drawRound(R[ri], T, lt > P.END ? 1 - clamp((lt - P.END) / (RD - P.END)) : 1); }
+  }
+  $('intro').style.opacity = T < INTRO ? String(1 - clamp((T - INTRO + .8) / .8)) : '0';
+  $('outro').style.opacity = String(ease(clamp((T - OUTRO_T - 1.5) / 1)));
+  updateHeader(T); updatePanel(T); updateLesson(T); updateLog(T);
+  $('fill').style.width = (T / TOTAL * 100) + '%';
+  $('clock').textContent = `${fmt(T)} / ${fmt(TOTAL)}`;
+  $('play').textContent = playing ? '❚❚ pause' : '▶ play';
+}
+function frame(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (playing) { T += dt * speed; if (T >= TOTAL) { T = TOTAL; playing = false; } }
+  render(); requestAnimationFrame(frame);
+}
+function seek(t) { T = clamp(t, 0, TOTAL); logCount = -1; }
+
+const tl = $('tl');
+[...R.map(r => [r.sub, r.T0]), ['result', OUTRO_T]].forEach(([n, t]) => {
+  const tk = document.createElement('div'); tk.className = 'tick'; tk.style.left = (t / TOTAL * 100) + '%'; tl.appendChild(tk);
+  const mk = document.createElement('div'); mk.className = 'mk'; mk.textContent = n; mk.style.left = (t / TOTAL * 100) + '%'; tl.appendChild(mk);
+});
+let drag = false;
+const tlSeek = e => { const r = tl.getBoundingClientRect(); seek((e.clientX - r.left) / r.width * TOTAL); };
+tl.addEventListener('pointerdown', e => { drag = true; tl.setPointerCapture(e.pointerId); tlSeek(e); });
+tl.addEventListener('pointermove', e => drag && tlSeek(e));
+tl.addEventListener('pointerup', () => drag = false);
+$('play').onclick = () => { if (T >= TOTAL) seek(0); playing = !playing; };
+$('speed').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? .5 : 1; $('speed').textContent = speed + '×'; };
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
+  else if (e.key === 'ArrowRight') seek(BEATS.find(b => b > T + .05) ?? TOTAL);
+  else if (e.key === 'ArrowLeft') seek([...BEATS].reverse().find(b => b < T - .3) ?? 0);
+  else if (e.key >= '1' && e.key <= String(R.length)) seek(R[+e.key - 1].T0);
+  else if (e.key === 'r' || e.key === 'R') { seek(0); playing = true; }
+  else if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+});
+
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
