@@ -206,6 +206,24 @@ def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], tim
         except subprocess.TimeoutExpired:
             return {t: (False, "timeout: pytest run exceeded the limit") for t in _expected_node_ids(modules, repo_tests, sb)}
         results = _parse_junit(xml, tmp.name, written) if xml.exists() else {}
+        # Parametrized and anyio/asyncio tests report as "<test>[<param>]" per case. Fold those into the bare
+        # node id we know from the source (all cases must pass), so a spec test never gets filed as a
+        # regression test under a suffixed name while its bare name reads "not collected".
+        expected_ids = set(_expected_node_ids(modules, repo_tests, sb))
+        folded: dict[str, tuple[bool, str]] = {}
+        for k in list(results):
+            if "[" in k and k.endswith("]"):
+                base = k[: k.index("[")]
+                if base in expected_ids:
+                    ok, msg = results.pop(k)
+                    pok, pmsg = folded.get(base, (True, ""))
+                    folded[base] = (pok and ok, pmsg or ("" if ok else f"{k}: {msg}"))
+        for base, (ok, msg) in folded.items():
+            if base in results:
+                bok, bmsg = results[base]
+                results[base] = (bok and ok, bmsg or msg)
+            else:
+                results[base] = (ok, msg)
         spec_ids = set(spec_node_ids(modules))
         # files that ran; class-based tests come back as "<file stem>/<Class>.py::<test>" (see _parse_junit)
         collected_files = {k.split("::", 1)[0] for k in results if "::" in k}
