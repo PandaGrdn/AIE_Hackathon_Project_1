@@ -197,9 +197,11 @@ def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], tim
         from core.swarm.sandbox import pytest_env, pytest_prefix  # lazy: core.swarm imports this module
 
         prefix, _ = pytest_prefix(sb, base_repo)
+        if prefix[-2:] == ["-o", "pythonpath=."]:
+            prefix = prefix[:-2]  # pinned below to the absolute sandbox path; a relative "." resolves against the wrong rootdir
         cmd = [
-            *prefix, "-q", "-p", "no:cacheprovider", "--continue-on-collection-errors",
-            "-o", "addopts=", "-o", "pythonpath=.", f"--junitxml={xml}", *paths,
+            *prefix, f"--rootdir={sb}", "-o", f"pythonpath={sb}", "-q", "-p", "no:cacheprovider", "--continue-on-collection-errors",
+            "-o", "addopts=", f"--junitxml={xml}", *paths,
         ]
         try:
             subprocess.run(cmd, cwd=sb, capture_output=True, text=True, timeout=timeout, check=False, env=pytest_env())

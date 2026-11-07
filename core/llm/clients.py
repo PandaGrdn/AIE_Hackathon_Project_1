@@ -350,9 +350,9 @@ def swarm_identities() -> list[AgentIdentity]:
         AgentIdentity(id="gemini-t7-alt", provider="gemini", model=settings.gemini_model, temperature=0.7, prompt_variant="alt"),
         # Gemini-only swarms (the keys we actually have) still need 6 distinct identities: vary model and temperature
         AgentIdentity(id="gemini-35f-t3", provider="gemini", model="gemini-3.5-flash", temperature=0.3),
-        AgentIdentity(id="gemini-25f-t5-alt", provider="gemini", model="gemini-2.5-flash", temperature=0.5, prompt_variant="alt"),
+        AgentIdentity(id="gemini-36f-t5-alt", provider="gemini", model="gemini-3.6-flash", temperature=0.5, prompt_variant="alt"),
         AgentIdentity(id="gemini-31lite-t7", provider="gemini", model="gemini-3.1-flash-lite", temperature=0.7),
-        AgentIdentity(id="gemini-25lite-t9-alt", provider="gemini", model="gemini-2.5-flash-lite", temperature=0.9, prompt_variant="alt"),
+        AgentIdentity(id="gemini-37f-t9-alt", provider="gemini", model="gemini-3.7-flash", temperature=0.9, prompt_variant="alt"),
         AgentIdentity(id="claude-t2", provider="anthropic", model=settings.anthropic_model, temperature=0.2),
         AgentIdentity(id="claude-t7-alt", provider="anthropic", model=settings.anthropic_model, temperature=0.7, prompt_variant="alt"),
         AgentIdentity(id="openai-t2", provider="openai", model=settings.openai_model, temperature=0.2),
