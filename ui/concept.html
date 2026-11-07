@@ -129,6 +129,9 @@ const SPEED = 3.2;        // cells per second
 const HSCALE = 4.2;       // height of the tallest ridge, in cells
 const SIG2 = 2 * 3.2 * 3.2;
 const BEETLE_CELLS = 4.2;  // beetle length in world cells
+// every run begins at the burrow (the spec) and ends at the mound (hidden tests pass)
+const START = { x: -40, y: 26 }, END = { x: 40, y: -26 };
+const noise1 = (t) => { const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f); return hash(i, 9) + (hash(i + 1, 9) - hash(i, 9)) * u; };
 // darker, muted company palettes: outline, shell, highlight
 const SKIN = {
   meta:   ["#0F1A2E", "#27406A", "#4E6FA3"],
@@ -255,7 +258,19 @@ function spline(knots, per) {
   const out = [{ x: knots[0].x, y: knots[0].y }];
   for (let i = 0; i < knots.length - 1; i++) {
     const p0 = knots[Math.max(0, i - 1)], p1 = knots[i], p2 = knots[i + 1], p3 = knots[Math.min(knots.length - 1, i + 2)];
-    for (let k = 1; k <= per; k++) { const [x, y] = catmull(p0, p1, p2, p3, k / per); out.push(k === per ? { x, y, step: p2.step, root: p2.root, exit: p2.exit, steer: p2.steer } : { x, y }); }
+    for (let k = 1; k <= per; k++) { const [x, y] = catmull(p0, p1, p2, p3, k / per); out.push(k === per ? { x, y, step: p2.step, root: p2.root, end: p2.end, start: p2.start, steer: p2.steer } : { x, y }); }
+  }
+  return out;
+}
+function crawl(pts, seed) {
+  const out = pts.map((p) => ({ ...p }));
+  for (let i = 1; i < pts.length - 1; i++) {
+    if (pts[i].step || pts[i].start || pts[i].end) continue;
+    const flaggedNext = pts[i + 1].step || pts[i + 1].start || pts[i + 1].end, flaggedPrev = pts[i - 1].step || pts[i - 1].start || pts[i - 1].end;
+    const taper = flaggedNext || flaggedPrev ? 0.4 : 1;
+    const tx = pts[i + 1].x - pts[i - 1].x, ty = pts[i + 1].y - pts[i - 1].y, L = Math.hypot(tx, ty) || 1;
+    const w = taper * (2.2 * (noise1(i * 0.45 + seed * 31) - 0.5) + 0.9 * (noise1(i * 1.9 + seed * 17) - 0.5));
+    out[i].x += (-ty / L) * w; out[i].y += (tx / L) * w;
   }
   return out;
 }
@@ -266,20 +281,22 @@ function makeBeetles(runFilter) {
     if (!runs.length) return;
     const co = companyOf(agent), skin = SKIN[co.key] || SKIN.subq;
     const nth = (seen[co.key] = (seen[co.key] || 0) + 1);  // second agent of a company gets the stripe
-    const knots = [];
-    const ang = (k / world.byAgent.size) * Math.PI * 2 + 0.4;
-    const first = runs[0].steps[0];
-    const reach = runFilter ? 0.45 : 1;  // live run: shorter approach and exit
-    knots.push({ x: first.x + Math.cos(ang) * 46 * reach, y: first.y + Math.sin(ang) * 46 * reach });
-    knots.push({ x: first.x + Math.cos(ang + 0.5) * 24 * reach, y: first.y + Math.sin(ang + 0.5) * 24 * reach });
-    runs.forEach((run) => run.steps.forEach((s) => {
-      // a verified run passing close to a known pit is a beetle steering around it with the lesson (Lucas's colony idea)
-      const near = s.failed !== true && !run.root && world.knownPits.find((pt) => Math.hypot(s.x - pt.x, s.y - pt.y) < pt.rad * 1.6);
-      knots.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null, steer: near ? near.lesson : null });
-    }));
-    knots.push({ x: first.x + Math.cos(ang + 2.6) * 50 * reach, y: first.y + Math.sin(ang + 2.6) * 50 * reach, exit: true });
-    const wps = spline(knots, 8);
-    beetles.push({ agent, co, skin, striped: nth > 1, color: skin[1], wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
+    const knots = [{ x: START.x, y: START.y, start: true }];
+    runs.forEach((run, ri) => {
+      if (ri > 0) {  // back to the burrow for the next run, on an outer arc so the return is not the same line
+        const side = ri % 2 ? 1 : -1;
+        knots.push({ x: (START.x + END.x) / 2 + side * 34 * (0.7 + 0.3 * hash(k, ri)), y: (START.y + END.y) / 2 + side * 20 });
+        knots.push({ x: START.x, y: START.y, start: true });
+      }
+      run.steps.forEach((s) => {
+        // a verified run passing close to a known pit is a beetle steering around it with the lesson (Lucas's colony idea)
+        const near = s.failed !== true && !run.root && world.knownPits.find((pt) => Math.hypot(s.x - pt.x, s.y - pt.y) < pt.rad * 1.6);
+        knots.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null, steer: near ? near.lesson : null });
+      });
+      knots.push({ x: END.x, y: END.y, end: true });
+    });
+    const wps = crawl(spline(knots, 8), k);
+    beetles.push({ agent, co, skin, striped: nth > 1, color: skin[1], wps, i: 0, t: 0, wait: hash(k, 7) * 2.5, x: wps[0].x, y: wps[0].y, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
     k++;
   });
   return beetles;
@@ -298,7 +315,7 @@ function updateCamera(dt) {
     let fx = 0, fy = 0, wantDist = cam.dist;
     if (tgt) { fx = tgt.x; fy = tgt.y; wantDist = 26; }
     else {
-      const pts = live.concat(world.corpses.filter((c) => now() - c.at < 10));
+      const pts = live.concat(world.corpses.filter((c) => now() - c.at < 10), live.length ? [START, END] : []);
       if (pts.length) {
         // fit every beetle: extents along the screen axes, with a margin, against the viewport
         let r0 = 1e9, r1 = -1e9, g0 = 1e9, g1 = -1e9;
@@ -440,7 +457,7 @@ function hudStats() {
   $("st-heldout").textContent = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage)] + "%";
 }
 function startSim() {
-  sim.active = true; sim.stage = 0; sim.verified = 0; sim.falls = 0; sim.steered = 0; sim.log = []; sim.lesson = null;
+  sim.active = true; sim.stage = 0; sim.verified = 0; sim.falls = 0; sim.steered = 0; sim.log = []; sim.lesson = null; sim.fallsThisStage = 0;
   world.beetles = []; world.corpses = []; world.knownPits = []; clearTracks();
   $("hud").hidden = false; $("hud-log").innerHTML = ""; $("hud-lesson").textContent = "No falls yet."; hudStats();
   setPhase("decompose"); logLine(`task received: <b>${esc($("up-task").value)}</b>`);
@@ -461,14 +478,14 @@ function simTick(dt) {
       if (sim.phaseT > 0.1 && !sim.counted) {
         sim.counted = true;
         const failed = runsHere.filter((rid) => world.byRun.get(rid)[0].failed === true || world.roots[rid]);
-        sim.verified += runsHere.length - failed.length; sim.falls += failed.length; hudStats();
+        sim.verified += runsHere.length - failed.length; hudStats();
         logLine(`hidden tests: <b>${runsHere.length - failed.length} verified</b>, ${failed.length} failed`);
       }
-      if (sim.phaseT > 2.2) { sim.counted = false; setPhase(sim.falls > (sim.fallsSeen || 0) ? "reflect" : "gate"); }
+      if (sim.phaseT > 2.2) { sim.counted = false; setPhase((sim.fallsThisStage || 0) > 0 ? "reflect" : "gate"); sim.fallsThisStage = 0; }
       break;
     case "reflect":
       if (sim.phaseT > 0.1 && !sim.counted) {
-        sim.counted = true; sim.fallsSeen = sim.falls;
+        sim.counted = true;
         const L = (world.data.lessons || []).find((l) => (l.created_from || {}).subtask_id === sub) || (world.data.lessons || [])[0];
         const dv = Object.values(world.roots).find((d) => runsHere.includes(d.run_id));
         const where = dv && world.byRun.get(dv.run_id).find((st) => st.step_index === dv.step_index);
@@ -495,6 +512,7 @@ function stepSim(dt, t) {
   if (sim.fadeAcc > 0.5) { tctx.globalCompositeOperation = "destination-out"; tctx.fillStyle = `rgba(0,0,0,${1 - Math.exp(-sim.fadeAcc / 7)})`; tctx.fillRect(0, 0, track.width, track.height); tctx.globalCompositeOperation = "source-over"; sim.fadeAcc = 0; }
   for (const b of world.beetles) {
     if (b.done || b.flipped) continue;
+    if (b.wait > 0) { b.wait -= dt; continue; }
     const a = b.wps[b.i], z = b.wps[b.i + 1];
     if (!z) { b.done = true; continue; }
     const len = Math.hypot(z.x - a.x, z.y - a.y) || 1;
@@ -506,7 +524,8 @@ function stepSim(dt, t) {
     if (Math.hypot(dx, dy) > 1e-4) { const want = Math.atan2(dy, dx); let d = want - b.heading; d = Math.atan2(Math.sin(d), Math.cos(d)); b.heading += d * Math.min(1, 6 * dt); }
     if (!b.lastStamp || Math.hypot(b.x - b.lastStamp[0], b.y - b.lastStamp[1]) > 0.3) { stampTrack(b.x, b.y, b.color, b.heading); b.lastStamp = [b.x, b.y]; }
     if (b.t >= 1) {
-      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, skin: b.skin, agent: b.agent, heading: b.heading, label: rootLabel(z.root), at: now() }); if (sim.active) logLine(`<b>${esc(b.agent)}</b> fell at S${z.root.step_index}`); }
+      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, skin: b.skin, agent: b.agent, heading: b.heading, label: rootLabel(z.root), at: now() });
+        if (sim.active) { sim.falls++; sim.fallsThisStage = (sim.fallsThisStage || 0) + 1; hudStats(); logLine(`<b>${esc(b.agent)}</b> fell at S${z.root.step_index}`); $("hud-lesson").innerHTML = `<b>${esc(b.agent)}</b> fell at step S${z.root.step_index}<small>SubQ ${rootLabel(z.root).trim()}. Reflecting after the verdict.</small>`; } }
       else {
         if (z.steer && !b.steered) { b.steered = true; b.steerLabel = z.steer; b.steerUntil = t + 2.5; if (sim.active) { sim.steered++; hudStats(); logLine(`<b>${esc(b.agent)}</b> steered around the pit with ${z.steer}`); } }
         b.i++; b.t = 0;
@@ -573,6 +592,8 @@ function render(t) {
   // everything that moves, above the ground: nothing can cover a beetle
   pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, sprites.width, sprites.height);
   drawPins(pctx);
+  // the burrow and the mound: where every run starts and ends
+  for (const pt of [START, END]) { const q = project(pt.x, pt.y), r = Math.max(2, 0.9 * kScale()); pctx.fillStyle = PAL.salt; pctx.fillRect(Math.round(q[0] - r), Math.round(q[1] - r), Math.round(2 * r), Math.round(2 * r)); pctx.fillStyle = PAL.ground; pctx.fillRect(Math.round(q[0] - r / 2), Math.round(q[1] - r / 2), Math.round(r), Math.round(r)); }
   for (const c of world.corpses) drawBeetle(pctx, c, t, true);
   for (const b of world.beetles) if (!b.done && !b.flipped) drawBeetle(pctx, b, t, false);
   const k = (pitchCss * dpr) / 2;  // sprite px -> device px
@@ -584,6 +605,7 @@ function render(t) {
     lctx.fillStyle = color; lctx.fillText(text, x, y);
   };
   for (const c of world.corpses) tag(c.screen, `${c.agent}  ${c.label}`, PAL.salt);
+  tag(project(START.x, START.y), "start: the spec", PAL.sage); tag(project(END.x, END.y), "end: hidden tests pass", PAL.sage);
   for (const pt of world.knownPits) { const s = project(pt.x, pt.y); tag(s, `flag ${pt.lesson}`, PAL.sage); }
   for (const b of world.beetles) if (!b.done && b.steerUntil > t && b.screen) tag(b.screen, `around the pit with ${b.steerLabel}`, b.skin[2]);
   const f = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done && !b.flipped);

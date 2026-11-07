@@ -162,7 +162,10 @@ How it works, top to bottom of the script:
 - **Beetles** `makeBeetles()`: one per agent, colour from the agent id prefix (`meta`, `gemini`,
   `claude`, `openai`, `subq`, see `COMPANY`). The knots are the run's steps in `step_index` order
   and `spline()` runs a Catmull-Rom curve through them (8 samples per segment), so the path bends
-  instead of turning at each step. The knot whose step is the divergence's `step_index` is the
+  instead of turning at each step. Every run starts at `START` (the burrow, "the spec") and ends
+  at `END` (the mound, "hidden tests pass"); between runs a beetle walks back on an outer arc.
+  `crawl()` adds an irregular side-to-side wander to the samples between knots (knots stay put, so
+  pins and the flip point are exact); `wait` staggers departures from the burrow. The knot whose step is the divergence's `step_index` is the
   root: the beetle flips there and stays (`world.corpses`).
 - **Tracks** `stampTrack()`: a world-space canvas (`track`, `TRACK_R` cells each way at
   `TRACK_PPC` px per cell) that beetles stamp as they walk: two footprints and a faint centre in a
