@@ -1,9 +1,9 @@
-"""Independent spec tests — SubQ is the verifier. Owner: Ethan Li.
+"""Independent spec tests. Owner: Ethan Li.
 
 Test independence rule (outline §5.5): no test used for a verdict is derived from any
-implementation. A dedicated test-author identity (SubQ) reads ONLY the initial subtask
-spec, the pinned interface and the repo at the base commit — never a swarm agent's code,
-reasoning or tests — and writes:
+implementation. A dedicated test-author identity reads ONLY the initial subtask spec, the
+pinned interface and the repo at the base commit — never a swarm agent's code, reasoning or
+tests — and writes:
 
   - cases: concrete inputs with expected values (source="spec")
   - properties: metamorphic rules that must hold for any correct implementation
@@ -40,9 +40,10 @@ VISIBLE_SHARE = 0.4
 
 
 def author_identity() -> AgentIdentity:
-    """The verifier. Separate id from the swarm's `subq-t3` so trust/routing never mix them;
-    routing must not pick this identity as an implementer."""
-    return AgentIdentity(id="spec-author-subq", provider="subq", model=settings.subq_model, temperature=0.0)
+    """The test author: a text-generation model (Gemini; SubQ Snap is a decision model and cannot
+    write tests, see `subq_judge.py`). Its own id so trust/routing never mix it with an implementer;
+    routing must not pick this identity for the same subtask."""
+    return AgentIdentity(id="spec-author-gemini", provider="gemini", model=settings.gemini_model, temperature=0.0)
 
 
 class SpecProperty(BaseModel):

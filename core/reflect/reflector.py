@@ -1,23 +1,41 @@
-"""Reflector: failed run + divergence point + breaking input + expected/majority → lesson. Owner: Ethan Li.
+"""Reflector: failed run + divergence point + breaking evidence → lesson. Owner: Ethan Li.
 
-Runs on SubQ (long context: the whole failed path, consensus steps, results).
-The lesson is tied to the divergence step's embedding so it defines a failure region.
-Pass the harness `result` so the prompt carries what the failed run actually returned next
-to what the spec author expected (or, for fuzz evidence, what the majority returned).
+Two models with two jobs:
+  - a text model (Gemini) WRITES the lesson from the failed path, the divergence step, the
+    consensus steps at that phase and the breaking evidence;
+  - SubQ (decision model, `core/harness/subq_judge.py`) JUDGES: which step is the root cause
+    (confirms or overrides the embedding-based divergence point, sets `Divergence.confirmed`)
+    and whether the written lesson would have prevented the failure (the lesson's confidence).
+
+Pass the harness `result` so the prompt carries what the failed run actually returned next to
+what the spec author expected (or, for fuzz evidence, what the majority returned).
 """
 
 from __future__ import annotations
 
 import json
 
+from core.config import settings
 from core.harness.crosstest import run_outcome
-from core.llm.clients import get_client, reflector_identity
+from core.harness.subq_judge import SubQJudge
+from core.llm.clients import get_client
 from core.llm.embeddings import embed_texts
-from core.models import AgentRun, CrossTestResult, Divergence, Lesson, Outcome
+from core.models import AgentIdentity, AgentRun, CrossTestResult, Divergence, Lesson, Outcome
 from core.reflect.dedup import dedup_or_insert
 from core.store.base import Store
 
 FALLBACK_CONFIDENCE = 0.2
+ROOT_CAUSE_MIN_CONFIDENCE = 0.6  # SubQ must be at least this sure before it overrides the embedding divergence step
+
+
+def lesson_writer_identity() -> AgentIdentity:
+    return AgentIdentity(id="reflector-gemini", provider="gemini", model=settings.gemini_model, temperature=0.0)
+
+
+def default_judge() -> SubQJudge | None:
+    j = SubQJudge()
+    return j if j.available else None
+
 
 REFLECT_PROMPT = """An AI coding agent failed a subtask. Independent acceptance tests were written from the spec before any
 implementation existed, and other agents solving the same subtask passed them.
@@ -29,7 +47,7 @@ Your job: identify the reasoning error at the divergence point and write ONE sho
 ## The failed agent's reasoning path (step index: assumption | action | files)
 {path}
 
-## Divergence point (first step that left the consensus path)
+## Divergence point (the step judged to hold the mistaken assumption)
 step {idx}: {step}
 
 ## What the passing agents were reasoning at the same phase
@@ -46,20 +64,44 @@ Rules for the lesson:
 """
 
 
-def reflect(spec: str, failed: AgentRun, div: Divergence, store: Store, result: CrossTestResult | None = None) -> Lesson:
+def reflect(
+    spec: str,
+    failed: AgentRun,
+    div: Divergence,
+    store: Store,
+    result: CrossTestResult | None = None,
+    judge: SubQJudge | None | str = "default",
+) -> Lesson:
+    judge = default_judge() if judge == "default" else judge
     failed_out = _failed_outcome(failed, div, result)
     reference_out = div.majority_outcome
     reference_label = "spec expects" if _is_spec_case(div, result) else "verified majority"
+    evidence = _evidence(div, failed_out, reference_out, reference_label)
+
+    # 1. SubQ confirms (or moves) the divergence step
+    if judge is not None and failed.steps:
+        _confirm_root_cause(judge, spec, failed, div, evidence)
+
+    # 2. Gemini writes the lesson
     prompt = REFLECT_PROMPT.format(
         spec=spec,
         path="\n".join(f"{s.index}: {s.as_text()}" for s in failed.steps) or "(no steps logged)",
         idx=div.step_index,
         step=div.step_text,
         consensus="\n".join(f"- {t}" for t in div.consensus_step_texts) or "(none)",
-        evidence=_evidence(div, failed_out, reference_out, reference_label),
+        evidence=evidence,
     )
-
     data = _ask(prompt, failed, div)
+    confidence = max(0.0, min(1.0, float(data.get("confidence", 0.5))))
+
+    # 3. SubQ scores the lesson: would following it have prevented the failure?
+    judged: float | None = None
+    if judge is not None and "reflector-error" not in data.get("tags", []):
+        try:
+            judged = judge.judge_lesson(spec, div.step_text, evidence, data["lesson"])
+            confidence = judged
+        except Exception as e:  # noqa: BLE001 — scoring is optional; the lesson still lands
+            data.setdefault("tags", []).append(f"judge-error:{type(e).__name__}")
 
     step = failed.steps[div.step_index] if 0 <= div.step_index < len(failed.steps) else None
     step_text = step.as_text() if step else div.step_text
@@ -70,26 +112,53 @@ def reflect(spec: str, failed: AgentRun, div: Divergence, store: Store, result: 
         tags=[str(t) for t in data.get("tags", [])],
         embedding=lesson_vec,
         divergence_embedding=div_vec,
-        confidence=max(0.0, min(1.0, float(data.get("confidence", 0.5)))),
+        confidence=confidence,
         created_from={
             "subtask_id": failed.subtask_id,
             "run_id": failed.id,
             "agent_id": failed.agent.id,
             "step_index": div.step_index,
+            "signals": list(div.signals),
+            "confirmed": div.confirmed,
             "breaking_input": div.breaking_case.args if div.breaking_case else None,
             "failed_outcome": fmt_outcome(failed_out),
             "expected_outcome": fmt_outcome(reference_out),
             "reference": reference_label,
+            "judge_lesson_p": judged,
         },
     )
     return dedup_or_insert(lesson, store)
 
 
+def _confirm_root_cause(judge: SubQJudge, spec: str, failed: AgentRun, div: Divergence, evidence: str) -> None:
+    """Ask SubQ which step holds the mistaken assumption. Agreement with the embedding divergence step
+    confirms it; a confident disagreement moves the divergence point to SubQ's step."""
+    try:
+        steps = [f"{s.index}: {s.as_text()}" for s in failed.steps]
+        idx, probs, conf = judge.judge_root_cause(spec, steps, evidence, "(see evidence)", "(see evidence)")
+    except Exception as e:  # noqa: BLE001 — the embedding divergence point stands
+        div.signals.append(f"subq-error:{type(e).__name__}")
+        return
+    div.signals.append("subq")
+    if idx is None:
+        div.confirmed = False
+        return
+    if idx == div.step_index:
+        div.confirmed = conf >= ROOT_CAUSE_MIN_CONFIDENCE
+    elif conf >= ROOT_CAUSE_MIN_CONFIDENCE and 0 <= idx < len(failed.steps):
+        div.signals.append("subq-moved")
+        div.step_index = idx
+        div.step_text = failed.steps[idx].as_text()
+        div.confirmed = True
+    else:
+        div.confirmed = False
+
+
 def _ask(prompt: str, failed: AgentRun, div: Divergence) -> dict:
-    """One SubQ call. A malformed or failed reply degrades to a low-confidence lesson built from the
+    """One text-model call. A malformed or failed reply degrades to a low-confidence lesson built from the
     divergence step, tagged `reflector-error`, so one bad call never stalls the subtask loop."""
     try:
-        client = get_client(reflector_identity())
+        client = get_client(lesson_writer_identity())
         resp = client.chat([{"role": "user", "content": prompt}])
         data = json.loads(_extract_json(resp["text"]))
         if not isinstance(data, dict) or not isinstance(data.get("lesson"), str) or not data["lesson"].strip():
