@@ -251,8 +251,8 @@ def _run_functions(item: HeldoutItem, lesson_ids, store, *, swarm_fn, spec_fn, n
     )
     weights = weights_for(runs, store)
     weights[ref_run.id] = REFERENCE_WEIGHT
-    spec_cases = spec_fn(subtask, repo).cases if spec_fn else None
-    result = cross_test(subtask, runs + [ref_run], weights, n_fuzz=n_fuzz, spec_cases=spec_cases)
+    spec = spec_fn(subtask, repo) if spec_fn else None
+    result = cross_test(subtask, runs + [ref_run], weights, n_fuzz=n_fuzz, spec=spec, repo=repo)
     return _score(runs, set(result.verified_runs), store)
 
 

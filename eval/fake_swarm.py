@@ -193,7 +193,7 @@ def fake_spec_tests(subtask: Subtask, repo: Path, reference_dir: str | Path | No
                 continue
             cases.append(tc)
             expected[tc.id] = o.value if o.ok else {"raises": o.exception}
-    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=[], visible_ids=_split_visible([c.id for c in cases], 0.4))
+    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=[], visible_ids=[])  # fake agents never run visible tests; keep every case hidden so the verdict sees them all
 
 
 # ---------- swarm ----------
