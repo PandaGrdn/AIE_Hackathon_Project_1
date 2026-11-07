@@ -1,0 +1,323 @@
+{
+  "subtask_id": "34bbf7ecd4cf",
+  "cases": [
+    {
+      "id": "93c39f4acebb",
+      "function": "summarize",
+      "args": [
+        []
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "6505c1dee232",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "basic",
+            "rate": 10.0,
+            "subtotal": 10.0,
+            "total": 10.0
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "bfecbb41d55b",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "plus",
+            "rate": 15.5,
+            "subtotal": 15.5,
+            "total": 15.5
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "2384fb30e5fd",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "pro",
+            "rate": 20.0,
+            "subtotal": 20.0,
+            "total": 20.25
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "35cc605f4962",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "basic",
+            "rate": 1.0,
+            "subtotal": 0.1,
+            "total": 0.1
+          },
+          {
+            "tier": "basic",
+            "rate": 1.0,
+            "subtotal": 0.2,
+            "total": 0.2
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "06cf177ed8b3",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "basic",
+            "rate": 1.0,
+            "subtotal": 1.0,
+            "total": 0.125
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "779ca3f28b45",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "basic",
+            "rate": 1.0,
+            "subtotal": 1.0,
+            "total": 0.375
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "bdbdd66486f2",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "pro",
+            "rate": 1.0,
+            "subtotal": 1.0,
+            "total": 2.675
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5a797ecd5436",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "basic",
+            "rate": 1.0,
+            "subtotal": 1.0,
+            "total": 0.004
+          },
+          {
+            "tier": "plus",
+            "rate": 1.0,
+            "subtotal": 1.0,
+            "total": 0.004
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "b700661318ea",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "basic",
+            "rate": 10.0,
+            "subtotal": 10.0,
+            "total": 10.5
+          },
+          {
+            "tier": "plus",
+            "rate": 12.0,
+            "subtotal": 12.0,
+            "total": 12.5
+          },
+          {
+            "tier": "pro",
+            "rate": 15.0,
+            "subtotal": 15.0,
+            "total": 15.25
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "4a1a906b41db",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "enterprise",
+            "rate": 10.0,
+            "subtotal": 10.0,
+            "total": 10.0
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "149684d084e0",
+      "function": "summarize",
+      "args": [
+        [
+          {
+            "tier": "",
+            "rate": 10.0,
+            "subtotal": 10.0,
+            "total": 10.0
+          }
+        ]
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "93c39f4acebb": {
+      "basic": 0.0,
+      "plus": 0.0,
+      "pro": 0.0,
+      "grand_total": 0.0
+    },
+    "6505c1dee232": {
+      "basic": 10.0,
+      "plus": 0.0,
+      "pro": 0.0,
+      "grand_total": 10.0
+    },
+    "bfecbb41d55b": {
+      "basic": 0.0,
+      "plus": 15.5,
+      "pro": 0.0,
+      "grand_total": 15.5
+    },
+    "2384fb30e5fd": {
+      "basic": 0.0,
+      "plus": 0.0,
+      "pro": 20.25,
+      "grand_total": 20.25
+    },
+    "35cc605f4962": {
+      "basic": 0.3,
+      "plus": 0.0,
+      "pro": 0.0,
+      "grand_total": 0.3
+    },
+    "06cf177ed8b3": {
+      "basic": 0.12,
+      "plus": 0.0,
+      "pro": 0.0,
+      "grand_total": 0.12
+    },
+    "779ca3f28b45": {
+      "basic": 0.38,
+      "plus": 0.0,
+      "pro": 0.0,
+      "grand_total": 0.38
+    },
+    "bdbdd66486f2": {
+      "basic": 0.0,
+      "plus": 0.0,
+      "pro": 2.67,
+      "grand_total": 2.67
+    },
+    "5a797ecd5436": {
+      "basic": 0.0,
+      "plus": 0.0,
+      "pro": 0.0,
+      "grand_total": 0.01
+    },
+    "b700661318ea": {
+      "basic": 10.5,
+      "plus": 12.5,
+      "pro": 15.25,
+      "grand_total": 38.25
+    },
+    "4a1a906b41db": {
+      "raises": "ValueError"
+    },
+    "149684d084e0": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "result_keys_and_types",
+      "function": "summarize",
+      "predicate_src": "lambda args, result: set(result.keys()) == {'basic', 'plus', 'pro', 'grand_total'} and all(isinstance(v, float) for v in result.values())",
+      "description": "The returned dict always contains exactly the four tier keys with float values."
+    },
+    {
+      "name": "non_negative_values",
+      "function": "summarize",
+      "predicate_src": "lambda args, result: all(v >= 0.0 for v in result.values())",
+      "description": "Every summarized total value is non-negative for valid quote lists."
+    },
+    {
+      "name": "two_decimal_precision",
+      "function": "summarize",
+      "predicate_src": "lambda args, result: all(v == round(v, 2) for v in result.values())",
+      "description": "All returned values are rounded to at most two decimal places."
+    },
+    {
+      "name": "order_independence",
+      "function": "summarize",
+      "predicate_src": "lambda args, result: summarize(list(reversed(args[0]))) == result",
+      "description": "Summarizing the reversed input list produces the identical result."
+    }
+  ],
+  "visible_ids": [
+    "93c39f4acebb",
+    "4a1a906b41db",
+    "35cc605f4962",
+    "bfecbb41d55b",
+    "test_summary.py::test_floating_point_noise_cleared",
+    "test_summary.py::test_empty_quotes",
+    "test_summary.py::test_mixed_quotes",
+    "test_summary.py::test_invalid_tier_raises_value_error"
+  ],
+  "literals": {},
+  "modules": {
+    "test_summary.py": "import pytest\nfrom pricing.summary import summarize\n\ndef test_empty_quotes():\n    assert summarize([]) == {\"basic\": 0.0, \"plus\": 0.0, \"pro\": 0.0, \"grand_total\": 0.0}\n\ndef test_single_basic_quote():\n    quotes = [{\"tier\": \"basic\", \"rate\": 10.0, \"subtotal\": 10.0, \"total\": 10.0}]\n    assert summarize(quotes) == {\"basic\": 10.0, \"plus\": 0.0, \"pro\": 0.0, \"grand_total\": 10.0}\n\ndef test_single_plus_quote():\n    quotes = [{\"tier\": \"plus\", \"rate\": 15.5, \"subtotal\": 15.5, \"total\": 15.5}]\n    assert summarize(quotes) == {\"basic\": 0.0, \"plus\": 15.5, \"pro\": 0.0, \"grand_total\": 15.5}\n\ndef test_single_pro_quote():\n    quotes = [{\"tier\": \"pro\", \"rate\": 20.0, \"subtotal\": 20.0, \"total\": 20.25}]\n    assert summarize(quotes) == {\"basic\": 0.0, \"plus\": 0.0, \"pro\": 20.25, \"grand_total\": 20.25}\n\ndef test_mixed_quotes():\n    quotes = [\n        {\"tier\": \"basic\", \"rate\": 10.0, \"subtotal\": 10.0, \"total\": 10.5},\n        {\"tier\": \"pro\", \"rate\": 20.0, \"subtotal\": 20.0, \"total\": 20.25},\n        {\"tier\": \"basic\", \"rate\": 10.0, \"subtotal\": 10.0, \"total\": 5.25},\n    ]\n    assert summarize(quotes) == {\"basic\": 15.75, \"plus\": 0.0, \"pro\": 20.25, \"grand_total\": 36.0}\n\ndef test_floating_point_noise_cleared():\n    quotes = [\n        {\"tier\": \"basic\", \"rate\": 0.1, \"subtotal\": 0.1, \"total\": 0.1},\n        {\"tier\": \"basic\", \"rate\": 0.2, \"subtotal\": 0.2, \"total\": 0.2},\n    ]\n    assert summarize(quotes) == {\"basic\": 0.3, \"plus\": 0.0, \"pro\": 0.0, \"grand_total\": 0.3}\n\ndef test_round_half_to_even_down():\n    quotes = [{\"tier\": \"basic\", \"rate\": 1.0, \"subtotal\": 1.0, \"total\": 0.125}]\n    assert summarize(quotes) == {\"basic\": 0.12, \"plus\": 0.0, \"pro\": 0.0, \"grand_total\": 0.12}\n\ndef test_round_half_to_even_up():\n    quotes = [{\"tier\": \"plus\", \"rate\": 1.0, \"subtotal\": 1.0, \"total\": 0.375}]\n    assert summarize(quotes) == {\"basic\": 0.0, \"plus\": 0.38, \"pro\": 0.0, \"grand_total\": 0.38}\n\ndef test_binary_float_representation_rounding():\n    quotes = [{\"tier\": \"pro\", \"rate\": 1.0, \"subtotal\": 1.0, \"total\": 2.675}]\n    assert summarize(quotes) == {\"basic\": 0.0, \"plus\": 0.0, \"pro\": 2.67, \"grand_total\": 2.67}\n\ndef test_grand_total_summed_from_raw_totals():\n    quotes = [\n        {\"tier\": \"basic\", \"rate\": 1.0, \"subtotal\": 1.0, \"total\": 0.004},\n        {\"tier\": \"plus\", \"rate\": 1.0, \"subtotal\": 1.0, \"total\": 0.004},\n    ]\n    assert summarize(quotes) == {\"basic\": 0.0, \"plus\": 0.0, \"pro\": 0.0, \"grand_total\": 0.01}\n\ndef test_input_mutation_prevented():\n    q1 = {\"tier\": \"basic\", \"rate\": 5.0, \"subtotal\": 5.0, \"total\": 5.0}\n    quotes = [q1]\n    summarize(quotes)\n    assert quotes == [{\"tier\": \"basic\", \"rate\": 5.0, \"subtotal\": 5.0, \"total\": 5.0}]\n\ndef test_invalid_tier_raises_value_error():\n    quotes = [{\"tier\": \"enterprise\", \"rate\": 50.0, \"subtotal\": 50.0, \"total\": 50.0}]\n    with pytest.raises(ValueError):\n        summarize(quotes)\n"
+  },
+  "author_id": "spec-author-gemini"
+}

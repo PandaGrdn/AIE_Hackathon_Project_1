@@ -1,0 +1,366 @@
+{
+  "subtask_id": "81dc8bc0a019",
+  "cases": [
+    {
+      "id": "5ff41f3763d6",
+      "function": "late_fine",
+      "args": [
+        0,
+        "book"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5a6c409ff9a3",
+      "function": "late_fine",
+      "args": [
+        3,
+        "book"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5620fe51ff59",
+      "function": "late_fine",
+      "args": [
+        50,
+        "book"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "fd921abf0dcf",
+      "function": "late_fine",
+      "args": [
+        51,
+        "book"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "7fd85d86c19d",
+      "function": "late_fine",
+      "args": [
+        0,
+        "dvd"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "506e69cbf6d8",
+      "function": "late_fine",
+      "args": [
+        5,
+        "dvd"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "957f2a557a28",
+      "function": "late_fine",
+      "args": [
+        10,
+        "dvd"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "01e217781ee7",
+      "function": "late_fine",
+      "args": [
+        12,
+        "dvd"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "0cb1dbe3ef9c",
+      "function": "late_fine",
+      "args": [
+        4,
+        "laptop"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "d46073f547f2",
+      "function": "late_fine",
+      "args": [
+        10,
+        "laptop"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "23cf075ece09",
+      "function": "late_fine",
+      "args": [
+        15,
+        "laptop"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "08b6efa1f431",
+      "function": "late_fine",
+      "args": [
+        -1,
+        "book"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "d519c4d52a84",
+      "function": "late_fine",
+      "args": [
+        3,
+        "Book"
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "96f06883a55d",
+      "function": "late_fine",
+      "args": [
+        2,
+        ""
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "f04641be75b4",
+      "function": "top_fined",
+      "args": [
+        {},
+        3
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "11aae986392a",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 5.0
+        },
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "dd0c7e5b1e52",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 0.0
+        },
+        2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "458b13a21484",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 3.0,
+          "Bob": 5.0
+        },
+        1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "1595b7b2f2bc",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 5.0,
+          "Bob": 5.0
+        },
+        2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "7e214721136a",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 5.0,
+          "Bob": 5.0,
+          "Charlie": 10.0
+        },
+        2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "ca0bcfbdc222",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 5.0,
+          "Bob": 0.0,
+          "Charlie": 3.0
+        },
+        5
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5cdef523511d",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": 5.0
+        },
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "753fe3ea807d",
+      "function": "top_fined",
+      "args": [
+        {
+          "Alice": -2.0
+        },
+        2
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "5ff41f3763d6": 0.0,
+    "5a6c409ff9a3": 0.3,
+    "5620fe51ff59": 5.0,
+    "fd921abf0dcf": 5.0,
+    "7fd85d86c19d": 0.0,
+    "506e69cbf6d8": 5.0,
+    "957f2a557a28": 10.0,
+    "01e217781ee7": 10.0,
+    "0cb1dbe3ef9c": 20.0,
+    "d46073f547f2": 50.0,
+    "23cf075ece09": 50.0,
+    "08b6efa1f431": {
+      "raises": "ValueError"
+    },
+    "d519c4d52a84": {
+      "raises": "ValueError"
+    },
+    "96f06883a55d": {
+      "raises": "ValueError"
+    },
+    "f04641be75b4": [],
+    "11aae986392a": [],
+    "dd0c7e5b1e52": [],
+    "458b13a21484": [
+      "Bob"
+    ],
+    "1595b7b2f2bc": [
+      "Alice",
+      "Bob"
+    ],
+    "7e214721136a": [
+      "Charlie",
+      "Alice"
+    ],
+    "ca0bcfbdc222": [
+      "Alice",
+      "Charlie"
+    ],
+    "5cdef523511d": {
+      "raises": "ValueError"
+    },
+    "753fe3ea807d": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "fine_is_non_negative",
+      "function": "late_fine",
+      "predicate_src": "lambda args, result: result >= 0.0",
+      "description": "Late fine calculation is always non-negative."
+    },
+    {
+      "name": "fine_does_not_exceed_cap",
+      "function": "late_fine",
+      "predicate_src": "lambda args, result: result <= (5.0 if args[1] == 'book' else 10.0 if args[1] == 'dvd' else 50.0)",
+      "description": "The returned fine never exceeds the item type cap."
+    },
+    {
+      "name": "top_fined_length_bounded_by_n",
+      "function": "top_fined",
+      "predicate_src": "lambda args, result: len(result) <= args[1]",
+      "description": "The returned list length is at most n."
+    },
+    {
+      "name": "top_fined_no_duplicates",
+      "function": "top_fined",
+      "predicate_src": "lambda args, result: len(result) == len(set(result))",
+      "description": "Patron names returned in top_fined are unique."
+    },
+    {
+      "name": "top_fined_only_existing_positive_patrons",
+      "function": "top_fined",
+      "predicate_src": "lambda args, result: all(name in args[0] and args[0][name] > 0 for name in result)",
+      "description": "Every returned patron must exist in the input fines dict and owe strictly more than 0."
+    }
+  ],
+  "visible_ids": [
+    "1595b7b2f2bc",
+    "7e214721136a",
+    "fd921abf0dcf",
+    "f04641be75b4",
+    "957f2a557a28",
+    "458b13a21484",
+    "23cf075ece09",
+    "d46073f547f2",
+    "01e217781ee7",
+    "test_fines.py::test_late_fine_dvd_normal",
+    "test_fines.py::test_top_fined_empty_dict",
+    "test_fines.py::test_late_fine_invalid_item_type_raises",
+    "test_fines.py::test_top_fined_negative_n_raises",
+    "test_fines.py::test_late_fine_book_over_cap",
+    "test_fines.py::test_top_fined_excludes_zero_fines",
+    "test_fines.py::test_late_fine_book_normal"
+  ],
+  "literals": {
+    "late_fine": {
+      "item_type": [
+        "book",
+        "dvd",
+        "laptop"
+      ]
+    }
+  },
+  "modules": {
+    "test_fines.py": "import pytest\nfrom fines import late_fine, top_fined\n\n\ndef test_late_fine_book_on_time():\n    assert late_fine(0, \"book\") == 0.0\n\n\ndef test_late_fine_book_normal():\n    assert late_fine(3, \"book\") == 0.3\n\n\ndef test_late_fine_book_exact_cap():\n    assert late_fine(50, \"book\") == 5.0\n\n\ndef test_late_fine_book_over_cap():\n    assert late_fine(51, \"book\") == 5.0\n\n\ndef test_late_fine_dvd_normal():\n    assert late_fine(5, \"dvd\") == 5.0\n\n\ndef test_late_fine_dvd_cap():\n    assert late_fine(15, \"dvd\") == 10.0\n\n\ndef test_late_fine_laptop_normal():\n    assert late_fine(4, \"laptop\") == 20.0\n\n\ndef test_late_fine_laptop_cap():\n    assert late_fine(100, \"laptop\") == 50.0\n\n\ndef test_late_fine_negative_days_raises():\n    with pytest.raises(ValueError):\n        late_fine(-1, \"book\")\n\n\ndef test_late_fine_invalid_item_type_raises():\n    with pytest.raises(ValueError):\n        late_fine(2, \"Book\")\n\n\ndef test_top_fined_empty_dict():\n    assert top_fined({}, 5) == []\n\n\ndef test_top_fined_n_zero():\n    assert top_fined({\"Alice\": 5.0}, 0) == []\n\n\ndef test_top_fined_excludes_zero_fines():\n    assert top_fined({\"Alice\": 0.0, \"Bob\": 1.0}, 5) == [\"Bob\"]\n\n\ndef test_top_fined_order_by_amount_descending():\n    assert top_fined({\"Alice\": 5.0, \"Bob\": 10.0}, 2) == [\"Bob\", \"Alice\"]\n\n\ndef test_top_fined_tie_breaker_name_ascending():\n    assert top_fined({\"Bob\": 5.0, \"Alice\": 5.0}, 2) == [\"Alice\", \"Bob\"]\n\n\ndef test_top_fined_limits_to_n():\n    assert top_fined({\"Alice\": 5.0, \"Bob\": 10.0, \"Charlie\": 1.0}, 2) == [\"Bob\", \"Alice\"]\n\n\ndef test_top_fined_negative_n_raises():\n    with pytest.raises(ValueError):\n        top_fined({\"Alice\": 5.0}, -1)\n\n\ndef test_top_fined_negative_fine_raises():\n    with pytest.raises(ValueError):\n        top_fined({\"Alice\": -1.0}, 2)\n"
+  },
+  "author_id": "spec-author-gemini"
+}

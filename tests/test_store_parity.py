@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from core.models import AgentIdentity, AgentRun, Change, ChangeKind, ChangeStatus, FailureRegion, Lesson, ReasoningStep, RunManifest, TrustScore
+from core.models import AgentIdentity, AgentRun, Change, ChangeKind, ChangeStatus, FailureRegion, Lesson, ReasoningStep, RunManifest
 from core.store.memory import MemoryStore
 
 MONGO_URI = os.environ.get("MONGODB_URI")

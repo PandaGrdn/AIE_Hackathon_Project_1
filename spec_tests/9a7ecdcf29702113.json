@@ -1,0 +1,204 @@
+{
+  "subtask_id": "ca119506af35",
+  "cases": [
+    {
+      "id": "23dee9dce4e1",
+      "function": "parking_charge",
+      "args": [
+        -1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "a3bddb1fdf79",
+      "function": "parking_charge",
+      "args": [
+        0
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "96e2002ce54d",
+      "function": "parking_charge",
+      "args": [
+        1
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "4fd6e7da8db0",
+      "function": "parking_charge",
+      "args": [
+        15
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "90e2feae507e",
+      "function": "parking_charge",
+      "args": [
+        16
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "dff1e3a27580",
+      "function": "parking_charge",
+      "args": [
+        30
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "7d627152f909",
+      "function": "parking_charge",
+      "args": [
+        60
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "7f00b7d871a6",
+      "function": "parking_charge",
+      "args": [
+        61
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "159c0716db92",
+      "function": "parking_charge",
+      "args": [
+        120
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "adbe6f3f74fb",
+      "function": "parking_charge",
+      "args": [
+        121
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "1c7a4add4ac9",
+      "function": "parking_charge",
+      "args": [
+        420
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "5d88a27f0d5a",
+      "function": "parking_charge",
+      "args": [
+        421
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "1b62c05ac44f",
+      "function": "parking_charge",
+      "args": [
+        480
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "9f23edcdeb4b",
+      "function": "parking_charge",
+      "args": [
+        1440
+      ],
+      "kwargs": {},
+      "source": "spec"
+    },
+    {
+      "id": "c7fe2a7c5ad4",
+      "function": "parking_charge",
+      "args": [
+        1441
+      ],
+      "kwargs": {},
+      "source": "spec"
+    }
+  ],
+  "expected": {
+    "23dee9dce4e1": {
+      "raises": "ValueError"
+    },
+    "a3bddb1fdf79": 0.0,
+    "96e2002ce54d": 0.0,
+    "4fd6e7da8db0": 0.0,
+    "90e2feae507e": 2.5,
+    "dff1e3a27580": 2.5,
+    "7d627152f909": 2.5,
+    "7f00b7d871a6": 5.0,
+    "159c0716db92": 5.0,
+    "adbe6f3f74fb": 7.5,
+    "1c7a4add4ac9": 17.5,
+    "5d88a27f0d5a": 18.0,
+    "1b62c05ac44f": 18.0,
+    "9f23edcdeb4b": 18.0,
+    "c7fe2a7c5ad4": {
+      "raises": "ValueError"
+    }
+  },
+  "properties": [
+    {
+      "name": "charge_within_daily_bounds",
+      "function": "parking_charge",
+      "predicate_src": "lambda args, result: 0.0 <= result <= 18.00",
+      "description": "Any valid parking charge is non-negative and capped at 18.00."
+    },
+    {
+      "name": "grace_period_is_free",
+      "function": "parking_charge",
+      "predicate_src": "lambda args, result: result == 0.0 if args[0] <= 15 else True",
+      "description": "Any stay of 15 minutes or less must be free (0.0)."
+    },
+    {
+      "name": "post_grace_minimum_charge",
+      "function": "parking_charge",
+      "predicate_src": "lambda args, result: result >= 2.50 if args[0] > 15 else True",
+      "description": "Any stay over 15 minutes charges at least one hour (2.50)."
+    },
+    {
+      "name": "charge_is_multiple_or_cap",
+      "function": "parking_charge",
+      "predicate_src": "lambda args, result: result == 18.00 or round(result % 2.50, 2) == 0.0",
+      "description": "The charge is either a multiple of 2.50 or the 18.00 daily cap."
+    }
+  ],
+  "visible_ids": [
+    "159c0716db92",
+    "9f23edcdeb4b",
+    "adbe6f3f74fb",
+    "90e2feae507e",
+    "a3bddb1fdf79",
+    "dff1e3a27580",
+    "test_parking.py::test_grace_period_fifteen_minutes_is_free",
+    "test_parking.py::test_sixty_one_minutes_charges_two_hours",
+    "test_parking.py::test_seven_hours_costs_seventeen_fifty",
+    "test_parking.py::test_sixty_minutes_charges_one_hour"
+  ],
+  "literals": {},
+  "modules": {
+    "test_parking.py": "import pytest\nfrom parking import parking_charge\n\n\ndef test_zero_minutes_is_free():\n    assert parking_charge(0) == 0.0\n\n\ndef test_grace_period_fifteen_minutes_is_free():\n    assert parking_charge(15) == 0.0\n\n\ndef test_sixteen_minutes_charges_one_hour():\n    assert parking_charge(16) == 2.50\n\n\ndef test_sixty_minutes_charges_one_hour():\n    assert parking_charge(60) == 2.50\n\n\ndef test_sixty_one_minutes_charges_two_hours():\n    assert parking_charge(61) == 5.00\n\n\ndef test_seven_hours_costs_seventeen_fifty():\n    assert parking_charge(420) == 17.50\n\n\ndef test_four_hundred_twenty_one_minutes_hits_daily_cap():\n    assert parking_charge(421) == 18.00\n\n\ndef test_twenty_four_hours_is_capped_at_eighteen():\n    assert parking_charge(1440) == 18.00\n\n\ndef test_negative_minutes_raises_value_error():\n    with pytest.raises(ValueError):\n        parking_charge(-1)\n\n\ndef test_more_than_twenty_four_hours_raises_value_error():\n    with pytest.raises(ValueError):\n        parking_charge(1441)\n"
+  },
+  "author_id": "spec-author-gemini"
+}
