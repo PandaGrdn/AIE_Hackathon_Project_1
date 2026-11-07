@@ -79,6 +79,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--start-subtask", type=int, default=0,
                     help="phase a only: resume Task A at this subtask index: no repo reset (uses --resume-branch), store loaded from the existing Task A snapshot")
     ap.add_argument("--resume-branch", default="record-demo/a", help="with --start-subtask: the clone branch holding the earlier subtasks' commits")
+    ap.add_argument("--task-b", default=str(TASK_B), help="Task B task.md (a variant whose `repo:` points at a separate clone copy lets b0 run in parallel with Task A)")
     ap.add_argument("--regression", default="tests/server tests/shared", help="repo-relative regression suite dirs (default 'tests/server tests/shared')")
     ap.add_argument("--base-commit", default=None, help=f"base commit to reset the clone to (default demo_task/mcp/base_commit, else {DEFAULT_BASE})")
     ap.add_argument("--lessons-snapshot", default=None, help="store loaded for b1 (default <out>/mcp_snapshot.json, Task A's snapshot)")
@@ -410,7 +411,7 @@ def run_phase(phase: str, args, con) -> dict:
         con.print("roster: " + ", ".join(f"{a.id} ({a.provider}/{a.model})" for a in pool)
                   + (f"; dropped (no key): {', '.join(dropped)}" if dropped else ""))
 
-        task = decompose(load_task(TASK_A if phase == "a" else TASK_B))
+        task = decompose(load_task(TASK_A if phase == "a" else Path(args.task_b)))
         repo = Path(task.repo_path)
         resuming = phase == "a" and args.start_subtask > 0
         reset: dict[str, Any] | None = None

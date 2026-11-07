@@ -1,0 +1,243 @@
+{
+  "task_title": "Tool timeouts, deprecation and resource size caps for MCPServer",
+  "subtasks": [
+    {
+      "title": "Per-tool call timeout",
+      "spec": "Task B, subtask 1 of 3. The repository is the MCP Python SDK at the base commit `77001c9`.\n\n# Per-tool timeout for MCPServer tools\n\nRepository: the MCP Python SDK at commit `77001c9` (package import root `mcp`). Install with\n`uv sync --all-extras --python 3.12`; the existing suite (`uv run pytest -q tests/server tests/shared\n-p no:cacheprovider`) must stay green. Add no dependencies.\n\n## Goal\n\nA server author can give any tool a time budget. A call that runs longer than the budget is\ncancelled and reported to the caller as an ordinary tool error with a fixed message. Tools\nregistered without a budget behave exactly as before.\n\n## Public API\n\nAll changes are in `src/mcp/server/mcpserver/`.\n\n`tools/base.py`, class `Tool` (the pydantic model holding a registered tool):\n\n- New field `timeout_seconds: float | None`, default `None`.\n- `Tool.from_function(fn, name=None, title=None, description=None, context_kwarg=None,\n  annotations=None, icons=None, meta=None, structured_output=None, timeout_seconds=None) -> Tool`:\n  new keyword `timeout_seconds: float | None = None`, stored on the returned `Tool`.\n\n`tools/tool_manager.py`, class `ToolManager`:\n\n- `ToolManager.add_tool(fn, name=None, title=None, description=None, annotations=None, icons=None,\n  meta=None, structured_output=None, timeout_seconds=None) -> Tool`: new keyword\n  `timeout_seconds: float | None = None`, passed through to `Tool.from_function`.\n- `ToolManager.call_tool(name, arguments, context, convert_result=False) -> Any`: signature\n  unchanged; enforces the timeout (below).\n\n`server.py`, class `MCPServer`:\n\n- `MCPServer.add_tool(fn, name=None, title=None, description=None, annotations=None, icons=None,\n  meta=None, structured_output=None, timeout_seconds=None) -> None`: new keyword\n  `timeout_seconds: float | None = None`, passed through to `ToolManager.add_tool`.\n- `MCPServer.tool(name=None, title=None, description=None, annotations=None, icons=None, meta=None,\n  structured_output=None, timeout_seconds=None)` decorator: new keyword\n  `timeout_seconds: float | None = None`, passed through to `MCPServer.add_tool`.\n\n## Behaviour\n\n1. `timeout_seconds=None` (the default) means no timeout: the call runs for as long as the tool\n   takes, exactly as today.\n2. With a positive `timeout_seconds`, `ToolManager.call_tool` runs the tool (the whole of\n   `Tool.run`: argument validation, resolvers and the body) inside `anyio.fail_after(timeout_seconds)`.\n3. When the deadline passes, the call raises\n   `ToolError(f\"Tool '{name}' timed out after {timeout_seconds:g}s\")`, where `name` is the tool's\n   registered name and `timeout_seconds` is the tool's configured value formatted with `:g`.\n   Examples: `0.01` -> `Tool 'slow' timed out after 0.01s`; `2.0` -> `... after 2s`;\n   `0.0123456789` -> `... after 0.0123457s`. The message has no prefix (it is not wrapped in\n   `Error executing tool ...`).\n4. Because `MCPServer.call_tool` delegates to `ToolManager.call_tool`, the same `ToolError` is\n   raised there, and a client calling over the protocol receives a `CallToolResult` with\n   `is_error=True` whose single text content is exactly that message (the existing\n   `MCPServer._handle_call_tool` already turns a `ToolError` into such a result; keep that).\n5. A call that finishes within its budget returns its normal result. Every other failure keeps\n   today's behaviour and text: a tool that raises `ToolError(\"nope\")` still fails with\n   `Error executing tool <name>: nope`; an unknown tool still fails with `Unknown tool: <name>`.\n6. Only the server's own deadline produces the timeout message. A tool body that itself raises\n   `TimeoutError` is a crash like any other exception (today's `UnexpectedToolError` path); it must\n   not be reported as `timed out after`.\n7. Each tool has its own budget; one tool's timeout never affects another tool.\n8. Sync tools run on a worker thread (existing `FuncMetadata.call_fn`); the timeout cannot\n   interrupt a running thread, so it is only guaranteed for async tools. Do not change how sync\n   tools are run.\n\n## Registration-time validation\n\n- `timeout_seconds <= 0` (zero or negative, int or float) raises `ValueError` at registration,\n  from `Tool.from_function`, `ToolManager.add_tool`, `MCPServer.add_tool` and the\n  `MCPServer.tool(...)` decorator. The message must contain `timeout_seconds`, e.g.\n  `timeout_seconds must be greater than 0, got 0`.\n- A rejected registration registers nothing (`ToolManager.get_tool(name)` stays `None`).\n- Any positive value is accepted, however small (e.g. `1e-9`). Ints are accepted (`3` is stored as\n  `3` / `3.0`).\n\n## Out of scope\n\nNo client-visible metadata for the timeout (`list_tools` output is unchanged), no global default\ntimeout, no change to the low-level server.\n",
+      "files": [
+        "src/mcp/server/mcpserver/server.py",
+        "src/mcp/server/mcpserver/tools/base.py",
+        "src/mcp/server/mcpserver/tools/tool_manager.py"
+      ],
+      "depends_on_titles": [],
+      "interface": [
+        {
+          "name": "Tool.from_function",
+          "file": "src/mcp/server/mcpserver/tools/base.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "context_kwarg: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "timeout_seconds: float | None"
+          ],
+          "returns": "Tool"
+        },
+        {
+          "name": "ToolManager.add_tool",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "timeout_seconds: float | None"
+          ],
+          "returns": "Tool"
+        },
+        {
+          "name": "ToolManager.call_tool",
+          "file": "src/mcp/server/mcpserver/tools/tool_manager.py",
+          "params": [
+            "name: str",
+            "arguments: dict[str, Any]",
+            "context: Context[LifespanContextT, RequestT]",
+            "convert_result: bool"
+          ],
+          "returns": "Any"
+        },
+        {
+          "name": "MCPServer.add_tool",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "timeout_seconds: float | None"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "MCPServer.tool",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "annotations: ToolAnnotations | None",
+            "icons: list[Icon] | None",
+            "meta: dict[str, Any] | None",
+            "structured_output: bool | None",
+            "timeout_seconds: float | None"
+          ],
+          "returns": "Callable[[_CallableT], _CallableT]"
+        }
+      ],
+      "tags": [
+        "heldout",
+        "patch",
+        "slice:mcp_tool_timeout",
+        "timeout",
+        "registration",
+        "validation",
+        "error-message"
+      ]
+    },
+    {
+      "title": "Tool deprecation flags and call warnings",
+      "spec": "Task B, subtask 2 of 3. The repository is the base commit `77001c9` plus the commit of subtask 1 (per-tool timeout), so `Tool`, `Tool.from_function`, `ToolManager.add_tool`, `MCPServer.add_tool` and `MCPServer.tool(...)` already take `timeout_seconds: float | None = None` (keyword, last). Keep it: the timeout behaviour and its tests must keep working. Add `deprecated: bool | str = False` AFTER `timeout_seconds` in each of those four signatures, so the full signatures become:\n\n- `Tool.from_function(fn, name=None, title=None, description=None, context_kwarg=None, annotations=None, icons=None, meta=None, structured_output=None, timeout_seconds=None, deprecated=False) -> Tool`\n- `ToolManager.add_tool(fn, name=None, title=None, description=None, annotations=None, icons=None, meta=None, structured_output=None, timeout_seconds=None, deprecated=False) -> Tool`\n- `MCPServer.add_tool(fn, name=None, title=None, description=None, annotations=None, icons=None, meta=None, structured_output=None, timeout_seconds=None, deprecated=False) -> None`\n- `MCPServer.tool(name=None, title=None, description=None, annotations=None, icons=None, meta=None, structured_output=None, timeout_seconds=None, deprecated=False)`\n\nWhere the text below gives these signatures without `timeout_seconds`, read them with it. The four registration functions are pinned by subtask 1 and not re-pinned here.\n\n# Tool deprecation for MCPServer tools\n\nRepository: the MCP Python SDK at commit `77001c9` (package import root `mcp`). Install with\n`uv sync --all-extras --python 3.12`; the existing suite (`uv run pytest -q tests/server tests/shared\n-p no:cacheprovider`) must stay green. Add no dependencies.\n\n## Goal\n\nA server author can mark a tool as deprecated, optionally naming the tool that replaces it.\nDeprecated tools keep working. Clients can see the deprecation when listing tools, and every\nsuccessful call to a deprecated tool carries a warning in the result's metadata. Tools that are\nnot deprecated look and behave exactly as before.\n\n## Public API\n\nAll changes are in `src/mcp/server/mcpserver/`.\n\nPure helper in `tools/base.py` (`from mcp.server.mcpserver.tools.base import deprecation_message`\nmust work; re-exporting it from the `mcp.server.mcpserver.tools` package is optional):\n\n- `deprecation_message(name: str, deprecated: bool | str) -> str | None`\n  - `deprecated is False` -> `None`\n  - `deprecated is True` -> `f\"Tool '{name}' is deprecated\"`\n  - `deprecated` is a string (the replacement hint) -> `f\"Tool '{name}' is deprecated; use '{deprecated}' instead\"`\n    (name and hint used verbatim, e.g. `deprecation_message(\"get-v1\", \"get v2\")` ->\n    `Tool 'get-v1' is deprecated; use 'get v2' instead`)\n  - an empty or whitespace-only string raises `ValueError` (message must contain `deprecated`)\n\n`tools/base.py`, class `Tool`:\n\n- New field `deprecated: bool | str`, default `False`. A string is the replacement hint.\n- `Tool.from_function(fn, name=None, title=None, description=None, context_kwarg=None,\n  annotations=None, icons=None, meta=None, structured_output=None, deprecated=False) -> Tool`:\n  new keyword `deprecated: bool | str = False`, stored on the returned `Tool`.\n\n`tools/tool_manager.py`:\n\n- `ToolManager.add_tool(fn, name=None, title=None, description=None, annotations=None, icons=None,\n  meta=None, structured_output=None, deprecated=False) -> Tool`: new keyword, passed through.\n\n`server.py`, class `MCPServer`:\n\n- `MCPServer.add_tool(fn, name=None, title=None, description=None, annotations=None, icons=None,\n  meta=None, structured_output=None, deprecated=False) -> None`: new keyword, passed through.\n- `MCPServer.tool(name=None, title=None, description=None, annotations=None, icons=None, meta=None,\n  structured_output=None, deprecated=False)` decorator: new keyword, passed through.\n- `MCPServer.list_tools() -> list[mcp_types.Tool]` and\n  `MCPServer.call_tool(name, arguments, context=None) -> CallToolResult | InputRequiredResult`:\n  signatures unchanged, behaviour below.\n\n## Behaviour\n\nListing (`MCPServer.list_tools`, and therefore the `tools/list` response):\n\n1. A deprecated tool's listed `_meta` (the `meta` field of `mcp_types.Tool`, alias `_meta`) contains\n   `\"deprecated\": True` and `\"replacement\"`: the hint string, or `None` when `deprecated=True`.\n2. These keys are merged into the tool's own `meta` (passed at registration); the other keys are\n   kept, and the deprecation keys win on a clash. The registered `Tool.meta` dict and the dict\n   the author passed in are never mutated.\n3. A tool that is not deprecated is listed exactly as today: its `_meta` is its own `meta`\n   (`None` when it has none); no `deprecated` key appears.\n\nCalling (`MCPServer.call_tool`, and therefore `tools/call`):\n\n4. A deprecated tool still runs and returns its normal content and structured content.\n5. When the call succeeds with a `CallToolResult`, the result's `_meta` contains\n   `\"deprecation_warning\": deprecation_message(name, tool.deprecated)` where `name` is the tool's\n   registered name. Keys already present in the result's `_meta` (e.g. a tool that returns its own\n   `CallToolResult(..., _meta={...})`) are kept. Do not mutate a `CallToolResult` object the tool\n   returned; return a copy.\n6. A non-deprecated tool's result `_meta` is unchanged (`None` from `MCPServer.call_tool` when the\n   tool set none). Note that over the wire the server adds its own keys (such as\n   `io.modelcontextprotocol/serverInfo`) to result `_meta`; that is existing behaviour.\n7. A failing call is unchanged: a deprecated tool that raises `ToolError(\"bad input\")` still fails\n   with `Error executing tool <name>: bad input`, and the error result carries no\n   `deprecation_warning`. An `InputRequiredResult` is passed through unchanged.\n\n## Registration-time validation\n\n- `deprecated` set to an empty or whitespace-only string raises `ValueError` at registration, from\n  `Tool.from_function`, `ToolManager.add_tool`, `MCPServer.add_tool` and the `MCPServer.tool(...)`\n  decorator (message must contain `deprecated`). A rejected registration registers nothing.\n\n## Out of scope\n\nNo Python `warnings.warn` on call, no logging requirement, no change to the low-level server or\nclient.\n",
+      "files": [
+        "src/mcp/server/mcpserver/server.py",
+        "src/mcp/server/mcpserver/tools/__init__.py",
+        "src/mcp/server/mcpserver/tools/base.py",
+        "src/mcp/server/mcpserver/tools/tool_manager.py"
+      ],
+      "depends_on_titles": [
+        "Per-tool call timeout"
+      ],
+      "interface": [
+        {
+          "name": "deprecation_message",
+          "file": "src/mcp/server/mcpserver/tools/base.py",
+          "params": [
+            "name: str",
+            "deprecated: bool | str"
+          ],
+          "returns": "str | None"
+        },
+        {
+          "name": "MCPServer.list_tools",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [],
+          "returns": "list[MCPTool]"
+        },
+        {
+          "name": "MCPServer.call_tool",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "name: str",
+            "arguments: dict[str, Any]",
+            "context: Context[LifespanResultT, Any] | None"
+          ],
+          "returns": "CallToolResult | InputRequiredResult"
+        }
+      ],
+      "tags": [
+        "heldout",
+        "patch",
+        "slice:mcp_tool_deprecation",
+        "deprecation",
+        "metadata",
+        "validation",
+        "error-message"
+      ]
+    },
+    {
+      "title": "Resource size cap",
+      "spec": "Task B, subtask 3 of 3. The repository is the base commit `77001c9` plus the commits of subtask 1 (per-tool timeout) and subtask 2 (tool deprecation); keep both working. This subtask touches resources only (and `MCPServer`'s resource methods).\n\n# Resource size cap for MCPServer resources\n\nRepository: the MCP Python SDK at commit `77001c9` (package import root `mcp`). Install with\n`uv sync --all-extras --python 3.12`; the existing suite (`uv run pytest -q tests/server tests/shared\n-p no:cacheprovider`) must stay green. Add no dependencies.\n\n## Goal\n\nA server author can cap how large a resource's content may be. Reading a resource whose content\nis larger than its cap fails with a fixed `ResourceError` instead of returning the content.\nResources registered without a cap behave exactly as before.\n\n## Public API\n\nAll changes are in `src/mcp/server/mcpserver/`.\n\nPure helper in `resources/base.py` (`from mcp.server.mcpserver.resources.base import content_size`\nmust work; re-exporting it from the `mcp.server.mcpserver.resources` package is optional):\n\n- `content_size(content: str | bytes) -> int`: the size in bytes. For `str` it is the length of the\n  UTF-8 encoding (`\"abc\"` -> 3, `\"é\"` -> 2, `\"漢字\"` -> 6, `\"🎉\"` -> 4, `\"\"` -> 0); for `bytes` it\n  is `len(content)`.\n\n`server.py`, class `MCPServer`:\n\n- `MCPServer.add_resource(resource: Resource, *, max_bytes: int | None = None) -> None`:\n  `max_bytes` is keyword-only (`add_resource(r, 5)` is a `TypeError`).\n- `MCPServer.resource(uri, *, name=None, title=None, description=None, mime_type=None, icons=None,\n  annotations=None, meta=None, security=None, max_bytes=None)` decorator: new keyword\n  `max_bytes: int | None = None`. It applies to static resources (registered through\n  `MCPServer.add_resource`) and to template resources (URIs with `{...}` variables, registered\n  through `ResourceManager.add_template`).\n- `MCPServer.read_resource(uri, context=None)`: signature unchanged; enforces the cap (below).\n\n`resources/resource_manager.py`, class `ResourceManager`:\n\n- `ResourceManager.add_resource(resource: Resource, *, max_bytes: int | None = None) -> Resource`\n- `ResourceManager.add_template(fn, uri_template, name=None, title=None, description=None,\n  mime_type=None, icons=None, annotations=None, meta=None, security=DEFAULT_RESOURCE_SECURITY,\n  max_bytes=None) -> ResourceTemplate`\n\nBoth accept and remember the cap for what they register. How the cap is stored (on the manager,\non `ResourceTemplate`, ...) is up to you.\n\n## Behaviour\n\n1. `max_bytes=None` (the default) means no cap.\n2. After `MCPServer.read_resource` has obtained the content (`Resource.read()`, including the JSON\n   conversion `FunctionResource` applies to non-str/bytes return values), it measures it with\n   `content_size`. If the size is strictly greater than `max_bytes`, it raises\n   `ResourceError(f\"Resource '{uri}' exceeds max_bytes={max_bytes}\")`, where `uri` is the URI being\n   read (for a template, the concrete URI, e.g. `docs://abcde`, not the template). Content of\n   exactly `max_bytes` bytes is returned normally.\n3. The error is a plain `ResourceError`, not `UnexpectedResourceError`.\n4. Over the protocol, the existing `MCPServer._handle_read_resource` turns it into an `MCPError`\n   with code `INTERNAL_ERROR` (-32603) and that exact message; keep that.\n5. A tool that reads the resource through `Context.read_resource` gets the `ResourceError`, so the\n   tool call fails with `Error executing tool <tool>: Resource '<uri>' exceeds max_bytes=<n>`\n   (existing `Tool.run` wrapping).\n6. Text is measured in UTF-8 bytes, not characters: `\"éé\"` is 4 bytes, so it fails a cap of 3 and\n   passes a cap of 4. Binary content is measured by its length.\n7. Caps are per resource / per template; a capped resource never affects another one.\n8. The cap is not client-visible: `list_resources` / `list_resource_templates` output is unchanged.\n9. Registering a second static resource with an already-used URI keeps today's behaviour (the\n   first registration, and its cap, wins).\n\n## Registration-time validation\n\n- `max_bytes <= 0` raises `ValueError` at registration, from `MCPServer.add_resource`, the\n  `MCPServer.resource(...)` decorator (static and template URIs), `ResourceManager.add_resource`\n  and `ResourceManager.add_template`. The message must contain `max_bytes`, e.g.\n  `max_bytes must be greater than 0, got 0`. A rejected registration registers nothing.\n\n## Out of scope\n\nNo streaming or truncation, no global default cap, no change to the low-level server or client.\n",
+      "files": [
+        "src/mcp/server/mcpserver/resources/__init__.py",
+        "src/mcp/server/mcpserver/resources/base.py",
+        "src/mcp/server/mcpserver/resources/resource_manager.py",
+        "src/mcp/server/mcpserver/resources/templates.py",
+        "src/mcp/server/mcpserver/server.py"
+      ],
+      "depends_on_titles": [],
+      "interface": [
+        {
+          "name": "content_size",
+          "file": "src/mcp/server/mcpserver/resources/base.py",
+          "params": [
+            "content: str | bytes"
+          ],
+          "returns": "int"
+        },
+        {
+          "name": "ResourceManager.add_resource",
+          "file": "src/mcp/server/mcpserver/resources/resource_manager.py",
+          "params": [
+            "resource: Resource",
+            "max_bytes: int | None"
+          ],
+          "returns": "Resource"
+        },
+        {
+          "name": "ResourceManager.add_template",
+          "file": "src/mcp/server/mcpserver/resources/resource_manager.py",
+          "params": [
+            "fn: Callable[..., Any]",
+            "uri_template: str",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "mime_type: str | None",
+            "icons: list[Icon] | None",
+            "annotations: Annotations | None",
+            "meta: dict[str, Any] | None",
+            "security: ResourceSecurity",
+            "max_bytes: int | None"
+          ],
+          "returns": "ResourceTemplate"
+        },
+        {
+          "name": "MCPServer.add_resource",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "resource: Resource",
+            "max_bytes: int | None"
+          ],
+          "returns": "None"
+        },
+        {
+          "name": "MCPServer.resource",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "uri: str",
+            "name: str | None",
+            "title: str | None",
+            "description: str | None",
+            "mime_type: str | None",
+            "icons: list[Icon] | None",
+            "annotations: Annotations | None",
+            "meta: dict[str, Any] | None",
+            "security: ResourceSecurity | None",
+            "max_bytes: int | None"
+          ],
+          "returns": "Callable[[_CallableT], _CallableT]"
+        },
+        {
+          "name": "MCPServer.read_resource",
+          "file": "src/mcp/server/mcpserver/server.py",
+          "params": [
+            "uri: AnyUrl | str",
+            "context: Context[LifespanResultT, Any] | None"
+          ],
+          "returns": "Iterable[ReadResourceContents] | InputRequiredResult"
+        }
+      ],
+      "tags": [
+        "heldout",
+        "patch",
+        "slice:mcp_resource_size_cap",
+        "resources",
+        "boundary",
+        "validation",
+        "error-message"
+      ]
+    }
+  ]
+}
