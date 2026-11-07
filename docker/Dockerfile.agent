@@ -1,0 +1,6 @@
+# Agent sandbox image (SANDBOX_BACKEND=docker). Worktree backend needs no image.
+FROM python:3.12-slim
+RUN pip install --no-cache-dir pytest hypothesis pytest-timeout
+WORKDIR /work
+# The runner mounts the repo copy at /work and runs `python -I -m pytest`.
+CMD ["python", "-I", "-m", "pytest", "-q"]
