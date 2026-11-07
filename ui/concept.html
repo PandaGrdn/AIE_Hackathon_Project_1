@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="night">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,34 +10,31 @@
     --ink: var(--salt); --mute: var(--sage); --rule: var(--scrub);
     --meta: #0866FF; --gemini: #9168C0; --claude: #D97757; --openai: #10A37F; --subq: #C9C2B4;
   }
-  html[data-theme="salt"] { --ground: #F1EBE4; --ink: #22231A; --mute: #734E30; --rule: #87826E; }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--ground); color: var(--ink); }
   body { font: 16px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; padding: 18px 24px 48px; }
   header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; margin-bottom: 12px; }
-  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: 0; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; }
   .caption { color: var(--mute); }
   .spacer { flex: 1; }
   button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 2px 10px; cursor: pointer; }
   button[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
   button:focus-visible { outline: 2px solid var(--claude); outline-offset: 2px; }
-  #wrap { position: relative; border: 1px solid var(--rule); }
-  #terrain { display: block; width: 100%; height: 72vh; min-height: 420px; }
-  #legend { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 12px 2px 0; color: var(--mute); }
-  #legend b { font-weight: 600; color: var(--ink); }
-  #legend .sp { font-weight: 700; margin-right: 6px; }
-  .sheet { margin-top: 48px; max-width: 76ch; }
-  .sheet h2 { font-size: 18px; font-weight: 600; margin: 32px 0 10px; }
+  #wrap { position: relative; border: 1px solid var(--rule); height: 74vh; min-height: 440px; overflow: hidden; }
+  #wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #scene { display: none; }
+  #legend { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 12px 2px 0; color: var(--mute); }
+  #legend button { border: none; padding: 0; color: var(--mute); }
+  #legend button b { color: var(--ink); font-weight: 600; }
+  #legend button[aria-pressed="true"] { background: none; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  #legend .sp { display: inline-block; width: 14px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 0; }
+  .sheet { margin-top: 40px; max-width: 76ch; }
+  .sheet h2 { font-size: 18px; font-weight: 600; margin: 28px 0 10px; }
   .sheet p { margin: 0 0 10px; color: var(--mute); }
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .sw { border: 1px solid var(--rule); padding: 8px 10px; }
   .sw i { display: block; height: 36px; margin-bottom: 6px; }
   .sw small { color: var(--mute); display: block; }
-  .opt { display: grid; grid-template-columns: 11ch 1fr; gap: 10px 18px; align-items: start; margin: 12px 0; }
-  .opt pre { margin: 0; font: inherit; line-height: 1.15; font-size: 20px; }
-  .opt .why { color: var(--mute); }
-  @media (prefers-reduced-motion: reduce) { .motion-note { display: inline; } }
-  .motion-note { display: none; }
 </style>
 </head>
 <body>
@@ -45,69 +42,47 @@
   <h1>Reasoning terrain</h1>
   <span class="caption" id="caption">loading the swarm</span>
   <span class="spacer"></span>
-  <span class="caption">theme</span>
-  <button id="t-night" aria-pressed="true">night</button>
-  <button id="t-salt" aria-pressed="false">salt</button>
-  <button id="t-heldout" aria-pressed="false">held-out runs</button>
+  <span class="caption">dots</span>
+  <button data-pitch="3" aria-pressed="false">fine</button>
+  <button data-pitch="4" aria-pressed="true">medium</button>
+  <button data-pitch="6" aria-pressed="false">coarse</button>
+  <button id="halftone" aria-pressed="true">halftone</button>
 </header>
-<div id="wrap"><canvas id="terrain" role="img" aria-label="ASCII terrain of the reasoning space with beetles for each agent"></canvas></div>
+<div id="wrap">
+  <canvas id="scene"></canvas>
+  <canvas id="dots" role="img" aria-label="Halftone rendering of a 3D terrain built from the reasoning space, with a beetle for each agent"></canvas>
+  <canvas id="labels" aria-hidden="true"></canvas>
+</div>
 <div id="legend"></div>
 
 <section class="sheet">
   <h2>What you are looking at</h2>
-  <p>Every reasoning step of every agent run is embedded, then projected with PCA. Height is how often agents reasoned there, so consensus paths become ridges and the lesson's failure region is a pit. Each beetle is one agent in its company's color. It walks its real steps, in order, and leaves a trail that fades. A beetle that reaches the step SubQ blamed flips onto its back and stays there.</p>
-  <p class="motion-note">Reduced motion is on in your system, so beetles stand still and trails are drawn in full.</p>
-
+  <p>Every reasoning step of every agent run is embedded and projected with PCA onto the ground plane. Height is how often agents reasoned there, so consensus paths rise into ridges and the lesson's failure region sinks into a pit. Past the data the ground continues as dunes without end, and the camera follows the swarm. Each beetle is one agent in its company's color, walking its real steps in order. A beetle that reaches the step SubQ blamed flips onto its back and stays there.</p>
+  <p>The scene is drawn in 3D, then every pixel becomes one halftone dot: brighter surfaces get bigger dots, dark ground gets almost none. Click an agent in the legend to follow it.</p>
   <h2>Palette, as a desert</h2>
   <div class="swatches" id="swatches"></div>
-
-  <h2>Beetle options</h2>
-  <div class="opt"><pre style="color:var(--claude)"> ╲<span style="color:var(--salt)">▀</span>╱
-─▐█▌─
-╱▐█▌╲
- ▝▀▘</pre><div><b>A. block beetle</b><div class="why">Solid elytra from block glyphs, a lighter head shows heading. Reads at projector distance. Used in the canvas above.</div></div></div>
-  <div class="opt"><pre style="color:var(--gemini)"> ╲╷╱
-─(█)─
-╱(█)╲
- ╰─╯</pre><div><b>B. outlined beetle</b><div class="why">Line glyphs for the shell, closer to classic ASCII art. Lighter on the terrain, but thin on a projector.</div></div></div>
-  <div class="opt"><pre style="color:var(--meta)">▗▄▄▄▖
-▐█████▌
-▝▜███▛▘
-  ▀▀▀</pre><div><b>C. pixel beetle</b><div class="why">Half-block glyphs give twice the vertical resolution, so it looks like pixel art rather than text. Heavier, no visible legs.</div></div></div>
-
-  <h2>Trail options</h2>
-  <div class="opt"><pre style="color:var(--claude)">@#*+=-:·.  </pre><div><b>A. density fade</b><div class="why">Glyph density and opacity decay with age, like the Framer FlowTrail. Used above.</div></div></div>
-  <div class="opt"><pre style="color:var(--claude)">· · · · · ·</pre><div><b>B. breadcrumbs</b><div class="why">One dot per step only, so the trail is the reasoning path itself, nothing between steps.</div></div></div>
-  <div class="opt"><pre style="color:var(--claude)">≈≈~~--··  </pre><div><b>C. wind smear</b><div class="why">Wave glyphs that flatten as they age, sand blown over tracks.</div></div></div>
 </section>
 
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
-const THEMES = {
-  night: { bg: "#22231A", ramp: ["#2E2F23", "#464831", "#87826E", "#734E30", "#F1EBE4"], pit: "#734E30", ink: "#F1EBE4", mute: "#87826E", belly: "#F1EBE4" },
-  salt:  { bg: "#F1EBE4", ramp: ["#E1DACF", "#87826E", "#734E30", "#464831", "#22231A"], pit: "#734E30", ink: "#22231A", mute: "#734E30", belly: "#F1EBE4" },
-};
-const RAMP = " .:-=+*#%@";
-const TRAIL = "@%#*+=-:·.";
-const TRAIL_LIFE = 18;  // seconds
-const SPEED = 6.5;      // cells per second
+const PAL = { ground: "#22231A", soil: "#2E2F23", scrub: "#464831", bark: "#734E30", sage: "#87826E", salt: "#F1EBE4" };
+const RAMP = [PAL.soil, PAL.scrub, PAL.bark, PAL.sage, PAL.salt];  // by light, dark to bright
 const COMPANY = [[/meta|muse/, "meta", "Meta"], [/gemini|google/, "gemini", "Gemini"], [/claude|anthropic/, "claude", "Claude"], [/gpt|openai/, "openai", "OpenAI"], [/subq/, "subq", "SubQ"]];
 const companyOf = (id) => { for (const [re, k, name] of COMPANY) if (re.test(id || "")) return { key: k, name }; return { key: "subq", name: "other" }; };
 const cssVar = (k) => getComputedStyle(document.documentElement).getPropertyValue("--" + k).trim();
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+const lighten = (h, f) => "#" + [1, 3, 5].map((i) => { const v = parseInt(h.slice(i, i + 2), 16); return Math.round(v + (255 - v) * f).toString(16).padStart(2, "0"); }).join("");
+const shade = (h, f) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(h.slice(i, i + 2), 16) * f).toString(16).padStart(2, "0")).join("");
 
-// sprites: rows of glyphs; "H" cells are the head (drawn lighter)
-const SPRITES = {
-  up:    [[" ╲H╱", "─▐█▌─", "╱▐█▌╲", " ▝▀▘"], [" ╱H╲", "─▐█▌─", "╲▐█▌╱", " ▝▀▘"]],
-  down:  [[" ▗▄▖", "╲▐█▌╱", "─▐█▌─", " ╱H╲"], [" ▗▄▖", "╱▐█▌╲", "─▐█▌─", " ╲H╱"]],
-  right: [[" ╲ │ ╱", "▝████H", " ╱ │ ╲"], [" ╱ │ ╲", "▝████H", " ╲ │ ╱"]],
-  left:  [[" ╲ │ ╱", "H████▘", " ╱ │ ╲"], [" ╱ │ ╲", "H████▘", " ╲ │ ╱"]],
-  dead:  [["╲ ╲╱ ╱", " ▐░▌", "╱ ╱╲ ╲"]],
-};
-const HEAD = { up: "▀", down: "▄", right: "▌", left: "▐" };
+const SPEED = 3.2;        // cells per second
+const TRAIL_LIFE = 22;    // seconds
+const HSCALE = 4.2;       // cells of height for the tallest ridge
+const SIG2 = 2 * 3.2 * 3.2;
+const BS = 2.1;           // beetle scale in cells (about 4.5 cells long)
 
-// ---------- PCA (power iteration, 3 components) ----------
+// ---------- PCA ----------
 function topComponents(X, k, iters) {
   const n = X.length, d = X[0].length, comps = [];
   for (let c = 0; c < k; c++) {
@@ -130,10 +105,7 @@ function topComponents(X, k, iters) {
   }
   return comps;
 }
-// decompress a tight cluster so hills are visible: signed power curve around the median
 const decompress = (x) => Math.sign(x) * Math.pow(Math.abs(x), 0.6);
-
-// value noise for dunes where no one reasoned
 function hash(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
 function noise(x, y) {
   const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
@@ -141,29 +113,38 @@ function noise(x, y) {
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
-// ---------- world ----------
-const world = { theme: "night", heldout: false, data: null, grid: null, beetles: [], corpses: [], trails: new Map(), terrainCanvas: null, pits: [] };
-const canvas = $("terrain"), ctx = canvas.getContext("2d");
-let dpr = 1, cellW = 10, cellH = 18, fontPx = 16, cols = 0, rows = 0;
+// ---------- world: an endless heightfield with the reasoning data in the middle ----------
+const world = { data: null, pts: [], pits: [], byAgent: new Map(), roots: {}, beetles: [], corpses: [], trails: [], follow: null, hcache: new Map(), bbox: null, runCount: 0, subtasks: 0 };
 
-function measure() {
-  const r = canvas.getBoundingClientRect();
-  dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  fontPx = r.width > 1300 ? 17 : 15;
-  ctx.font = `${fontPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
-  cellW = ctx.measureText("M").width; cellH = Math.round(fontPx * 1.18);
-  cols = Math.floor(r.width / cellW); rows = Math.floor(r.height / cellH);
+function hCell(ix, iy) {
+  const key = (ix + 65536) * 131072 + (iy + 65536);
+  let v = world.hcache.get(key);
+  if (v !== undefined) return v;
+  v = 0.55 * noise(ix * 0.045 + 7, iy * 0.045) + 0.3 * noise(ix * 0.12, iy * 0.12 + 3) + 0.12 * noise(ix * 0.33, iy * 0.33);
+  const b = world.bbox;
+  if (b && ix > b.x0 - 12 && ix < b.x1 + 12 && iy > b.y0 - 12 && iy < b.y1 + 12) {
+    let dens = 0;
+    for (const p of world.pts) { const dx = ix - p.x, dy = iy - p.y, d2 = dx * dx + dy * dy; if (d2 < 160) dens += Math.exp(-d2 / SIG2); }
+    v += 1.5 * (1 - Math.exp(-dens * 0.35));  // saturates softly: a rounded ridge, not a plateau
+    for (const p of world.pits) { const dx = ix - p.x, dy = iy - p.y; v -= 1.3 * Math.exp(-(dx * dx + dy * dy) / (2 * p.rad * p.rad)); }
+  }
+  v *= HSCALE / 2.4;
+  world.hcache.set(key, v);
+  return v;
+}
+function hAt(x, y) {  // bilinear
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const a = hCell(ix, iy), b = hCell(ix + 1, iy), c = hCell(ix, iy + 1), d = hCell(ix + 1, iy + 1);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
 }
 
 function layout() {
   const { steps, divs, regions } = world.data;
-  const use = steps.filter((s) => Array.isArray(s.embedding) && s.embedding.length && (world.heldout || !String(s.subtask_id || "").startsWith("heldout-")));
+  const use = steps.filter((s) => Array.isArray(s.embedding) && s.embedding.length && !String(s.subtask_id || "").startsWith("heldout-"));
   const dims = {}; use.forEach((s) => { dims[s.embedding.length] = (dims[s.embedding.length] || 0) + 1; });
   const d = +Object.keys(dims).sort((a, b) => dims[b] - dims[a])[0];
   const pts = use.filter((s) => s.embedding.length === d);
-  if (!pts.length) return null;
+  if (!pts.length) return false;
   const mean = new Float64Array(d);
   pts.forEach((s) => { for (let j = 0; j < d; j++) mean[j] += s.embedding[j] / pts.length; });
   const X = pts.map((s) => { const r = new Float64Array(d); for (let j = 0; j < d; j++) r[j] = s.embedding[j] - mean[j]; return r; });
@@ -173,214 +154,347 @@ function layout() {
   const R = regions.filter((r) => Array.isArray(r.centroid) && r.centroid.length === d).map((r) => ({ r, c: proj(r.centroid) }));
   const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const padX = 8, padY = 3;
-  const sx = (x) => padX + ((x - x0) / Math.max(1e-9, x1 - x0)) * (cols - 2 * padX);
-  const sy = (y) => padY + (1 - (y - y0) / Math.max(1e-9, y1 - y0)) * (rows - 2 * padY);
-  const placed = pts.map((s, i) => ({ ...s, cx: sx(P[i][0]), cy: sy(P[i][1]) }));
-  const pits = R.map(({ r, c }) => ({ x: sx(c[0]), y: sy(c[1]), rad: Math.max(3, Math.min(7, r.radius * 12)) }));
-  // root-cause step per run (latest divergence wins; divs arrive newest first)
-  const roots = {};
-  divs.forEach((dv) => { if (dv.run_id && !(dv.run_id in roots)) roots[dv.run_id] = dv; });
-  // group by run, order runs by first appearance (the orchestrator's subtask order)
+  const span = Math.max(x1 - x0, y1 - y0, 1e-9), S = 64 / span;  // the data spans about 64 cells
+  const wx = (x) => (x - (x0 + x1) / 2) * S, wy = (y) => (y - (y0 + y1) / 2) * S;
+  world.pts = pts.map((s, i) => ({ ...s, x: wx(P[i][0]), y: wy(P[i][1]) }));
+  world.pits = R.map(({ r, c }) => ({ x: wx(c[0]), y: wy(c[1]), rad: Math.max(3, Math.min(7, r.radius * 12)) }));
+  world.bbox = { x0: -40, x1: 40, y0: -40, y1: 40 };
+  world.hcache.clear();
+  world.roots = {};
+  divs.forEach((dv) => { if (dv.run_id && !(dv.run_id in world.roots)) world.roots[dv.run_id] = dv; });
   const byRun = new Map();
-  placed.forEach((s) => { if (!byRun.has(s.run_id)) byRun.set(s.run_id, []); byRun.get(s.run_id).push(s); });
+  world.pts.forEach((s) => { if (!byRun.has(s.run_id)) byRun.set(s.run_id, []); byRun.get(s.run_id).push(s); });
   byRun.forEach((arr) => arr.sort((a, b) => (a.step_index ?? 0) - (b.step_index ?? 0)));
-  const byAgent = new Map();
-  byRun.forEach((arr, rid) => { const a = arr[0].agent_id || "agent"; if (!byAgent.has(a)) byAgent.set(a, []); byAgent.get(a).push({ rid, steps: arr, root: roots[rid] }); });
-  return { placed, pits, byAgent, roots, runCount: byRun.size, subtasks: new Set(placed.map((s) => s.subtask_id)).size };
+  world.byAgent = new Map();
+  byRun.forEach((arr, rid) => { const a = arr[0].agent_id || "agent"; if (!world.byAgent.has(a)) world.byAgent.set(a, []); world.byAgent.get(a).push({ rid, steps: arr, root: world.roots[rid] }); });
+  world.runCount = byRun.size; world.subtasks = new Set(world.pts.map((s) => s.subtask_id)).size;
+  return true;
 }
 
-function buildTerrain(g) {
-  const T = THEMES[world.theme];
-  const h = new Float32Array(cols * rows);
-  const sig2 = 2 * 3.0 * 3.0;
-  let mx = 0;
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    let v = 0;
-    for (const p of g.placed) { const dx = c - p.cx, dy = (r - p.cy) * 1.8; const d2 = dx * dx + dy * dy; if (d2 < 220) v += Math.exp(-d2 / sig2); }
-    v = Math.min(v, 6) / 6;
-    v += 0.28 * noise(c * 0.055, r * 0.1) + 0.12 * noise(c * 0.17, r * 0.3);
-    for (const p of g.pits) { const dx = c - p.x, dy = (r - p.y) * 1.8; v -= 1.1 * Math.exp(-(dx * dx + dy * dy) / (2 * p.rad * p.rad)); }
-    h[r * cols + c] = v; if (v > mx) mx = v;
-  }
-  const off = document.createElement("canvas");
-  off.width = canvas.width; off.height = canvas.height;
-  const o = off.getContext("2d");
-  o.setTransform(dpr, 0, 0, dpr, 0, 0);
-  o.fillStyle = T.bg; o.fillRect(0, 0, canvas.width, canvas.height);
-  o.font = ctx.font; o.textBaseline = "top";
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const v = Math.max(0, h[r * cols + c]) / mx;
-    const ci = Math.min(RAMP.length - 1, Math.floor(v * RAMP.length));
-    if (ci === 0) continue;
-    const band = Math.min(T.ramp.length - 1, Math.floor(v * T.ramp.length));
-    // contour: band edge against the neighbour above
-    const up = r > 0 ? Math.min(T.ramp.length - 1, Math.floor(Math.max(0, h[(r - 1) * cols + c]) / mx * T.ramp.length)) : band;
-    o.fillStyle = T.ramp[band];
-    o.fillText(up !== band && band >= 2 ? "─" : RAMP[ci], c * cellW, r * cellH);
-  }
-  // pit rims
-  o.fillStyle = T.pit;
-  for (const p of g.pits) {
-    for (let a = 0; a < Math.PI * 2; a += 0.22) { const c = Math.round(p.x + Math.cos(a) * p.rad * 1.6), r = Math.round(p.y + Math.sin(a) * p.rad * 0.9); if (c >= 0 && c < cols && r >= 0 && r < rows) o.fillText("˙", c * cellW, r * cellH); }
-  }
-  world.terrainCanvas = off;
-}
-
-function makeBeetles(g) {
-  const beetles = [];
-  let k = 0;
-  g.byAgent.forEach((runs, agent) => {
-    const co = companyOf(agent);
+function makeBeetles() {
+  const beetles = []; let k = 0;
+  world.byAgent.forEach((runs, agent) => {
+    const co = companyOf(agent), color = cssVar(co.key);
     const wps = [];
-    // enter from an edge
-    const side = k % 4; k++;
+    const ang = (k / world.byAgent.size) * Math.PI * 2 + 0.4;
     const first = runs[0].steps[0];
-    wps.push({ x: side === 0 ? -4 : side === 1 ? cols + 4 : first.cx, y: side === 2 ? -3 : side === 3 ? rows + 3 : first.cy });
+    wps.push({ x: first.x + Math.cos(ang) * 46, y: first.y + Math.sin(ang) * 46 });
     runs.forEach((run) => {
       run.steps.forEach((s, i) => {
         if (i > 0) {
-          const a = run.steps[i - 1], dx = s.cx - a.cx, dy = s.cy - a.cy, len = Math.hypot(dx, dy) || 1;
-          const amp = (3 + 5 * hash(i, k)) * (i % 2 ? 1 : -1);
-          wps.push({ x: (a.cx + s.cx) / 2 - (dy / len) * amp, y: (a.cy + s.cy) / 2 + (dx / len) * amp * 0.55 });
+          const a = run.steps[i - 1], dx = s.x - a.x, dy = s.y - a.y, len = Math.hypot(dx, dy) || 1;
+          const amp = (2.5 + 4 * hash(i, k)) * (i % 2 ? 1 : -1);
+          wps.push({ x: (a.x + s.x) / 2 - (dy / len) * amp, y: (a.y + s.y) / 2 + (dx / len) * amp });
         }
-        wps.push({ x: s.cx, y: s.cy, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null, failed: s.failed === true });
+        wps.push({ x: s.x, y: s.y, step: s, root: run.root && run.root.step_index === s.step_index ? run.root : null });
       });
     });
-    wps.push({ x: side === 1 ? -4 : side === 0 ? cols + 4 : first.cx, y: side === 3 ? -3 : side === 2 ? rows + 3 : first.cy, exit: true });
-    beetles.push({ agent, co, color: cssVar(co.key), wps, i: 0, t: hash(k, 7) * 0.9, x: wps[0].x, y: wps[0].y, face: "up", frame: 0, flipT: 0, done: false, pace: 0.7 + 0.6 * hash(k, 3) });
+    wps.push({ x: first.x + Math.cos(ang + 2.6) * 50, y: first.y + Math.sin(ang + 2.6) * 50, exit: true });
+    beetles.push({ agent, co, color, dark: shade(color, 0.55), wps, i: 0, t: hash(k, 7) * 0.8, x: wps[0].x, y: wps[0].y, z: 0, heading: 0, phase: hash(k, 11) * 6, flipped: false, flippedAt: 0, done: false, pace: 0.75 + 0.5 * hash(k, 3), lastStamp: null });
+    k++;
   });
   return beetles;
 }
 
-function rebuild() {
-  measure();
-  const g = layout();
-  world.grid = g; world.trails.clear(); world.corpses = [];
-  if (!g) { world.beetles = []; $("caption").textContent = "no reasoning steps with embeddings yet"; drawEmpty(); return; }
-  buildTerrain(g);
-  world.beetles = makeBeetles(g);
-  const flipped = Object.keys(g.roots).filter((rid) => g.byAgent.size && [...g.byAgent.values()].some((rs) => rs.some((r) => r.rid === rid))).length;
-  $("caption").textContent = `${g.runCount} runs across ${g.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped`;
-  renderLegend();
-  if (reduced) { // draw full trails and park beetles at their last step
-    world.beetles.forEach((b) => { b.wps.forEach((w) => stamp(w.x, w.y, b.color, -TRAIL_LIFE * 0.5)); const last = b.wps[b.wps.length - 2]; b.x = last.x; b.y = last.y; });
+// ---------- camera ----------
+const cam = { yaw: 0.9, pitch: 0.46, dist: 13, tx: 0, ty: 0, tz: 0, eye: [0, 0, 0], R: [1, 0, 0], U: [0, 0, 1], F: [0, 1, 0], focal: 1, W: 1, H: 1, horizon: 0 };
+function updateCamera(dt) {
+  let fx = 0, fy = 0, n = 0;
+  const live = world.beetles.filter((b) => !b.done && !b.flipped);
+  let tgt = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done);
+  if (tgt && tgt.flipped && now() - tgt.flippedAt > 4) { world.follow = null; tgt = null; renderLegend(); }
+  if (tgt) { fx = tgt.x; fy = tgt.y; n = 1; }
+  let wantDist = 13;
+  if (!tgt) {
+    for (const b of live) { fx += b.x; fy += b.y; n++; }
+    if (n) { fx /= n; fy /= n; let spread = 0; for (const b of live) spread = Math.max(spread, Math.hypot(b.x - fx, b.y - fy)); wantDist = Math.max(14, Math.min(28, 10 + spread * 1.1)); }
   }
+  if (n) { const k = 1 - Math.pow(0.08, dt); cam.tx += (fx - cam.tx) * k; cam.ty += (fy - cam.ty) * k; }
+  cam.dist += (wantDist - cam.dist) * (1 - Math.pow(0.2, dt));
+  cam.tz += (hAt(cam.tx, cam.ty) - cam.tz) * (1 - Math.pow(0.1, dt));
+  if (!reduced) cam.yaw += 0.045 * dt;
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  cam.eye = [cam.tx - cam.dist * cp * Math.cos(cam.yaw), cam.ty - cam.dist * cp * Math.sin(cam.yaw), cam.tz + cam.dist * sp];
+  const F = norm([cam.tx - cam.eye[0], cam.ty - cam.eye[1], cam.tz - cam.eye[2]]);
+  const R = norm(cross(F, [0, 0, 1])), U = cross(R, F);
+  cam.F = F; cam.R = R; cam.U = U;
+}
+const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+function project(x, y, z) {
+  const dx = x - cam.eye[0], dy = y - cam.eye[1], dz = z - cam.eye[2];
+  const cz = dx * cam.F[0] + dy * cam.F[1] + dz * cam.F[2];
+  if (cz < 0.6) return null;
+  const cx = dx * cam.R[0] + dy * cam.R[1] + dz * cam.R[2], cy = dx * cam.U[0] + dy * cam.U[1] + dz * cam.U[2];
+  return [cam.W / 2 + (cx / cz) * cam.focal, cam.H / 2 - (cy / cz) * cam.focal, cz];
 }
 
-function drawEmpty() { const T = THEMES[world.theme]; ctx.fillStyle = T.bg; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+// ---------- scene rendering (software 3D, flat shaded, palette colours) ----------
+const scene = $("scene"), sctx = scene.getContext("2d");
+const LIGHT = norm([-0.55, 0.35, 0.75]);
+const FOG = PAL.soil;
+const RAMP_RGB = RAMP.map(hex2rgb), FOG_RGB = hex2rgb(FOG);
+function rampColor(v, fog) {  // continuous: the halftone turns tone into dot size
+  v = Math.max(0, Math.min(0.999, v)); const i = Math.floor(v * (RAMP.length - 1)), f = v * (RAMP.length - 1) - i;
+  const a = RAMP_RGB[i], b = RAMP_RGB[Math.min(RAMP.length - 1, i + 1)];
+  const c = [0, 1, 2].map((k) => (a[k] + (b[k] - a[k]) * f) * (1 - fog) + FOG_RGB[k] * fog);
+  return `rgb(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0})`;
+}
+const VIEW_R = 48;
+const FOG0 = 26, FOG1 = 46;
 
-function renderLegend() {
-  const trust = Object.fromEntries((world.data.trust || []).map((t) => [t.agent_id, t.score]));
-  $("legend").innerHTML = world.beetles.map((b) => `<span><span class="sp" style="color:${b.color}">▐█▌</span><b>${b.agent}</b> ${b.co.name}${trust[b.agent] != null ? `, trust ${trust[b.agent].toFixed(2)}` : ""}</span>`).join("");
+function drawScene(t) {
+  const W = cam.W, H = cam.H;
+  // sky: a quantized dusk, horizon glow in bark
+  const hz = H / 2 - cam.focal * Math.tan(cam.pitch);
+  sctx.fillStyle = PAL.ground; sctx.fillRect(0, 0, W, H);
+  const sky = sctx.createLinearGradient(0, hz - H * 0.3, 0, hz);
+  sky.addColorStop(0, PAL.ground); sky.addColorStop(0.7, PAL.soil); sky.addColorStop(1, PAL.bark);
+  sctx.fillStyle = sky; sctx.fillRect(0, hz - H * 0.3, W, H * 0.3);
+  sctx.fillStyle = FOG; sctx.fillRect(0, hz, W, H - hz);
+
+  // terrain cells in a window around the target, back to front
+  const cx0 = Math.round(cam.tx), cy0 = Math.round(cam.ty);
+  const cells = [];
+  for (let iy = cy0 - VIEW_R; iy <= cy0 + VIEW_R; iy++) for (let ix = cx0 - VIEW_R; ix <= cx0 + VIEW_R; ix++) {
+    const dx = ix + 0.5 - cam.eye[0], dy = iy + 0.5 - cam.eye[1];
+    const depth = dx * cam.F[0] + dy * cam.F[1];
+    if (depth < -2) continue;
+    cells.push({ ix, iy, depth: dx * dx + dy * dy });
+  }
+  cells.sort((a, b) => b.depth - a.depth);
+  // things standing on the ground are drawn when the terrain reaches their depth
+  const actors = [];
+  for (const b of world.beetles) if (!b.done && !b.flipped) actors.push({ kind: "beetle", b, d: dist2(b.x, b.y) });
+  for (const c of world.corpses) actors.push({ kind: "corpse", c, d: dist2(c.x, c.y) });
+  for (const tr of world.trails) actors.push({ kind: "trail", tr, d: dist2(tr.x, tr.y) });
+  actors.sort((a, b) => b.d - a.d);
+  let ai = 0;
+  const flushActors = (depth) => { while (ai < actors.length && actors[ai].d >= depth) { drawActor(actors[ai], t); ai++; } };
+
+  for (const c of cells) {
+    flushActors(c.depth);
+    const { ix, iy } = c;
+    const h00 = hCell(ix, iy), h10 = hCell(ix + 1, iy), h01 = hCell(ix, iy + 1), h11 = hCell(ix + 1, iy + 1);
+    const p00 = project(ix, iy, h00), p10 = project(ix + 1, iy, h10), p01 = project(ix, iy + 1, h01), p11 = project(ix + 1, iy + 1, h11);
+    if (!p00 || !p10 || !p01 || !p11) continue;
+    const minx = Math.min(p00[0], p10[0], p01[0], p11[0]), maxx = Math.max(p00[0], p10[0], p01[0], p11[0]);
+    const miny = Math.min(p00[1], p10[1], p01[1], p11[1]), maxy = Math.max(p00[1], p10[1], p01[1], p11[1]);
+    if (maxx < 0 || minx > W || maxy < 0 || miny > H) continue;
+    const n = norm([h00 - h10 + h01 - h11, h00 - h01 + h10 - h11, 2]);
+    const lam = Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
+    const elev = Math.max(0, Math.min(1, (h00 + h11) / (2 * HSCALE)));
+    let v = 0.12 + 0.6 * Math.pow(lam, 1.6) + 0.3 * elev;
+    v = Math.round(v * 9) / 9;
+    const far = Math.sqrt(c.depth);
+    const fog = Math.max(0, Math.min(1, (far - FOG0) / (FOG1 - FOG0)));
+    sctx.fillStyle = rampColor(v, fog);
+    sctx.beginPath(); sctx.moveTo(p00[0], p00[1]); sctx.lineTo(p10[0], p10[1]); sctx.lineTo(p11[0], p11[1]); sctx.lineTo(p01[0], p01[1]); sctx.closePath(); sctx.fill();
+  }
+  flushActors(-1);
+}
+const dist2 = (x, y) => { const dx = x + 0.5 - cam.eye[0], dy = y + 0.5 - cam.eye[1]; return dx * dx + dy * dy; };
+
+function drawActor(a, t) {
+  if (a.kind === "trail") {
+    const age = t - a.tr.t; if (age > TRAIL_LIFE) return;
+    const p = project(a.tr.x, a.tr.y, hAt(a.tr.x, a.tr.y) + 0.08); if (!p) return;
+    const f = 1 - age / TRAIL_LIFE, r = Math.max(0.6, (0.22 + 0.14 * f) * cam.focal / p[2]);
+    sctx.globalAlpha = 0.25 + 0.75 * f; sctx.fillStyle = a.tr.color;
+    sctx.beginPath(); sctx.arc(p[0], p[1], r, 0, 7); sctx.fill(); sctx.globalAlpha = 1;
+  } else if (a.kind === "beetle") drawBeetle(a.b, t, false);
+  else drawBeetle(a.c, t, true);
 }
 
-// ---------- animation ----------
-let lastT = 0;
-function stamp(x, y, color, ageOffset = 0) {
-  const c = Math.round(x), r = Math.round(y);
-  if (c < 0 || r < 0 || c >= cols || r >= rows) return;
-  world.trails.set(r * cols + c, { t: now() + ageOffset, color });
+// a darkling beetle: three domed segments, six legs in a tripod gait, two antennae
+function drawBeetle(b, t, flipped) {
+  const fwd = [Math.cos(b.heading), Math.sin(b.heading), 0], rgt = [-fwd[1], fwd[0], 0];
+  const base = [b.x, b.y, hAt(b.x, b.y)];
+  const L = (al, si, up) => [base[0] + (fwd[0] * al + rgt[0] * si) * BS, base[1] + (fwd[1] * al + rgt[1] * si) * BS, base[2] + (flipped ? 0.95 - up : up) * BS];
+  const parts = [];
+  const body = flipped ? PAL.sage : b.color, belly = flipped ? PAL.salt : b.dark;
+  // ground shadow anchors the beetle to the terrain
+  if (!flipped) { const sh = ellipsePoly(L, -0.2, 0.08, 1.15, 0.7); if (sh) { sctx.fillStyle = PAL.ground; sctx.globalAlpha = 0.7; fillPoly(sh); sctx.globalAlpha = 1; } }
+  const dome = (al, up, rx, ry, col) => {
+    const base_ = ellipsePoly(L, al, up, rx, ry), top = ellipsePoly(L, al - 0.12, up + 0.22, rx * 0.62, ry * 0.6);
+    if (!base_) return;
+    parts.push({ d: base_.d, draw: () => {
+      sctx.fillStyle = col; fillPoly(base_);
+      sctx.strokeStyle = PAL.ground; sctx.lineWidth = 1; strokePoly(base_);
+      if (top) { sctx.fillStyle = lighten(col, flipped ? 0.2 : 0.45); fillPoly(top); }
+    } });
+  };
+  dome(-0.6, 0.3, 0.8, 0.58, body); dome(0.3, 0.3, 0.42, 0.42, body); dome(0.88, 0.28, 0.26, 0.22, flipped ? PAL.sage : b.dark);
+  const gait = reduced ? 0 : t * 9 + b.phase;
+  const legs = [[0.5, 0.75], [0.1, 0.15], [-0.35, -0.45]];
+  legs.forEach(([al, swing], li) => [1, -1].forEach((side) => {
+    const ph = gait + ((li + (side > 0 ? 0 : 1)) % 2) * Math.PI;
+    const lift = flipped ? 0.06 * Math.sin(t * 2 + li) : Math.max(0, Math.sin(ph)) * 0.22;
+    const sw = flipped ? 0 : Math.cos(ph) * 0.18;
+    // hip at the shell's edge, knee just above shell height, foot on the ground (legs point up when flipped)
+    const hip = L(al, side * 0.36, 0.28), knee = L(al + swing * 0.2 + sw, side * 0.78, flipped ? -0.02 + lift : 0.46 + lift * 0.5), foot = L(al + swing * 0.45 + sw * 1.5, side * 1.1, flipped ? -0.22 + lift : lift);
+    const a = project(...hip), k = project(...knee), f = project(...foot);
+    if (a && k && f) parts.push({ d: k[2], draw: () => { sctx.strokeStyle = b.color; sctx.lineWidth = Math.max(1.1, 0.11 * BS * cam.focal / k[2]); sctx.lineCap = "round"; sctx.beginPath(); sctx.moveTo(a[0], a[1]); sctx.lineTo(k[0], k[1]); sctx.lineTo(f[0], f[1]); sctx.stroke(); } });
+  }));
+  [1, -1].forEach((side) => {
+    const a = project(...L(1.0, side * 0.1, 0.32)), f = project(...L(1.55, side * 0.42, flipped ? -0.1 : 0.5));
+    if (a && f) parts.push({ d: a[2] - 0.01, draw: () => { sctx.strokeStyle = b.color; sctx.lineWidth = Math.max(0.9, 0.07 * BS * cam.focal / a[2]); sctx.beginPath(); sctx.moveTo(a[0], a[1]); sctx.lineTo(f[0], f[1]); sctx.stroke(); } });
+  });
+  parts.sort((p, q) => q.d - p.d).forEach((p) => p.draw());
+  b.screen = project(base[0], base[1], base[2] + 1.1 * BS);
+  if (flipped) { const bl = ellipsePoly(L, -0.3, 0.42, 0.55, 0.38); if (bl) { sctx.fillStyle = belly; fillPoly(bl); } }
 }
+function ellipsePoly(L, al, up, rx, ry) {
+  const pts = []; let d = 0;
+  for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; const w = L(al + rx * Math.cos(a), ry * Math.sin(a), up); const q = project(w[0], w[1], w[2]); if (!q) return null; pts.push(q); d += q[2]; }
+  pts.d = d / 14; return pts;
+}
+function fillPoly(p) { sctx.beginPath(); sctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) sctx.lineTo(p[i][0], p[i][1]); sctx.closePath(); sctx.fill(); }
+function strokePoly(p) { sctx.beginPath(); sctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) sctx.lineTo(p[i][0], p[i][1]); sctx.closePath(); sctx.stroke(); }
+function sphere(q, r, col, flat) {
+  const R = Math.max(0.8, r * cam.focal / q[2]);
+  sctx.fillStyle = shade(col, 0.6); sctx.beginPath(); sctx.arc(q[0], q[1], R, 0, 7); sctx.fill();
+  if (!flat) { sctx.fillStyle = col; sctx.beginPath(); sctx.arc(q[0] - R * 0.22, q[1] - R * 0.28, R * 0.68, 0, 7); sctx.fill(); }
+  else { sctx.fillStyle = col; sctx.beginPath(); sctx.arc(q[0], q[1], R * 0.7, 0, 7); sctx.fill(); }
+}
+
+// ---------- simulation ----------
 const now = () => performance.now() / 1000;
-
-function step(dt) {
+function stepSim(dt, t) {
   for (const b of world.beetles) {
     if (b.done) continue;
-    if (b.flipT > 0) { b.flipT -= dt; if (b.flipT <= 0) { b.i++; b.t = 0; } continue; }
+    if (b.flipped) continue;
     const a = b.wps[b.i], z = b.wps[b.i + 1];
     if (!z) { b.done = true; continue; }
-    const len = Math.hypot(z.x - a.x, (z.y - a.y) * 1.8) || 1;
-    b.t += (SPEED * b.pace * dt) / len;
-    const px = b.x, py = b.y;
-    const wob = Math.sin(now() * 7 + b.wps.length) * 0.35;
-    b.x = a.x + (z.x - a.x) * Math.min(1, b.t) + wob * ((z.y - a.y) / len);
-    b.y = a.y + (z.y - a.y) * Math.min(1, b.t) - wob * ((z.x - a.x) / len) * 0.5;
+    const len = Math.hypot(z.x - a.x, z.y - a.y) || 1;
+    const slope = Math.max(0.55, 1 - 0.35 * Math.max(0, hAt(z.x, z.y) - hAt(a.x, a.y)) / len);
+    b.t += (SPEED * b.pace * slope * dt) / len;
+    const px = b.x, py = b.y, u = Math.min(1, b.t);
+    const wob = Math.sin(t * 5 + b.phase) * 0.18;
+    b.x = a.x + (z.x - a.x) * u - wob * ((z.y - a.y) / len);
+    b.y = a.y + (z.y - a.y) * u + wob * ((z.x - a.x) / len);
     const dx = b.x - px, dy = b.y - py;
-    if (Math.abs(dx) + Math.abs(dy) > 0.01) b.face = Math.abs(dx) * 0.55 > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
-    b.frame = Math.floor(now() * 8) % 2;
-    stamp(b.x, b.y, b.color);
+    if (Math.hypot(dx, dy) > 1e-4) { const want = Math.atan2(dy, dx); let d = want - b.heading; d = Math.atan2(Math.sin(d), Math.cos(d)); b.heading += d * Math.min(1, 6 * dt); }
+    if (!b.lastStamp || Math.hypot(b.x - b.lastStamp[0], b.y - b.lastStamp[1]) > 0.45) { world.trails.push({ x: b.x, y: b.y, color: b.color, t }); b.lastStamp = [b.x, b.y]; }
     if (b.t >= 1) {
-      if (z.root) { b.flipT = 2.6; world.corpses.push({ x: z.x, y: z.y, color: b.color, agent: b.agent, label: rootLabel(z.root) }); }
+      if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, dark: b.dark, agent: b.agent, heading: b.heading, phase: b.phase, label: rootLabel(z.root) }); }
       else { b.i++; b.t = 0; }
     }
   }
-  if (world.beetles.length && world.beetles.every((b) => b.done)) { world.beetles = makeBeetles(world.grid); world.corpses = []; }
+  while (world.trails.length && t - world.trails[0].t > TRAIL_LIFE) world.trails.shift();
+  if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 12))) { world.beetles = makeBeetles(); world.corpses = []; }
 }
 function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
 
-function drawSprite(rows_, x, y, color, head) {
-  const T = THEMES[world.theme];
-  const h = rows_.length, w = Math.max(...rows_.map((r) => r.length));
-  const c0 = Math.round(x) - Math.floor(w / 2), r0 = Math.round(y) - Math.floor(h / 2);
-  rows_.forEach((row, i) => { for (let j = 0; j < row.length; j++) {
-    const ch = row[j]; if (ch === " ") continue;
-    const isHead = ch === "H";
-    ctx.fillStyle = isHead ? T.belly : color;
-    ctx.fillText(isHead ? head : ch, (c0 + j) * cellW, (r0 + i) * cellH);
-  } });
+// ---------- halftone pass (WebGL) ----------
+const dots = $("dots"), labels = $("labels"), lctx = labels.getContext("2d");
+let gl, prog, tex, uRes, uPitch, uBg, pitchCss = 4, halftone = true, dpr = 1;
+const VS = "attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }";
+const FS = `precision mediump float; uniform sampler2D t; uniform vec2 res; uniform float pitch; uniform vec3 bg;
+void main(){
+  vec2 cell = floor(gl_FragCoord.xy / pitch); vec2 ctr = (cell + 0.5) * pitch;
+  vec3 c = texture2D(t, ctr / res).rgb;
+  float lum = dot(c, vec3(0.299, 0.587, 0.114)); float bl = dot(bg, vec3(0.299, 0.587, 0.114));
+  float f = clamp((lum - bl) / (1.0 - bl), 0.0, 1.0);
+  float r = 0.5 * pitch * (0.12 + 0.92 * sqrt(f));
+  float d = distance(gl_FragCoord.xy, ctr);
+  float a = 1.0 - smoothstep(r - 0.6, r + 0.6, d);
+  gl_FragColor = vec4(mix(bg, c, a), 1.0);
+}`;
+function initGL() {
+  gl = dots.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+  if (!gl) return false;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  uRes = gl.getUniformLocation(prog, "res"); uPitch = gl.getUniformLocation(prog, "pitch"); uBg = gl.getUniformLocation(prog, "bg");
+  gl.uniform3fv(uBg, hex2rgb(PAL.ground));
+  return true;
+}
+function resize() {
+  const r = $("wrap").getBoundingClientRect();
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const pitch = pitchCss * dpr;
+  dots.width = labels.width = Math.round(r.width * dpr); dots.height = labels.height = Math.round(r.height * dpr);
+  // one scene pixel per dot
+  cam.W = scene.width = Math.ceil(dots.width / pitch); cam.H = scene.height = Math.ceil(dots.height / pitch);
+  cam.focal = cam.H * 0.8;
+  if (gl) { gl.viewport(0, 0, dots.width, dots.height); gl.uniform2f(uRes, dots.width, dots.height); gl.uniform1f(uPitch, pitch); }
+}
+function composite() {
+  if (gl && halftone) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, scene);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  } else {
+    const c2 = dots.getContext("2d"); if (!c2) return;
+    c2.imageSmoothingEnabled = false; c2.drawImage(scene, 0, 0, dots.width, dots.height);
+  }
+  // crisp labels on top
+  lctx.clearRect(0, 0, labels.width, labels.height);
+  lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const k = (pitchCss * dpr) / dpr;  // scene px -> css px
+  lctx.font = "600 13px ui-monospace, 'SF Mono', Menlo, Consolas, monospace"; lctx.textBaseline = "middle";
+  const tag = (s, text, color) => {
+    if (!s) return; const x = s[0] * k + 10, y = s[1] * k;
+    const w = lctx.measureText(text).width + 12;
+    lctx.fillStyle = PAL.ground; lctx.fillRect(x - 6, y - 10, w, 20);
+    lctx.fillStyle = color; lctx.fillText(text, x, y);
+  };
+  for (const c of world.corpses) tag(c.screen, `${c.agent}  ${c.label}`, PAL.salt);
+  const f = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done && !b.flipped);
+  if (f) tag(f.screen, f.agent, f.color);
+  lctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-function render() {
-  const T = THEMES[world.theme];
-  if (!world.terrainCanvas) return;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(world.terrainCanvas, 0, 0); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.font = `${fontPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`; ctx.textBaseline = "top";
-  const t = now();
-  // trails
-  for (const [k, v] of world.trails) {
-    const age = t - v.t;
-    if (age > TRAIL_LIFE) { world.trails.delete(k); continue; }
-    const f = Math.max(0, age / TRAIL_LIFE);
-    ctx.globalAlpha = reduced ? 0.8 : 0.15 + 0.85 * (1 - f);
-    ctx.fillStyle = v.color;
-    ctx.fillText(TRAIL[Math.min(TRAIL.length - 1, Math.floor(f * TRAIL.length))], (k % cols) * cellW, Math.floor(k / cols) * cellH);
-  }
-  ctx.globalAlpha = 1;
-  // flipped beetles stay
-  for (const c of world.corpses) {
-    drawSprite(SPRITES.dead[0], c.x, c.y, c.color, "");
-    ctx.fillStyle = T.belly; ctx.fillText("░", (Math.round(c.x)) * cellW, (Math.round(c.y)) * cellH);
-    ctx.fillStyle = T.ink; ctx.globalAlpha = 0.9;
-    ctx.fillText(`${c.agent}  ${c.label}`, (Math.round(c.x) + 4) * cellW, (Math.round(c.y) - 1) * cellH);
-    ctx.globalAlpha = 1;
-  }
-  for (const b of world.beetles) {
-    if (b.done) continue;
-    if (b.flipT > 0) continue; // the corpse is drawn instead
-    drawSprite(SPRITES[b.face][b.frame], b.x, b.y, b.color, HEAD[b.face]);
-  }
-}
-
+// ---------- loop ----------
+let lastT = 0;
 function frame(ts) {
   const t = ts / 1000, dt = Math.min(0.05, t - (lastT || t)); lastT = t;
-  if (!reduced) step(dt);
-  render();
+  if (world.pts.length) {
+    if (!reduced) stepSim(dt, t);
+    updateCamera(dt);
+    drawScene(t);
+    composite();
+  }
   requestAnimationFrame(frame);
 }
 
 // ---------- data + controls ----------
 async function getJSON(p) { const r = await fetch(p, { cache: "no-store" }); if (!r.ok) throw new Error(`${p}: HTTP ${r.status}`); return r.json(); }
+function renderLegend() {
+  const trust = Object.fromEntries((world.data.trust || []).map((t) => [t.agent_id, t.score]));
+  $("legend").innerHTML = `<button data-agent="" aria-pressed="${world.follow ? "false" : "true"}">follow the swarm</button>` + world.beetles.map((b) =>
+    `<button data-agent="${b.agent}" aria-pressed="${world.follow === b.agent}"><span class="sp" style="background:${b.color}"></span><b>${b.agent}</b> ${b.co.name}${trust[b.agent] != null ? `, trust ${trust[b.agent].toFixed(2)}` : ""}</button>`).join("");
+  $("legend").querySelectorAll("button").forEach((btn) => { btn.onclick = () => { world.follow = btn.dataset.agent || null; renderLegend(); }; });
+}
 async function load() {
   try {
     const [steps, divs, regions, trust] = await Promise.all(["/api/steps", "/api/divergences", "/api/regions", "/api/trust"].map(getJSON));
     world.data = { steps, divs, regions, trust };
-    rebuild();
+    if (!layout()) { $("caption").textContent = "no reasoning steps with embeddings yet"; return; }
+    world.beetles = makeBeetles(); world.trails = []; world.corpses = [];
+    const doomed = world.beetles.find((b) => b.wps.some((w) => w.root)); if (doomed) world.follow = doomed.agent;
+    cam.tx = world.beetles.reduce((s, b) => s + b.wps[1].x, 0) / world.beetles.length; cam.ty = world.beetles.reduce((s, b) => s + b.wps[1].y, 0) / world.beetles.length;
+    if (reduced) world.beetles.forEach((b) => { const l = b.wps[b.wps.length - 2]; b.x = l.x; b.y = l.y; b.wps.forEach((w) => world.trails.push({ x: w.x, y: w.y, color: b.color, t: now() - TRAIL_LIFE * 0.4 })); });
+    const flipped = Object.keys(world.roots).filter((rid) => [...world.byAgent.values()].some((rs) => rs.some((r) => r.rid === rid))).length;
+    $("caption").textContent = `${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped`;
+    renderLegend();
   } catch (e) { $("caption").textContent = `could not load the swarm: ${e.message}`; }
 }
-function setTheme(name) {
-  world.theme = name; document.documentElement.dataset.theme = name;
-  $("t-night").setAttribute("aria-pressed", String(name === "night")); $("t-salt").setAttribute("aria-pressed", String(name === "salt"));
-  if (world.data) rebuild();
-}
-$("t-night").onclick = () => setTheme("night");
-$("t-salt").onclick = () => setTheme("salt");
-$("t-heldout").onclick = () => { world.heldout = !world.heldout; $("t-heldout").setAttribute("aria-pressed", String(world.heldout)); if (world.data) rebuild(); };
-let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => world.data && rebuild(), 200); });
-
-$("swatches").innerHTML = [["#22231A", "ground", "page, night sky"], ["#2E2F23", "soil", "flats"], ["#464831", "scrub", "low slopes"], ["#87826E", "sage", "mid slopes, quiet text"], ["#734E30", "bark", "high slopes, contours, pit rims"], ["#F1EBE4", "salt", "text, peaks, beetle heads"], ["#0866FF", "Meta", "meta beetles"], ["#9168C0", "Gemini", "gemini beetles"], ["#D97757", "Claude", "claude beetles"]]
+document.querySelectorAll("button[data-pitch]").forEach((btn) => { btn.onclick = () => { pitchCss = +btn.dataset.pitch; document.querySelectorAll("button[data-pitch]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn))); resize(); }; });
+$("halftone").onclick = () => { halftone = !halftone; $("halftone").setAttribute("aria-pressed", String(halftone)); if (!halftone) { /* 2D fallback needs a fresh canvas */ } };
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(resize, 150); });
+$("swatches").innerHTML = [["#22231A", "ground", "page, sky, the space between dots"], ["#2E2F23", "soil", "shadowed ground, fog"], ["#464831", "scrub", "low light"], ["#734E30", "bark", "warm slopes, horizon"], ["#87826E", "sage", "lit slopes, quiet text"], ["#F1EBE4", "salt", "ridge tops, text, bellies"], ["#0866FF", "Meta", "meta beetles"], ["#9168C0", "Gemini", "gemini beetles"], ["#D97757", "Claude", "claude beetles"]]
   .map(([hex, name, role]) => `<div class="sw"><i style="background:${hex}"></i><b>${name}</b> ${hex}<small>${role}</small></div>`).join("");
 
+if (!initGL()) { halftone = false; $("halftone").disabled = true; }
+resize();
 load();
 requestAnimationFrame(frame);
 </script>
