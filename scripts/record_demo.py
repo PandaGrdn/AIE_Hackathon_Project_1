@@ -75,7 +75,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--n-fuzz", type=int, default=10, help="fuzz draws per pinned function in the verdict (evidence only when spec tests exist; default 10)")
     ap.add_argument("--agent-timeout", type=int, default=360, help="wall-clock cap per agent, seconds (default 360)")
     ap.add_argument("--max-turns", type=int, default=40, help="model turns per agent (default 40)")
-    ap.add_argument("--token-budget", type=int, default=1_000_000, help="cumulative tokens per agent (default 1,000,000)")
+    ap.add_argument("--token-budget", type=int, default=3_000_000, help="cumulative tokens per agent (default 3,000,000; history is compacted, see runner._compact_history)")
+    ap.add_argument("--start-subtask", type=int, default=0,
+                    help="phase a only: resume Task A at this subtask index: no repo reset (uses --resume-branch), store loaded from the existing Task A snapshot")
+    ap.add_argument("--resume-branch", default="record-demo/a", help="with --start-subtask: the clone branch holding the earlier subtasks' commits")
     ap.add_argument("--regression", default="tests/server tests/shared", help="repo-relative regression suite dirs (default 'tests/server tests/shared')")
     ap.add_argument("--base-commit", default=None, help=f"base commit to reset the clone to (default demo_task/mcp/base_commit, else {DEFAULT_BASE})")
     ap.add_argument("--lessons-snapshot", default=None, help="store loaded for b1 (default <out>/mcp_snapshot.json, Task A's snapshot)")
@@ -409,12 +412,28 @@ def run_phase(phase: str, args, con) -> dict:
 
         task = decompose(load_task(TASK_A if phase == "a" else TASK_B))
         repo = Path(task.repo_path)
-        reset = reset_repo(repo, base, keep_as=f"record-demo/pre-{phase}")
-        con.print(f"reset {repo} to {base} on branch swarm (previous HEAD {reset['previous_head']}"
-                  + (f" kept as {reset['kept_branch']}" if reset["kept_branch"] else "") + (", edits stashed" if reset["stashed"] else "") + ")")
+        resuming = phase == "a" and args.start_subtask > 0
+        if resuming:
+            from eval.heldout_specs import _git
+
+            _git(repo, "checkout", "-q", "-B", "swarm", args.resume_branch)
+            con.print(f"resume Task A at subtask {args.start_subtask}: {repo} on branch swarm = {args.resume_branch} "
+                      f"({_git(repo, 'rev-parse', '--short', 'HEAD').stdout.strip()}); no reset")
+        else:
+            reset = reset_repo(repo, base, keep_as=f"record-demo/pre-{phase}")
+            con.print(f"reset {repo} to {base} on branch swarm (previous HEAD {reset['previous_head']}"
+                      + (f" kept as {reset['kept_branch']}" if reset["kept_branch"] else "") + (", edits stashed" if reset["stashed"] else "") + ")")
 
         store_start: dict[str, Any] = {}
-        if phase == "b1":
+        if resuming:
+            from ui.server import load_snapshot
+
+            src = lessons_snapshot(args)
+            if not src.is_file():
+                raise FileNotFoundError(f"resume needs the earlier Task A snapshot {src}")
+            store = load_snapshot(src)
+            store_start = {"snapshot": str(src), "trust_carried": True, "resumed_at_subtask": args.start_subtask}
+        elif phase == "b1":
             from ui.server import load_snapshot
 
             src = lessons_snapshot(args)
@@ -436,6 +455,8 @@ def run_phase(phase: str, args, con) -> dict:
                 con.print("[yellow]warning: no adopted lessons in the snapshot; b1 will match b0 except for trust")
 
         kw: dict[str, Any] = dict(swarm_size=args.swarm_size, n_fuzz=args.n_fuzz, snapshot_path=snap)
+        if resuming:
+            kw["start_index"] = args.start_subtask
         if phase == "a":
             from eval.heldout_runner import make_heldout_runner
 

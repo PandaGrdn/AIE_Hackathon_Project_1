@@ -36,6 +36,28 @@ from core.swarm.tools import AGENT_TOOLS, GATED_TOOLS
 MAX_TURNS = 40
 
 
+KEEP_FULL_RESULTS = 4  # tool results older than this many are elided in the history sent to the model
+ELIDED_RESULT_CHARS = 400
+
+
+def _compact_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """History is replayed as text every turn, so input tokens grow with every file read: four agents hit a
+    1M-token budget on one subtask that way. Keep the last KEEP_FULL_RESULTS tool results verbatim and cut
+    older ones to their head; the model still sees what it did, not every byte it read."""
+    idx = [i for i, m in enumerate(messages) if m.get("role") == "user" and str(m.get("content", "")).startswith("[") and " result]" in str(m.get("content", ""))[:40]]
+    old = set(idx[:-KEEP_FULL_RESULTS]) if len(idx) > KEEP_FULL_RESULTS else set()
+    if not old:
+        return messages
+    out = []
+    for i, m in enumerate(messages):
+        if i in old and len(str(m.get("content", ""))) > ELIDED_RESULT_CHARS:
+            c = str(m["content"])
+            out.append({**m, "content": c[:ELIDED_RESULT_CHARS] + f"\n… [{len(c) - ELIDED_RESULT_CHARS} chars elided; re-read the file if you need it]"})
+        else:
+            out.append(m)
+    return out
+
+
 def _call_summary(call: dict[str, Any], limit: int = 240) -> str:
     """One line per tool call for the transcript, so a run's path can be densified from its actions
     (scripts/densify_paths.py): what was written/read/run, not just the tool name."""
@@ -224,7 +246,7 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
                     run.error = f"timeout: agent exceeded {settings.agent_timeout_s}s"
                     break
                 t_turn = time.time()
-                resp = client.chat(messages, tools=AGENT_TOOLS)
+                resp = client.chat(_compact_history(messages), tools=AGENT_TOOLS)
                 st.turns += 1
                 trace.append({"turn": st.turns, "chat_s": round(time.time() - t_turn, 1), "usage": resp.get("usage"),
                               "text": (resp.get("text") or "")[:2000],

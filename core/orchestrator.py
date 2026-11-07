@@ -211,8 +211,12 @@ def run_task(
     n_fuzz: int | None = None,
     swarm_size: int | None = None,
     snapshot_path: str | Path | None = None,
+    start_index: int = 0,
 ) -> dict:
     """Run every subtask in order, stopping at the first one that does not verify.
+
+    `start_index` resumes a long task: subtasks below it are assumed already committed in the repo (and the
+    store, e.g. loaded from the previous snapshot, already holds their lessons and trust).
 
     With `snapshot_path`, the store is written there as a UI snapshot (ui.server.write_snapshot)
     after each subtask and again at the end (also when a subtask raises). Before each write the
@@ -237,6 +241,8 @@ def run_task(
 
     try:
         for st in sorted(task.subtasks, key=lambda s: s.index):
+            if st.index < start_index:
+                continue
             rep: dict[str, Any] = {}
             per_subtask.append(rep)
             try:
