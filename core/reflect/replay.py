@@ -6,6 +6,10 @@ is a confirmed root cause (`div.confirmed = True`, "replay" added to `div.signal
 next candidates, at most `max_retries` more times. An unconfirmed divergence still produces a lesson,
 but `dedup_or_insert(..., confirmed=False)` caps its confidence and withholds its failure region.
 
+This is the execution-based confirmation; `reflector.reflect` separately asks SubQ (a decision model)
+for the root-cause step and appends "subq" to `signals`. A failed replay never clears a SubQ
+confirmation: it only ever adds evidence.
+
 Fully injectable: `runner(lessons_block) -> AgentRun` defaults to `core.swarm.runner.run_one`, and
 `checker(run, case, expected) -> bool` defaults to the harness (`run_cases` for a function case,
 `run_pytest` for a pytest case). Tests pass fakes for both and never call an LLM.
@@ -106,5 +110,5 @@ def confirm(
                 div.signals.append("replay")
             div.confirmed = True
             return True
-    div.confirmed = False
+    # no candidate fixed the case: leave any earlier confirmation (SubQ's "subq" signal) as it was
     return False
