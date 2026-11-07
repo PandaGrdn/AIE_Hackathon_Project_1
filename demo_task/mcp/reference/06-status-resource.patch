@@ -1,0 +1,330 @@
+From e02c57bd4e7ef6f81fbdd4eb025f8692f5db9416 Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:21:51 -0800
+Subject: [PATCH 6/7] S6: usage status resource
+
+LimitEnforcer.snapshot() and MCPServer.enable_limits_resource(): a static
+limits_status resource whose JSON report MCPServer.read_resource() builds at
+read time for the calling session.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/server/mcpserver/limits.py            |  18 +-
+ src/mcp/server/mcpserver/server.py            |  30 +++
+ .../test_limits_s6_status_resource.py         | 199 ++++++++++++++++++
+ 3 files changed, 246 insertions(+), 1 deletion(-)
+ create mode 100644 tests/server/mcpserver/test_limits_s6_status_resource.py
+
+diff --git a/src/mcp/server/mcpserver/limits.py b/src/mcp/server/mcpserver/limits.py
+index ff65646..cd80207 100644
+--- a/src/mcp/server/mcpserver/limits.py
++++ b/src/mcp/server/mcpserver/limits.py
+@@ -12,7 +12,7 @@ import math
+ import time
+ from collections import deque
+ from collections.abc import Callable, Sequence
+-from typing import Literal
++from typing import Any, Literal
+ 
+ from pydantic import BaseModel, Field
+ 
+@@ -219,6 +219,22 @@ class LimitEnforcer:
+             return None
+         return decision.remaining + 1 if decision.allowed else 0
+ 
++    def snapshot(
++        self, tools: dict[str, LimitPolicy], scope_key: str | None, now: float | None = None
++    ) -> dict[str, Any]:
++        """A JSON-serializable usage report for `tools`, as seen from `scope_key`. Records nothing."""
++        now = self._now(now)
++        return {
++            "tools": {
++                name: {
++                    "policy": policy.model_dump(mode="json"),
++                    "remaining": self.remaining(name, policy, scope_key, now),
++                    "scope": policy.scope,
++                }
++                for name, policy in tools.items()
++            }
++        }
++
+     def forget_scope(self, scope_key: str) -> None:
+         """Drop every session-scoped state tracked under `scope_key`, for all tools."""
+         for key in [k for k in self._states if isinstance(k, tuple) and k[1] == scope_key]:
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index d3d777e..ce28fdc 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ 
+ import base64
+ import inspect
++import json
+ from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
+ from contextlib import AbstractAsyncContextManager, asynccontextmanager
+ from typing import Any, Generic, Literal, TypeVar, cast, overload
+@@ -88,6 +89,7 @@ from mcp.server.mcpserver.resources import (
+     ResourceSecurity,
+ )
+ from mcp.server.mcpserver.tools import Tool, ToolManager
++from mcp.server.mcpserver.tools.tool_manager import session_scope_key
+ from mcp.server.mcpserver.utilities.context_injection import find_context_parameter
+ from mcp.server.mcpserver.utilities.logging import configure_logging, get_logger
+ from mcp.server.request_state import RequestStateBoundary, RequestStateSecurity
+@@ -203,6 +205,8 @@ class MCPServer(Generic[LifespanResultT]):
+             resources=resources, warn_on_duplicate_resources=self.settings.warn_on_duplicate_resources
+         )
+         self._prompt_manager = PromptManager(warn_on_duplicate_prompts=self.settings.warn_on_duplicate_prompts)
++        # URIs registered by `enable_limits_resource`, read per calling session in `read_resource`.
++        self._limits_resources: dict[str, Resource] = {}
+         # The subscriptions/listen fan-out seam (2026-07-28). The default bus is
+         # in-process; pass an `SubscriptionBus` implementation over an external pub/sub
+         # backend to fan events out across replicas. `False` leaves `subscriptions/listen`
+@@ -606,6 +610,11 @@ class MCPServer(Generic[LifespanResultT]):
+         """
+         if context is None:
+             context = Context(mcp_server=self, subscriptions=self._subscriptions)
++        limits_resource = self._limits_resources.get(str(uri))
++        if limits_resource is not None:
++            # A static resource cannot take a Context, so the per-session report is built here.
++            content = self._limits_status_json(session_scope_key(context))
++            return [ReadResourceContents(content=content, mime_type="application/json", meta=limits_resource.meta)]
+         try:
+             resource = await self._resource_manager.get_resource(uri, context)
+             if isinstance(resource, InputRequiredResult):
+@@ -806,6 +815,27 @@ class MCPServer(Generic[LifespanResultT]):
+         """
+         self._resource_manager.add_resource(resource)
+ 
++    def enable_limits_resource(self, uri: str = "limits://status") -> None:
++        """Serve a JSON report of every limited tool's policy and remaining calls at `uri`.
++
++        The report is computed when the resource is read, for the reading session:
++        `{"tools": {name: {"policy": {...}, "remaining": int | None, "scope": "server" | "session"}}}`.
++        """
++        if uri in self._limits_resources:
++            return
++        resource = FunctionResource.from_function(
++            fn=lambda: self._limits_status_json(None),
++            uri=uri,
++            name="limits_status",
++            mime_type="application/json",
++        )
++        if self._resource_manager.add_resource(resource) is resource:
++            self._limits_resources[uri] = resource
++
++    def _limits_status_json(self, scope_key: str | None) -> str:
++        tools = {tool.name: tool.limits for tool in self._tool_manager.list_tools() if tool.limits is not None}
++        return json.dumps(self._tool_manager.enforcer.snapshot(tools, scope_key))
++
+     def resource(
+         self,
+         uri: str,
+diff --git a/tests/server/mcpserver/test_limits_s6_status_resource.py b/tests/server/mcpserver/test_limits_s6_status_resource.py
+new file mode 100644
+index 0000000..86027b7
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s6_status_resource.py
+@@ -0,0 +1,199 @@
++"""S6: the JSON usage status resource."""
++
++import json
++from typing import Any
++
++import pytest
++from mcp_types import InputRequiredResult, TextResourceContents
++
++from mcp.client import Client
++from mcp.server.mcpserver import Context, MCPServer
++from mcp.server.mcpserver.limits import LimitEnforcer, LimitPolicy, Quota, RateLimit
++
++pytestmark = pytest.mark.anyio
++
++SESSION = LimitPolicy(quota=Quota(max_calls=3), scope="session")
++RATE = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=10))
++
++
++class FakeClock:
++    def __init__(self, now: float = 0.0) -> None:
++        self.now = now
++
++    def __call__(self) -> float:
++        return self.now
++
++
++class TestSnapshot:
++    def test_shape(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        enforcer.record("search", SESSION, "s1")
++        snap = enforcer.snapshot({"search": SESSION, "fetch": RATE, "free": LimitPolicy()}, "s1")
++        assert snap == {
++            "tools": {
++                "search": {
++                    "policy": {"rate_limit": None, "quota": {"max_calls": 3}, "scope": "session"},
++                    "remaining": 2,
++                    "scope": "session",
++                },
++                "fetch": {
++                    "policy": {"rate_limit": {"max_calls": 2, "per_seconds": 10.0}, "quota": None, "scope": "server"},
++                    "remaining": 2,
++                    "scope": "server",
++                },
++                "free": {
++                    "policy": {"rate_limit": None, "quota": None, "scope": "server"},
++                    "remaining": None,
++                    "scope": "server",
++                },
++            }
++        }
++        assert list(snap["tools"]) == ["search", "fetch", "free"]
++        assert json.loads(json.dumps(snap)) == snap
++
++    def test_empty(self):
++        assert LimitEnforcer().snapshot({}, None) == {"tools": {}}
++
++    def test_exhausted_reports_zero(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = LimitPolicy(quota=Quota(max_calls=1))
++        enforcer.record("t", policy, None)
++        assert enforcer.snapshot({"t": policy}, None)["tools"]["t"]["remaining"] == 0
++
++    def test_records_nothing(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        for _ in range(5):
++            enforcer.snapshot({"t": RATE}, None)
++        assert enforcer.remaining("t", RATE, None) == 2
++
++    def test_explicit_now(self):
++        enforcer = LimitEnforcer(clock=FakeClock(0.0))
++        enforcer.record("t", RATE, None)
++        enforcer.record("t", RATE, None)
++        assert enforcer.snapshot({"t": RATE}, None, now=5.0)["tools"]["t"]["remaining"] == 0
++        assert enforcer.snapshot({"t": RATE}, None, now=10.0)["tools"]["t"]["remaining"] == 2
++
++    def test_session_policy_without_scope_key_reports_server_budget(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        enforcer.record("search", SESSION, None)
++        enforcer.record("search", SESSION, "s1")
++        enforcer.record("search", SESSION, "s1")
++        assert enforcer.snapshot({"search": SESSION}, None)["tools"]["search"]["remaining"] == 2
++        assert enforcer.snapshot({"search": SESSION}, "s1")["tools"]["search"]["remaining"] == 1
++        assert enforcer.snapshot({"search": SESSION}, "s2")["tools"]["search"]["remaining"] == 3
++
++
++def make_server() -> MCPServer:
++    mcp = MCPServer()
++    mcp._tool_manager.enforcer = LimitEnforcer(clock=FakeClock())
++
++    @mcp.tool(limits=SESSION)
++    def search() -> str:
++        return "found"
++
++    @mcp.tool()
++    def unlimited() -> str:  # pragma: no cover
++        return "free"
++
++    return mcp
++
++
++async def read_status(client: Client, uri: str = "limits://status") -> dict[str, Any]:
++    result = await client.read_resource(uri)
++    [contents] = result.contents
++    assert isinstance(contents, TextResourceContents)
++    assert contents.mime_type == "application/json"
++    return json.loads(contents.text)
++
++
++async def read_direct(mcp: MCPServer, uri: str = "limits://status", context: Context | None = None) -> Any:
++    result = await mcp.read_resource(uri, context)
++    assert not isinstance(result, InputRequiredResult)
++    [item] = list(result)
++    assert item.mime_type == "application/json"
++    assert isinstance(item.content, str)
++    return json.loads(item.content)
++
++
++class TestLimitsResource:
++    async def test_listed(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++        [resource] = await mcp.list_resources()
++        assert str(resource.uri) == "limits://status"
++        assert resource.name == "limits_status"
++        assert resource.mime_type == "application/json"
++
++    async def test_spec_example_per_session(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++        expected_policy = {"rate_limit": None, "quota": {"max_calls": 3}, "scope": "session"}
++        async with Client(mcp, mode="legacy") as a, Client(mcp, mode="legacy") as b:
++            assert (await a.call_tool("search", {})).is_error is False
++            assert await read_status(a) == {
++                "tools": {"search": {"policy": expected_policy, "remaining": 2, "scope": "session"}}
++            }
++            assert (await read_status(b))["tools"]["search"]["remaining"] == 3
++
++    async def test_direct_read_uses_server_scope(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++        await mcp.call_tool("search", {})
++        snapshot = await read_direct(mcp)
++        assert snapshot["tools"]["search"]["remaining"] == 2
++        assert list(snapshot["tools"]) == ["search"]
++
++    async def test_stateless_client_sees_server_scope(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++        async with Client(mcp) as client:
++            await client.call_tool("search", {})
++            assert (await read_status(client))["tools"]["search"]["remaining"] == 2
++
++    async def test_computed_at_read_time(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++        assert list((await read_direct(mcp))["tools"]) == ["search"]
++        mcp.add_tool(lambda: "x", name="late", limits=RATE)
++        mcp._tool_manager.set_limits("search", None)
++        snapshot = await read_direct(mcp)
++        assert snapshot == {
++            "tools": {"late": {"policy": RATE.model_dump(mode="json"), "remaining": 2, "scope": "server"}}
++        }
++
++    async def test_no_limited_tools(self):
++        mcp = MCPServer()
++        mcp.enable_limits_resource()
++        assert await read_direct(mcp) == {"tools": {}}
++
++    async def test_enabling_twice_adds_nothing(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++        mcp.enable_limits_resource()
++        assert len(await mcp.list_resources()) == 1
++
++    async def test_custom_uri(self):
++        mcp = make_server()
++        mcp.enable_limits_resource("status://limits/tools")
++        [resource] = await mcp.list_resources()
++        assert str(resource.uri) == "status://limits/tools"
++        async with Client(mcp) as client:
++            assert "search" in (await read_status(client, "status://limits/tools"))["tools"]
++
++    async def test_other_resources_unchanged(self):
++        mcp = make_server()
++        mcp.enable_limits_resource()
++
++        @mcp.resource("data://hello")
++        def hello() -> str:
++            return "hello"
++
++        async with Client(mcp) as client:
++            result = await client.read_resource("data://hello")
++        [contents] = result.contents
++        assert isinstance(contents, TextResourceContents)
++        assert contents.text == "hello"
++
++    async def test_not_enabled_by_default(self):
++        mcp = make_server()
++        assert await mcp.list_resources() == []
+-- 
+2.54.0 (Apple Git-157)
+

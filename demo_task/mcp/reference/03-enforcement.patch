@@ -1,0 +1,760 @@
+From 8041b4565efa4ea5e21f28765d90990c0c4bbb7d Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:14:06 -0800
+Subject: [PATCH 3/7] S3: enforce limit policies on tool calls
+
+LimitEnforcer (injectable clock, per-tool and per-session state; a changed
+policy starts a fresh history), session_scope_key() in tools/tool_manager.py
+(connection-based, None on the stateless 2026-07-28 protocol), the pre-call
+check in ToolManager.call_tool with the exact ToolError messages, recording
+at completion time only after a normal non-InputRequiredResult return,
+remove_tool resetting the budget, and limits= on MCPServer.tool() and
+MCPServer.add_tool().
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/server/mcpserver/limits.py            |  70 ++-
+ src/mcp/server/mcpserver/server.py            |   9 +
+ .../server/mcpserver/tools/tool_manager.py    |  70 ++-
+ .../mcpserver/test_limits_s3_enforcement.py   | 468 ++++++++++++++++++
+ 4 files changed, 610 insertions(+), 7 deletions(-)
+ create mode 100644 tests/server/mcpserver/test_limits_s3_enforcement.py
+
+diff --git a/src/mcp/server/mcpserver/limits.py b/src/mcp/server/mcpserver/limits.py
+index 56350dc..6297ce1 100644
+--- a/src/mcp/server/mcpserver/limits.py
++++ b/src/mcp/server/mcpserver/limits.py
+@@ -2,14 +2,16 @@
+ 
+ A `LimitPolicy` combines an optional sliding-window `RateLimit` with an optional
+ lifetime `Quota`. `evaluate` is the pure decision function; `LimitState` keeps
+-the call history for one policy in memory.
++the call history for one policy in memory, and `LimitEnforcer` owns one
++`LimitState` per tool (and per session for session-scoped policies).
+ """
+ 
+ from __future__ import annotations
+ 
+ import math
++import time
+ from collections import deque
+-from collections.abc import Sequence
++from collections.abc import Callable, Sequence
+ from typing import Literal
+ 
+ from pydantic import BaseModel, Field
+@@ -160,3 +162,67 @@ class LimitState:
+         self._window.clear()
+         self._total = 0
+         self._last = None
++
++
++_StateKey = str | tuple[str, str]
++
++
++class LimitEnforcer:
++    """Tracks calls per tool and decides whether the next one is allowed.
++
++    Server-scoped policies share one `LimitState` per tool name; session-scoped
++    policies get one per `(tool_name, scope_key)`. A session-scoped policy with
++    no `scope_key` falls back to the server-scoped state.
++    """
++
++    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
++        self.clock = clock
++        self._states: dict[_StateKey, LimitState] = {}
++
++    @staticmethod
++    def _key(tool_name: str, policy: LimitPolicy, scope_key: str | None) -> _StateKey:
++        if policy.scope == "session" and scope_key is not None:
++            return (tool_name, scope_key)
++        return tool_name
++
++    def _state(self, tool_name: str, policy: LimitPolicy, scope_key: str | None, *, store: bool) -> LimitState:
++        key = self._key(tool_name, policy, scope_key)
++        state = self._states.get(key)
++        if state is None or state.policy != policy:
++            # First use, or the policy changed (e.g. `set_limits`): start from an empty history.
++            state = LimitState(policy)
++            if store:
++                self._states[key] = state
++            else:
++                self._states.pop(key, None)
++        return state
++
++    def _now(self, now: float | None) -> float:
++        return self.clock() if now is None else now
++
++    def decide(
++        self, tool_name: str, policy: LimitPolicy, scope_key: str | None, now: float | None = None
++    ) -> LimitDecision:
++        """Decide whether a call is allowed now, without recording it."""
++        return self._state(tool_name, policy, scope_key, store=False).check(self._now(now))
++
++    def record(self, tool_name: str, policy: LimitPolicy, scope_key: str | None, now: float | None = None) -> None:
++        """Record a completed call."""
++        self._state(tool_name, policy, scope_key, store=True).record(self._now(now))
++
++    def remaining(
++        self, tool_name: str, policy: LimitPolicy, scope_key: str | None, now: float | None = None
++    ) -> int | None:
++        """Calls that may still be made right now; `None` when the policy sets no limit."""
++        decision = self.decide(tool_name, policy, scope_key, now)
++        if decision.remaining is None:
++            return None
++        return decision.remaining + 1 if decision.allowed else 0
++
++    def reset(self, tool_name: str | None = None) -> None:
++        """Forget recorded calls for one tool (every scope), or for all tools."""
++        if tool_name is None:
++            self._states.clear()
++            return
++        for key in [k for k in self._states if k == tool_name or (isinstance(k, tuple) and k[0] == tool_name)]:
++            del self._states[key]
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index 7efa291..f67a400 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -78,6 +78,7 @@ from mcp.server.mcpserver.exceptions import (
+     UnexpectedResourceError,
+     UnexpectedToolError,
+ )
++from mcp.server.mcpserver.limits import LimitPolicy
+ from mcp.server.mcpserver.prompts import Prompt, PromptManager
+ from mcp.server.mcpserver.resources import (
+     DEFAULT_RESOURCE_SECURITY,
+@@ -625,6 +626,8 @@ class MCPServer(Generic[LifespanResultT]):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        *,
++        limits: LimitPolicy | None = None,
+     ) -> None:
+         """Add a tool to the server.
+ 
+@@ -643,6 +646,7 @@ class MCPServer(Generic[LifespanResultT]):
+                 - If None, auto-detects based on the function's return type annotation
+                 - If True, creates a structured tool (return type annotation permitting)
+                 - If False, unconditionally creates an unstructured tool
++            limits: Optional rate limit and quota; a denied call returns an error result
+         """
+         self._tool_manager.add_tool(
+             fn,
+@@ -653,6 +657,7 @@ class MCPServer(Generic[LifespanResultT]):
+             icons=icons,
+             meta=meta,
+             structured_output=structured_output,
++            limits=limits,
+         )
+ 
+     def remove_tool(self, name: str) -> None:
+@@ -675,6 +680,8 @@ class MCPServer(Generic[LifespanResultT]):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        *,
++        limits: LimitPolicy | None = None,
+     ) -> Callable[[_CallableT], _CallableT]:
+         """Decorator to register a tool.
+ 
+@@ -693,6 +700,7 @@ class MCPServer(Generic[LifespanResultT]):
+                 - If None, auto-detects based on the function's return type annotation
+                 - If True, creates a structured tool (return type annotation permitting)
+                 - If False, unconditionally creates an unstructured tool
++            limits: Optional rate limit and quota; a denied call returns an error result
+ 
+         Example:
+             ```python
+@@ -731,6 +739,7 @@ class MCPServer(Generic[LifespanResultT]):
+                 icons=icons,
+                 meta=meta,
+                 structured_output=structured_output,
++                limits=limits,
+             )
+             return fn
+ 
+diff --git a/src/mcp/server/mcpserver/tools/tool_manager.py b/src/mcp/server/mcpserver/tools/tool_manager.py
+index 53b7fbf..035ae06 100644
+--- a/src/mcp/server/mcpserver/tools/tool_manager.py
++++ b/src/mcp/server/mcpserver/tools/tool_manager.py
+@@ -3,10 +3,12 @@ from __future__ import annotations
+ from collections.abc import Callable
+ from typing import TYPE_CHECKING, Any
+ 
+-from mcp_types import Icon, ToolAnnotations
++from mcp_types import Icon, InputRequiredResult, ToolAnnotations
++from mcp_types.version import MODERN_PROTOCOL_VERSIONS
+ 
++from mcp.server.connection import Connection
+ from mcp.server.mcpserver.exceptions import ToolError
+-from mcp.server.mcpserver.limits import LimitPolicy
++from mcp.server.mcpserver.limits import LimitEnforcer, LimitPolicy
+ from mcp.server.mcpserver.tools.base import Tool
+ from mcp.server.mcpserver.utilities.logging import get_logger
+ 
+@@ -17,10 +19,42 @@ if TYPE_CHECKING:
+ logger = get_logger(__name__)
+ 
+ 
++def session_scope_key(context: Context[Any, Any]) -> str | None:
++    """The scope key of the client session a call through `context` belongs to.
++
++    `None` (session-scoped limits fall back to server scope) when there is no
++    request context or the connection speaks a stateless 2026-07-28+ protocol
++    version, where every request gets a fresh connection. Otherwise the
++    transport's session id when it has one (streamable HTTP), else an id for
++    the connection object, which lives as long as the client connection.
++    """
++    try:
++        request_context = context.request_context
++    except ValueError:
++        return None
++    # The `ServerSession` is rebuilt for every request, so its identity says
++    # nothing; the `Connection` it wraps persists across a client's requests.
++    connection = getattr(request_context.session, "_connection", None)
++    if not isinstance(connection, Connection):
++        return None
++    if connection.protocol_version in MODERN_PROTOCOL_VERSIONS:
++        return None
++    if isinstance(connection.session_id, str):
++        return connection.session_id
++    return f"connection:{id(connection)}"
++
++
+ class ToolManager:
+     """Manages MCPServer tools."""
+ 
+-    def __init__(self, warn_on_duplicate_tools: bool = True, *, tools: list[Tool] | None = None):
++    def __init__(
++        self,
++        warn_on_duplicate_tools: bool = True,
++        *,
++        tools: list[Tool] | None = None,
++        enforcer: LimitEnforcer | None = None,
++    ):
++        self.enforcer = enforcer if enforcer is not None else LimitEnforcer()
+         self._tools: dict[str, Tool] = {}
+         for tool in tools or ():
+             if warn_on_duplicate_tools and tool.name in self._tools:
+@@ -91,6 +125,7 @@ class ToolManager:
+         if name not in self._tools:
+             raise ToolError(f"Unknown tool: {name}")
+         del self._tools[name]
++        self.enforcer.reset(name)
+ 
+     async def call_tool(
+         self,
+@@ -99,9 +134,34 @@ class ToolManager:
+         context: Context[LifespanContextT, RequestT],
+         convert_result: bool = False,
+     ) -> Any:
+-        """Call a tool by name with arguments."""
++        """Call a tool by name with arguments.
++
++        A tool with a limit policy is checked before it runs, and the call is
++        recorded only once the tool has returned: a failing call, or a round
++        that returns an `InputRequiredResult`, does not consume the budget.
++
++        Raises:
++            ToolError: If the tool is unknown, its limit policy denies the call,
++                or the tool itself fails (see `Tool.run`).
++        """
+         tool = self.get_tool(name)
+         if not tool:
+             raise ToolError(f"Unknown tool: {name}")
+ 
+-        return await tool.run(arguments, context, convert_result=convert_result)
++        policy = tool.limits
++        if policy is None:
++            return await tool.run(arguments, context, convert_result=convert_result)
++
++        scope_key = session_scope_key(context)
++        decision = self.enforcer.decide(name, policy, scope_key)
++        if not decision.allowed:
++            if decision.reason == "quota":
++                reason_text = "quota exhausted"
++            else:
++                reason_text = f"rate limit exceeded; retry after {decision.retry_after or 0.0:.3f}s"
++            raise ToolError(f"Tool '{name}' {reason_text}")
++
++        result = await tool.run(arguments, context, convert_result=convert_result)
++        if not isinstance(result, InputRequiredResult):
++            self.enforcer.record(name, policy, scope_key)
++        return result
+diff --git a/tests/server/mcpserver/test_limits_s3_enforcement.py b/tests/server/mcpserver/test_limits_s3_enforcement.py
+new file mode 100644
+index 0000000..cfa9882
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s3_enforcement.py
+@@ -0,0 +1,468 @@
++"""S3: enforcing limit policies when a tool is called."""
++
++from typing import Any
++from unittest.mock import MagicMock
++
++import pytest
++from mcp_types import CallToolResult, InputRequiredResult, TextContent
++
++from mcp.client import Client
++from mcp.server.connection import Connection
++from mcp.server.context import ServerRequestContext
++from mcp.server.mcpserver import Context, MCPServer
++from mcp.server.mcpserver.exceptions import ToolError
++from mcp.server.mcpserver.limits import LimitEnforcer, LimitPolicy, Quota, RateLimit
++from mcp.server.mcpserver.tools import ToolManager
++from mcp.server.mcpserver.tools.tool_manager import session_scope_key
++from mcp.server.session import ServerSession
++
++pytestmark = pytest.mark.anyio
++
++
++class FakeClock:
++    def __init__(self, now: float = 100.0) -> None:
++        self.now = now
++
++    def __call__(self) -> float:
++        return self.now
++
++
++def rate(max_calls: int, per_seconds: float, **kwargs: Any) -> LimitPolicy:
++    return LimitPolicy(rate_limit=RateLimit(max_calls=max_calls, per_seconds=per_seconds), **kwargs)
++
++
++def quota(max_calls: int, **kwargs: Any) -> LimitPolicy:
++    return LimitPolicy(quota=Quota(max_calls=max_calls), **kwargs)
++
++
++def make_connection(session_id: str | None = None, protocol_version: str = "2025-11-25") -> Connection:
++    return Connection(MagicMock(), protocol_version=protocol_version, session_id=session_id)
++
++
++def context_for(connection: Connection) -> Context:
++    """A Context for one request on `connection`; each call builds a fresh ServerSession, as the runner does."""
++    request_context: ServerRequestContext[Any, Any] = ServerRequestContext(
++        session=ServerSession(MagicMock(), connection),
++        lifespan_context={},
++        protocol_version=connection.protocol_version,
++        method="tools/call",
++    )
++    return Context(request_context=request_context)
++
++
++def context_for_session(session_id: str) -> Context:
++    return context_for(make_connection(session_id))
++
++
++def limited_server(clock: FakeClock) -> MCPServer:
++    mcp = MCPServer()
++    mcp._tool_manager.enforcer = LimitEnforcer(clock=clock)
++    return mcp
++
++
++def error_text(result: CallToolResult) -> str:
++    assert result.is_error is True
++    content = result.content[0]
++    assert isinstance(content, TextContent)
++    return content.text
++
++
++class TestLimitEnforcer:
++    def test_uses_the_injected_clock(self):
++        clock = FakeClock(0.0)
++        enforcer = LimitEnforcer(clock=clock)
++        policy = rate(1, 10)
++        enforcer.record("t", policy, None)
++        clock.now = 9.0
++        decision = enforcer.decide("t", policy, None)
++        assert decision.allowed is False
++        assert decision.retry_after == pytest.approx(1.0)
++        clock.now = 10.0
++        assert enforcer.decide("t", policy, None).allowed is True
++
++    def test_explicit_now_overrides_the_clock(self):
++        enforcer = LimitEnforcer(clock=FakeClock(1000.0))
++        policy = rate(1, 10)
++        enforcer.record("t", policy, None, now=0.0)
++        assert enforcer.decide("t", policy, None, now=5.0).allowed is False
++        assert enforcer.decide("t", policy, None, now=10.0).allowed is True
++
++    def test_default_clock_is_monotonic(self):
++        enforcer = LimitEnforcer()
++        assert enforcer.decide("t", quota(1), None).allowed is True
++
++    def test_decide_does_not_record(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = quota(1)
++        for _ in range(3):
++            assert enforcer.decide("t", policy, None).allowed is True
++
++    def test_remaining(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = quota(3)
++        assert enforcer.remaining("t", policy, None) == 3
++        enforcer.record("t", policy, None)
++        assert enforcer.remaining("t", policy, None) == 2
++        enforcer.record("t", policy, None)
++        enforcer.record("t", policy, None)
++        assert enforcer.remaining("t", policy, None) == 0
++
++    def test_remaining_is_none_for_an_empty_policy(self):
++        assert LimitEnforcer(clock=FakeClock()).remaining("t", LimitPolicy(), None) is None
++
++    def test_tools_have_separate_state(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = quota(1)
++        enforcer.record("a", policy, None)
++        assert enforcer.decide("a", policy, None).allowed is False
++        assert enforcer.decide("b", policy, None).allowed is True
++
++    def test_server_scope_ignores_scope_key(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = quota(1)
++        enforcer.record("t", policy, "s1")
++        assert enforcer.decide("t", policy, "s2").allowed is False
++        assert enforcer.decide("t", policy, None).allowed is False
++
++    def test_session_scope_keys_by_scope_key(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = quota(1, scope="session")
++        enforcer.record("t", policy, "s1")
++        assert enforcer.decide("t", policy, "s1").allowed is False
++        assert enforcer.decide("t", policy, "s2").allowed is True
++
++    def test_session_scope_without_key_falls_back_to_server_state(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        session_policy = quota(1, scope="session")
++        enforcer.record("t", session_policy, None)
++        assert enforcer.decide("t", session_policy, None).allowed is False
++        assert enforcer.decide("t", session_policy, "s1").allowed is True
++
++    def test_reset_one_tool(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        server_policy = quota(1)
++        session_policy = quota(1, scope="session")
++        enforcer.record("a", server_policy, None)
++        enforcer.record("b", server_policy, None)
++        enforcer.record("s", session_policy, "k")
++        enforcer.reset("a")
++        enforcer.reset("s")
++        assert enforcer.decide("a", server_policy, None).allowed is True
++        assert enforcer.decide("b", server_policy, None).allowed is False
++        assert enforcer.decide("s", session_policy, "k").allowed is True
++
++    def test_reset_all(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = quota(1)
++        enforcer.record("a", policy, None)
++        enforcer.record("b", policy, None)
++        enforcer.reset()
++        assert enforcer.decide("a", policy, None).allowed is True
++        assert enforcer.decide("b", policy, None).allowed is True
++
++    def test_changed_policy_starts_from_empty_history(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        enforcer.record("t", quota(2), None)
++        enforcer.record("t", quota(2), None)
++        assert enforcer.decide("t", quota(2), None).reason == "quota"
++        assert enforcer.remaining("t", quota(3), None) == 3
++        # The old history was discarded, not merely hidden.
++        assert enforcer.remaining("t", quota(2), None) == 2
++
++    def test_clock_called_only_when_now_is_none(self):
++        ticks: list[float] = []
++
++        def clock() -> float:
++            ticks.append(1.0)
++            return 1.0
++
++        enforcer = LimitEnforcer(clock=clock)
++        policy = quota(3)
++        enforcer.record("t", policy, None, now=0.5)
++        enforcer.decide("t", policy, None, now=0.5)
++        enforcer.remaining("t", policy, None, now=0.5)
++        assert ticks == []
++        enforcer.decide("t", policy, None)
++        assert ticks == [1.0]
++
++
++def echo(value: str) -> str:
++    return value
++
++
++class TestToolManagerCallTool:
++    async def test_rate_limit_message(self):
++        clock = FakeClock(0.0)
++        manager = ToolManager(enforcer=LimitEnforcer(clock=clock))
++        manager.add_tool(echo, limits=rate(2, 1.5))
++        assert await manager.call_tool("echo", {"value": "a"}, Context()) == "a"
++        clock.now = 0.25
++        assert await manager.call_tool("echo", {"value": "b"}, Context()) == "b"
++        clock.now = 0.5
++        with pytest.raises(ToolError) as exc_info:
++            await manager.call_tool("echo", {"value": "c"}, Context())
++        assert str(exc_info.value) == "Tool 'echo' rate limit exceeded; retry after 1.000s"
++
++    async def test_retry_after_is_formatted_to_three_decimals(self):
++        clock = FakeClock(0.0)
++        manager = ToolManager(enforcer=LimitEnforcer(clock=clock))
++        manager.add_tool(echo, limits=rate(1, 2))
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        clock.now = 0.12345
++        with pytest.raises(ToolError, match=r"^Tool 'echo' rate limit exceeded; retry after 1\.877s$"):
++            await manager.call_tool("echo", {"value": "b"}, Context())
++
++    async def test_window_boundary(self):
++        clock = FakeClock(0.0)
++        manager = ToolManager(enforcer=LimitEnforcer(clock=clock))
++        manager.add_tool(echo, limits=rate(1, 10))
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        clock.now = 9.999
++        with pytest.raises(ToolError, match="rate limit exceeded"):
++            await manager.call_tool("echo", {"value": "b"}, Context())
++        clock.now = 10.0
++        assert await manager.call_tool("echo", {"value": "c"}, Context()) == "c"
++
++    async def test_quota_message(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo, limits=quota(1))
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        with pytest.raises(ToolError) as exc_info:
++            await manager.call_tool("echo", {"value": "b"}, Context())
++        assert str(exc_info.value) == "Tool 'echo' quota exhausted"
++
++    async def test_quota_wins_over_rate_limit(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(
++            echo, limits=LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=60), quota=Quota(max_calls=1))
++        )
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        with pytest.raises(ToolError) as exc_info:
++            await manager.call_tool("echo", {"value": "b"}, Context())
++        assert str(exc_info.value) == "Tool 'echo' quota exhausted"
++
++    async def test_failing_call_does_not_consume_budget(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        calls: list[bool] = []
++
++        def flaky(fail: bool) -> str:
++            calls.append(fail)
++            if fail:
++                raise ValueError("boom")
++            return "ok"
++
++        manager.add_tool(flaky, limits=quota(1))
++        for _ in range(3):
++            with pytest.raises(ToolError, match="Error executing tool flaky"):
++                await manager.call_tool("flaky", {"fail": True}, Context())
++        assert await manager.call_tool("flaky", {"fail": False}, Context()) == "ok"
++        with pytest.raises(ToolError, match="^Tool 'flaky' quota exhausted$"):
++            await manager.call_tool("flaky", {"fail": False}, Context())
++        assert calls == [True, True, True, False]
++
++    async def test_invalid_arguments_do_not_consume_budget(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo, limits=quota(1))
++        with pytest.raises(ToolError, match="Error executing tool echo"):
++            await manager.call_tool("echo", {}, Context())
++        assert await manager.call_tool("echo", {"value": "a"}, Context()) == "a"
++
++    async def test_denied_call_does_not_run_the_tool(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        runs: list[int] = []
++
++        def counted() -> int:
++            runs.append(1)
++            return len(runs)
++
++        manager.add_tool(counted, limits=quota(2))
++        await manager.call_tool("counted", {}, Context())
++        await manager.call_tool("counted", {}, Context())
++        with pytest.raises(ToolError, match="quota exhausted"):
++            await manager.call_tool("counted", {}, Context())
++        assert runs == [1, 1]
++
++    async def test_tool_without_policy_is_unlimited(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo)
++        for i in range(50):
++            assert await manager.call_tool("echo", {"value": str(i)}, Context()) == str(i)
++
++    async def test_unknown_tool_message_is_unchanged(self):
++        with pytest.raises(ToolError, match="^Unknown tool: nope$"):
++            await ToolManager().call_tool("nope", {}, Context())
++
++    async def test_default_enforcer_is_created(self):
++        manager = ToolManager()
++        assert isinstance(manager.enforcer, LimitEnforcer)
++        assert ToolManager().enforcer is not manager.enforcer
++
++    async def test_set_limits_takes_effect_on_the_next_call(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo)
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        manager.set_limits("echo", quota(1))
++        await manager.call_tool("echo", {"value": "b"}, Context())
++        with pytest.raises(ToolError, match="quota exhausted"):
++            await manager.call_tool("echo", {"value": "c"}, Context())
++        manager.set_limits("echo", None)
++        assert await manager.call_tool("echo", {"value": "d"}, Context()) == "d"
++
++
++class TestMCPServer:
++    async def test_decorator_limits_surface_as_error_result(self):
++        mcp = limited_server(FakeClock())
++
++        @mcp.tool(limits=quota(2))
++        def ping() -> str:
++            return "pong"
++
++        async with Client(mcp) as client:
++            for _ in range(2):
++                result = await client.call_tool("ping", {})
++                assert result.is_error is False
++            result = await client.call_tool("ping", {})
++            assert error_text(result) == "Tool 'ping' quota exhausted"
++
++    async def test_add_tool_limits_and_rate_limit_error_result(self):
++        clock = FakeClock(50.0)
++        mcp = limited_server(clock)
++        mcp.add_tool(echo, limits=rate(1, 30))
++        async with Client(mcp) as client:
++            assert (await client.call_tool("echo", {"value": "x"})).is_error is False
++            clock.now = 62.5
++            result = await client.call_tool("echo", {"value": "y"})
++            assert error_text(result) == "Tool 'echo' rate limit exceeded; retry after 17.500s"
++            clock.now = 80.0
++            assert (await client.call_tool("echo", {"value": "z"})).is_error is False
++
++    async def test_failing_tool_through_the_server(self):
++        mcp = limited_server(FakeClock())
++
++        @mcp.tool(limits=quota(1))
++        def maybe(fail: bool) -> str:
++            if fail:
++                raise ToolError("nope")
++            return "ok"
++
++        async with Client(mcp) as client:
++            assert error_text(await client.call_tool("maybe", {"fail": True})) == "Error executing tool maybe: nope"
++            assert (await client.call_tool("maybe", {"fail": False})).is_error is False
++            assert error_text(await client.call_tool("maybe", {"fail": False})) == "Tool 'maybe' quota exhausted"
++
++    async def test_direct_call_tool_raises_tool_error(self):
++        mcp = limited_server(FakeClock())
++        mcp.add_tool(echo, limits=quota(1))
++        await mcp.call_tool("echo", {"value": "a"})
++        with pytest.raises(ToolError, match="^Tool 'echo' quota exhausted$"):
++            await mcp.call_tool("echo", {"value": "b"})
++
++    async def test_server_has_a_default_enforcer(self):
++        assert isinstance(MCPServer()._tool_manager.enforcer, LimitEnforcer)
++
++    async def test_enforcer_is_read_at_call_time(self):
++        mcp = MCPServer()
++        mcp.add_tool(echo, limits=quota(1))
++        await mcp.call_tool("echo", {"value": "a"})
++        mcp._tool_manager.enforcer = LimitEnforcer(clock=FakeClock())
++        result = await mcp.call_tool("echo", {"value": "b"})
++        assert isinstance(result, CallToolResult) and result.is_error is False
++
++    async def test_session_scope_without_session_falls_back_to_server_scope(self):
++        # The default in-process client speaks the per-request protocol, which has no session.
++        mcp = limited_server(FakeClock())
++        mcp.add_tool(echo, limits=quota(1, scope="session"))
++        async with Client(mcp) as client:
++            assert (await client.call_tool("echo", {"value": "a"})).is_error is False
++        async with Client(mcp) as client:
++            assert error_text(await client.call_tool("echo", {"value": "b"})) == "Tool 'echo' quota exhausted"
++
++
++class TestSessionScopeKey:
++    def test_context_outside_a_request(self):
++        assert session_scope_key(Context()) is None
++        assert session_scope_key(Context(mcp_server=MCPServer())) is None
++
++    def test_transport_session_id(self):
++        assert session_scope_key(context_for_session("sid-1")) == "sid-1"
++
++    def test_connection_without_session_id_is_keyed_by_the_connection(self):
++        connection = make_connection()
++        key = session_scope_key(context_for(connection))
++        assert key == f"connection:{id(connection)}"
++        # A new per-request ServerSession on the same connection gives the same key.
++        assert session_scope_key(context_for(connection)) == key
++        assert session_scope_key(context_for(make_connection())) != key
++
++    def test_modern_protocol_has_no_session(self):
++        assert session_scope_key(context_for(make_connection("sid-1", protocol_version="2026-07-28"))) is None
++
++    def test_session_without_a_connection(self):
++        request_context: ServerRequestContext[Any, Any] = ServerRequestContext(
++            session=MagicMock(spec=[]), lifespan_context={}, protocol_version="2025-11-25", method="tools/call"
++        )
++        assert session_scope_key(Context(request_context=request_context)) is None
++
++    async def test_session_policy_uses_the_transport_session_id(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo, limits=quota(1, scope="session"))
++        await manager.call_tool("echo", {"value": "a"}, context_for_session("sid-1"))
++        with pytest.raises(ToolError, match="quota exhausted"):
++            await manager.call_tool("echo", {"value": "b"}, context_for_session("sid-1"))
++        assert await manager.call_tool("echo", {"value": "c"}, context_for_session("sid-2")) == "c"
++
++    async def test_server_policy_ignores_the_session(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo, limits=quota(1))
++        await manager.call_tool("echo", {"value": "a"}, context_for_session("sid-1"))
++        with pytest.raises(ToolError, match="quota exhausted"):
++            await manager.call_tool("echo", {"value": "b"}, context_for_session("sid-2"))
++
++
++class TestRecordingRules:
++    async def test_input_required_round_does_not_consume_budget(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++
++        def ask(final: bool) -> str | InputRequiredResult:
++            if not final:
++                return InputRequiredResult(input_requests={}, request_state="round-1")
++            return "done"
++
++        manager.add_tool(ask, limits=quota(1))
++        for _ in range(3):
++            assert isinstance(await manager.call_tool("ask", {"final": False}, Context()), InputRequiredResult)
++        assert await manager.call_tool("ask", {"final": True}, Context()) == "done"
++        with pytest.raises(ToolError, match="^Tool 'ask' quota exhausted$"):
++            await manager.call_tool("ask", {"final": True}, Context())
++
++    async def test_records_completion_time(self):
++        clock = FakeClock(0.0)
++        manager = ToolManager(enforcer=LimitEnforcer(clock=clock))
++
++        async def slow() -> str:
++            clock.now = 4.0  # the tool takes 4 seconds
++            return "ok"
++
++        manager.add_tool(slow, limits=rate(1, 10))
++        await manager.call_tool("slow", {}, Context())
++        clock.now = 13.5
++        with pytest.raises(ToolError, match=r"retry after 0\.500s$"):
++            await manager.call_tool("slow", {}, Context())
++
++    async def test_remove_tool_resets_its_budget(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo, limits=quota(1))
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        manager.remove_tool("echo")
++        manager.add_tool(echo, limits=quota(1))
++        assert await manager.call_tool("echo", {"value": "b"}, Context()) == "b"
++
++    async def test_set_limits_with_new_policy_resets_budget(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(echo, limits=quota(1))
++        await manager.call_tool("echo", {"value": "a"}, Context())
++        manager.set_limits("echo", quota(2))
++        assert await manager.call_tool("echo", {"value": "b"}, Context()) == "b"
++        assert await manager.call_tool("echo", {"value": "c"}, Context()) == "c"
++        with pytest.raises(ToolError, match="quota exhausted"):
++            await manager.call_tool("echo", {"value": "d"}, Context())
+-- 
+2.54.0 (Apple Git-157)
+

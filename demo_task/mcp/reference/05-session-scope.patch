@@ -1,0 +1,346 @@
+From 5dcd0b86a067048431dfabdae8cae92c85be867a Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:20:11 -0800
+Subject: [PATCH 5/7] S5: session-scoped budgets and cleanup at session end
+
+LimitEnforcer.forget_scope(), a once-per-connection exit_stack hook in
+ToolManager.call_tool that drops a session's budgets when its connection
+closes, and MCPServer.forget_session_limits() for manual cleanup.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/server/mcpserver/limits.py            |   5 +
+ src/mcp/server/mcpserver/server.py            |   8 +
+ .../server/mcpserver/tools/tool_manager.py    |  35 ++-
+ .../mcpserver/test_limits_s5_session_scope.py | 217 ++++++++++++++++++
+ 4 files changed, 257 insertions(+), 8 deletions(-)
+ create mode 100644 tests/server/mcpserver/test_limits_s5_session_scope.py
+
+diff --git a/src/mcp/server/mcpserver/limits.py b/src/mcp/server/mcpserver/limits.py
+index 6297ce1..ff65646 100644
+--- a/src/mcp/server/mcpserver/limits.py
++++ b/src/mcp/server/mcpserver/limits.py
+@@ -219,6 +219,11 @@ class LimitEnforcer:
+             return None
+         return decision.remaining + 1 if decision.allowed else 0
+ 
++    def forget_scope(self, scope_key: str) -> None:
++        """Drop every session-scoped state tracked under `scope_key`, for all tools."""
++        for key in [k for k in self._states if isinstance(k, tuple) and k[1] == scope_key]:
++            del self._states[key]
++
+     def reset(self, tool_name: str | None = None) -> None:
+         """Forget recorded calls for one tool (every scope), or for all tools."""
+         if tool_name is None:
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index 846d206..d3d777e 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -664,6 +664,14 @@ class MCPServer(Generic[LifespanResultT]):
+             limits=limits,
+         )
+ 
++    def forget_session_limits(self, scope_key: str) -> None:
++        """Drop every session-scoped limit budget tracked for `scope_key`.
++
++        Budgets are dropped automatically when a session's connection closes;
++        this is the manual way, e.g. for sessions that end out of band.
++        """
++        self._tool_manager.enforcer.forget_scope(scope_key)
++
+     def remove_tool(self, name: str) -> None:
+         """Remove a tool from the server by name.
+ 
+diff --git a/src/mcp/server/mcpserver/tools/tool_manager.py b/src/mcp/server/mcpserver/tools/tool_manager.py
+index 035ae06..4d74357 100644
+--- a/src/mcp/server/mcpserver/tools/tool_manager.py
++++ b/src/mcp/server/mcpserver/tools/tool_manager.py
+@@ -19,6 +19,18 @@ if TYPE_CHECKING:
+ logger = get_logger(__name__)
+ 
+ 
++def _connection_of(context: Context[Any, Any]) -> Connection | None:
++    """The `Connection` behind the request `context` belongs to, if any."""
++    try:
++        request_context = context.request_context
++    except ValueError:
++        return None
++    # The `ServerSession` is rebuilt for every request, so its identity says
++    # nothing; the `Connection` it wraps persists across a client's requests.
++    connection = getattr(request_context.session, "_connection", None)
++    return connection if isinstance(connection, Connection) else None
++
++
+ def session_scope_key(context: Context[Any, Any]) -> str | None:
+     """The scope key of the client session a call through `context` belongs to.
+ 
+@@ -28,14 +40,8 @@ def session_scope_key(context: Context[Any, Any]) -> str | None:
+     transport's session id when it has one (streamable HTTP), else an id for
+     the connection object, which lives as long as the client connection.
+     """
+-    try:
+-        request_context = context.request_context
+-    except ValueError:
+-        return None
+-    # The `ServerSession` is rebuilt for every request, so its identity says
+-    # nothing; the `Connection` it wraps persists across a client's requests.
+-    connection = getattr(request_context.session, "_connection", None)
+-    if not isinstance(connection, Connection):
++    connection = _connection_of(context)
++    if connection is None:
+         return None
+     if connection.protocol_version in MODERN_PROTOCOL_VERSIONS:
+         return None
+@@ -127,6 +133,17 @@ class ToolManager:
+         del self._tools[name]
+         self.enforcer.reset(name)
+ 
++    def _forget_scope_on_close(self, context: Context[Any, Any], scope_key: str) -> None:
++        """Drop the session's budgets when its connection closes (registered once per connection)."""
++        connection = _connection_of(context)
++        if connection is None:  # pragma: no cover - a scope key implies a connection
++            return
++        marker = f"mcp.server.mcpserver.limits.forget_scope:{id(self)}"
++        if connection.state.get(marker):
++            return
++        connection.state[marker] = True
++        connection.exit_stack.callback(lambda: self.enforcer.forget_scope(scope_key))
++
+     async def call_tool(
+         self,
+         name: str,
+@@ -153,6 +170,8 @@ class ToolManager:
+             return await tool.run(arguments, context, convert_result=convert_result)
+ 
+         scope_key = session_scope_key(context)
++        if scope_key is not None and policy.scope == "session":
++            self._forget_scope_on_close(context, scope_key)
+         decision = self.enforcer.decide(name, policy, scope_key)
+         if not decision.allowed:
+             if decision.reason == "quota":
+diff --git a/tests/server/mcpserver/test_limits_s5_session_scope.py b/tests/server/mcpserver/test_limits_s5_session_scope.py
+new file mode 100644
+index 0000000..18df50e
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s5_session_scope.py
+@@ -0,0 +1,217 @@
++"""S5: session-scoped budgets, isolation between sessions and cleanup when a session ends."""
++
++from typing import Any
++from unittest.mock import MagicMock
++
++import pytest
++from mcp_types import CallToolResult, TextContent
++
++from mcp.client import Client
++from mcp.server.connection import Connection
++from mcp.server.context import ServerRequestContext
++from mcp.server.mcpserver import Context, MCPServer
++from mcp.server.mcpserver.limits import LimitEnforcer, LimitPolicy, Quota, RateLimit
++from mcp.server.mcpserver.tools import ToolManager
++from mcp.server.mcpserver.tools.tool_manager import session_scope_key
++from mcp.server.session import ServerSession
++
++pytestmark = pytest.mark.anyio
++
++SESSION_QUOTA = LimitPolicy(quota=Quota(max_calls=2), scope="session")
++SERVER_QUOTA = LimitPolicy(quota=Quota(max_calls=3))
++
++
++class FakeClock:
++    def __init__(self, now: float = 0.0) -> None:
++        self.now = now
++
++    def __call__(self) -> float:
++        return self.now
++
++
++def result_text(result: CallToolResult) -> str:
++    content = result.content[0]
++    assert isinstance(content, TextContent)
++    return content.text
++
++
++def make_server(clock: FakeClock | None = None) -> MCPServer:
++    mcp = MCPServer()
++    mcp._tool_manager.enforcer = LimitEnforcer(clock=clock or FakeClock())
++
++    @mcp.tool(limits=SESSION_QUOTA)
++    def per_session(ctx: Context) -> str:
++        return f"{session_scope_key(ctx)}"
++
++    @mcp.tool(limits=SERVER_QUOTA)
++    def shared() -> str:
++        return "shared"
++
++    return mcp
++
++
++def context_for(connection: Connection) -> Context:
++    request_context: ServerRequestContext[Any, Any] = ServerRequestContext(
++        session=ServerSession(MagicMock(), connection),
++        lifespan_context={},
++        protocol_version=connection.protocol_version,
++        method="tools/call",
++    )
++    return Context(request_context=request_context)
++
++
++class TestIsolation:
++    async def test_two_sessions_never_share_budget(self):
++        mcp = make_server()
++        async with Client(mcp, mode="legacy") as a, Client(mcp, mode="legacy") as b:
++            key_a = result_text(await a.call_tool("per_session", {}))
++            key_b = result_text(await b.call_tool("per_session", {}))
++            assert key_a.startswith("connection:") and key_b.startswith("connection:")
++            assert key_a != key_b
++
++            assert (await a.call_tool("per_session", {})).is_error is False
++            exhausted = await a.call_tool("per_session", {})
++            assert exhausted.is_error is True
++            assert result_text(exhausted) == "Tool 'per_session' quota exhausted"
++
++            # b used one call; its second still succeeds, its third is denied.
++            assert (await b.call_tool("per_session", {})).is_error is False
++            assert result_text(await b.call_tool("per_session", {})) == "Tool 'per_session' quota exhausted"
++
++    async def test_same_session_shares_budget_across_calls(self):
++        mcp = make_server()
++        async with Client(mcp, mode="legacy") as client:
++            keys = {result_text(await client.call_tool("per_session", {})) for _ in range(2)}
++            assert len(keys) == 1
++            assert (await client.call_tool("per_session", {})).is_error is True
++
++    async def test_server_scope_is_shared_across_sessions(self):
++        mcp = make_server()
++        async with Client(mcp, mode="legacy") as a, Client(mcp, mode="legacy") as b:
++            assert (await a.call_tool("shared", {})).is_error is False
++            assert (await b.call_tool("shared", {})).is_error is False
++            assert (await a.call_tool("shared", {})).is_error is False
++            assert result_text(await b.call_tool("shared", {})) == "Tool 'shared' quota exhausted"
++
++    async def test_calls_without_a_session_use_the_server_scope_budget(self):
++        mcp = make_server()
++        # Direct calls and stateless 2026-07-28 requests have no session.
++        await mcp.call_tool("per_session", {})
++        async with Client(mcp) as client:
++            assert result_text(await client.call_tool("per_session", {})) == "None"
++            assert result_text(await client.call_tool("per_session", {})) == "Tool 'per_session' quota exhausted"
++        # A legacy session still has its own full budget.
++        async with Client(mcp, mode="legacy") as client:
++            assert (await client.call_tool("per_session", {})).is_error is False
++            assert (await client.call_tool("per_session", {})).is_error is False
++
++    async def test_session_rate_limit_with_fake_clock(self):
++        clock = FakeClock(10.0)
++        mcp = MCPServer()
++        mcp._tool_manager.enforcer = LimitEnforcer(clock=clock)
++        mcp.add_tool(
++            lambda: "ok",
++            name="burst",
++            limits=LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=5), scope="session"),
++        )
++        async with Client(mcp, mode="legacy") as a, Client(mcp, mode="legacy") as b:
++            assert (await a.call_tool("burst", {})).is_error is False
++            clock.now = 12.0
++            assert result_text(await a.call_tool("burst", {})) == "Tool 'burst' rate limit exceeded; retry after 3.000s"
++            assert (await b.call_tool("burst", {})).is_error is False
++            clock.now = 15.0
++            assert (await a.call_tool("burst", {})).is_error is False
++
++
++class TestForgetScope:
++    def test_drops_only_that_session(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        session = LimitPolicy(quota=Quota(max_calls=1), scope="session")
++        server = LimitPolicy(quota=Quota(max_calls=1))
++        for tool in ("a", "b"):
++            enforcer.record(tool, session, "s1")
++            enforcer.record(tool, session, "s2")
++        enforcer.record("c", server, "s1")
++        enforcer.forget_scope("s1")
++        assert enforcer.remaining("a", session, "s1") == 1
++        assert enforcer.remaining("b", session, "s1") == 1
++        assert enforcer.remaining("a", session, "s2") == 0
++        assert enforcer.remaining("b", session, "s2") == 0
++        assert enforcer.remaining("c", server, "s1") == 0
++
++    def test_unknown_scope_is_a_no_op(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = LimitPolicy(quota=Quota(max_calls=1), scope="session")
++        enforcer.record("a", policy, "s1")
++        enforcer.forget_scope("nobody")
++        assert enforcer.remaining("a", policy, "s1") == 0
++
++    def test_server_state_named_like_the_scope_is_untouched(self):
++        enforcer = LimitEnforcer(clock=FakeClock())
++        policy = LimitPolicy(quota=Quota(max_calls=1))
++        enforcer.record("s1", policy, None)
++        enforcer.forget_scope("s1")
++        assert enforcer.remaining("s1", policy, None) == 0
++
++    async def test_forget_session_limits(self):
++        mcp = make_server()
++        async with Client(mcp, mode="legacy") as client:
++            key = result_text(await client.call_tool("per_session", {}))
++            assert (await client.call_tool("per_session", {})).is_error is False
++            assert (await client.call_tool("per_session", {})).is_error is True
++            mcp.forget_session_limits(key)
++            assert (await client.call_tool("per_session", {})).is_error is False
++
++    async def test_forget_session_limits_unknown_key(self):
++        make_server().forget_session_limits("connection:0")
++
++
++class TestSessionEndHook:
++    async def test_budget_dropped_when_the_client_disconnects(self):
++        mcp = make_server()
++        async with Client(mcp, mode="legacy") as client:
++            key = result_text(await client.call_tool("per_session", {}))
++            await client.call_tool("per_session", {})
++            assert mcp._tool_manager.enforcer.remaining("per_session", SESSION_QUOTA, key) == 0
++        assert mcp._tool_manager.enforcer.remaining("per_session", SESSION_QUOTA, key) == 2
++        assert ("per_session", key) not in mcp._tool_manager.enforcer._states
++
++    async def test_hook_registered_once_per_connection(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(lambda: "ok", name="a", limits=LimitPolicy(quota=Quota(max_calls=5), scope="session"))
++        manager.add_tool(lambda: "ok", name="b", limits=LimitPolicy(quota=Quota(max_calls=5), scope="session"))
++        connection = Connection(MagicMock(), protocol_version="2025-11-25")
++        callbacks = MagicMock(wraps=connection.exit_stack.callback)
++        connection.exit_stack.callback = callbacks  # type: ignore[method-assign]
++        for name in ("a", "b", "a"):
++            await manager.call_tool(name, {}, context_for(connection))
++        assert callbacks.call_count == 1
++
++        key = f"connection:{id(connection)}"
++        assert manager.enforcer.remaining("a", LimitPolicy(quota=Quota(max_calls=5), scope="session"), key) == 3
++        await connection.exit_stack.aclose()
++        assert manager.enforcer.remaining("a", LimitPolicy(quota=Quota(max_calls=5), scope="session"), key) == 5
++        assert manager.enforcer.remaining("b", LimitPolicy(quota=Quota(max_calls=5), scope="session"), key) == 5
++
++    async def test_no_hook_for_server_scope_or_sessionless_calls(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        manager.add_tool(lambda: "ok", name="srv", limits=LimitPolicy(quota=Quota(max_calls=5)))
++        manager.add_tool(lambda: "ok", name="sess", limits=LimitPolicy(quota=Quota(max_calls=5), scope="session"))
++        legacy = Connection(MagicMock(), protocol_version="2025-11-25")
++        modern = Connection(MagicMock(), protocol_version="2026-07-28")
++        await manager.call_tool("srv", {}, context_for(legacy))
++        await manager.call_tool("sess", {}, context_for(modern))
++        assert legacy.state == {}
++        assert modern.state == {}
++
++    async def test_hook_uses_the_enforcer_current_at_close(self):
++        manager = ToolManager(enforcer=LimitEnforcer(clock=FakeClock()))
++        policy = LimitPolicy(quota=Quota(max_calls=1), scope="session")
++        manager.add_tool(lambda: "ok", name="a", limits=policy)
++        connection = Connection(MagicMock(), protocol_version="2025-11-25", session_id="sid")
++        await manager.call_tool("a", {}, context_for(connection))
++        replacement = LimitEnforcer(clock=FakeClock())
++        replacement.record("a", policy, "sid")
++        manager.enforcer = replacement
++        await connection.exit_stack.aclose()
++        assert replacement.remaining("a", policy, "sid") == 1
+-- 
+2.54.0 (Apple Git-157)
+

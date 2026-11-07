@@ -1,0 +1,241 @@
+From 2a33ea1c01df78ae957c599d3299f933684c00d0 Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:18:44 -0800
+Subject: [PATCH 4/7] S4: client-visible limit metadata and context helpers
+
+MCPServer.list_tools() publishes each policy under _meta["limits"] (merged
+into a copy of the tool's meta); Context.tool_limits() and
+Context.remaining_calls() expose the policy and the calls left now.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/server/mcpserver/context.py           |  19 +++
+ src/mcp/server/mcpserver/server.py            |   6 +-
+ .../mcpserver/test_limits_s4_metadata.py      | 161 ++++++++++++++++++
+ 3 files changed, 185 insertions(+), 1 deletion(-)
+ create mode 100644 tests/server/mcpserver/test_limits_s4_metadata.py
+
+diff --git a/src/mcp/server/mcpserver/context.py b/src/mcp/server/mcpserver/context.py
+index 5f77583..095de58 100644
+--- a/src/mcp/server/mcpserver/context.py
++++ b/src/mcp/server/mcpserver/context.py
+@@ -26,6 +26,7 @@ from mcp.shared.subscriptions import (
+ )
+ 
+ if TYPE_CHECKING:
++    from mcp.server.mcpserver.limits import LimitPolicy
+     from mcp.server.mcpserver.server import MCPServer
+ 
+ 
+@@ -332,6 +333,24 @@ class Context(BaseModel, Generic[LifespanContextT, RequestT]):
+         """
+         return self.request_context.session.client_capabilities
+ 
++    def tool_limits(self, name: str) -> LimitPolicy | None:
++        """The limit policy of the named tool; `None` for an unknown tool or one without a policy."""
++        return self.mcp_server._tool_manager.get_limits(name)  # pyright: ignore[reportPrivateUsage]
++
++    def remaining_calls(self, name: str) -> int | None:
++        """Calls to the named tool this session could make right now.
++
++        `None` for an unknown tool or one without a policy. Inside a tool body the
++        current call is not counted yet: it is recorded once the tool returns.
++        """
++        from mcp.server.mcpserver.tools.tool_manager import session_scope_key
++
++        tool_manager = self.mcp_server._tool_manager  # pyright: ignore[reportPrivateUsage]
++        policy = tool_manager.get_limits(name)
++        if policy is None:
++            return None
++        return tool_manager.enforcer.remaining(name, policy, session_scope_key(self))
++
+     @property
+     def session(self):
+         """Access to the underlying session for advanced usage."""
+diff --git a/src/mcp/server/mcpserver/server.py b/src/mcp/server/mcpserver/server.py
+index f67a400..846d206 100644
+--- a/src/mcp/server/mcpserver/server.py
++++ b/src/mcp/server/mcpserver/server.py
+@@ -526,7 +526,11 @@ class MCPServer(Generic[LifespanResultT]):
+                 output_schema=info.output_schema,
+                 annotations=info.annotations,
+                 icons=info.icons,
+-                _meta=info.meta,
++                _meta=(
++                    info.meta
++                    if info.limits is None
++                    else {**(info.meta or {}), "limits": info.limits.model_dump(mode="json")}
++                ),
+             )
+             for info in tools
+         ]
+diff --git a/tests/server/mcpserver/test_limits_s4_metadata.py b/tests/server/mcpserver/test_limits_s4_metadata.py
+new file mode 100644
+index 0000000..d5a3aaa
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s4_metadata.py
+@@ -0,0 +1,161 @@
++"""S4: client-visible limit metadata and the Context helpers."""
++
++import pytest
++from mcp_types import CallToolResult, TextContent
++
++from mcp.client import Client
++from mcp.server.mcpserver import Context, MCPServer
++from mcp.server.mcpserver.limits import LimitEnforcer, LimitPolicy, Quota, RateLimit
++
++pytestmark = pytest.mark.anyio
++
++RATE = LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=60))
++BOTH = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=1.5), quota=Quota(max_calls=10), scope="session")
++
++
++def plain() -> str:  # pragma: no cover
++    return "plain"
++
++
++def limited() -> str:  # pragma: no cover
++    return "limited"
++
++
++def text(result: CallToolResult) -> str:
++    assert result.is_error is False
++    content = result.content[0]
++    assert isinstance(content, TextContent)
++    return content.text
++
++
++class TestListToolsMeta:
++    async def test_policy_published_under_limits(self):
++        mcp = MCPServer()
++        mcp.add_tool(limited, limits=RATE)
++        [tool] = await mcp.list_tools()
++        assert tool.meta == {
++            "limits": {"rate_limit": {"max_calls": 5, "per_seconds": 60.0}, "quota": None, "scope": "server"}
++        }
++
++    async def test_full_policy_dump(self):
++        mcp = MCPServer()
++        mcp.add_tool(limited, limits=BOTH)
++        [tool] = await mcp.list_tools()
++        assert tool.meta == {"limits": BOTH.model_dump(mode="json")}
++        assert tool.meta is not None and tool.meta["limits"] == {
++            "rate_limit": {"max_calls": 2, "per_seconds": 1.5},
++            "quota": {"max_calls": 10},
++            "scope": "session",
++        }
++
++    async def test_tools_without_policy_are_unchanged(self):
++        mcp = MCPServer()
++        mcp.add_tool(plain)
++        mcp.add_tool(limited, name="with_meta", meta={"owner": "me"})
++        tools = {tool.name: tool for tool in await mcp.list_tools()}
++        assert tools["plain"].meta is None
++        assert tools["with_meta"].meta == {"owner": "me"}
++
++    async def test_existing_meta_is_merged_without_mutation(self):
++        mcp = MCPServer()
++        user_meta = {"owner": "me", "limits": "user value"}
++        mcp.add_tool(limited, meta=user_meta, limits=RATE)
++        [first] = await mcp.list_tools()
++        [second] = await mcp.list_tools()
++        assert first.meta == {"owner": "me", "limits": RATE.model_dump(mode="json")}
++        assert second.meta == first.meta
++        assert user_meta == {"owner": "me", "limits": "user value"}
++        registered = mcp._tool_manager.get_tool("limited")
++        assert registered is not None and registered.meta == {"owner": "me", "limits": "user value"}
++
++    async def test_empty_policy_is_published(self):
++        mcp = MCPServer()
++        mcp.add_tool(limited, limits=LimitPolicy())
++        [tool] = await mcp.list_tools()
++        assert tool.meta == {"limits": {"rate_limit": None, "quota": None, "scope": "server"}}
++
++    async def test_set_limits_is_reflected(self):
++        mcp = MCPServer()
++        mcp.add_tool(limited)
++        mcp._tool_manager.set_limits("limited", RATE)
++        [tool] = await mcp.list_tools()
++        assert tool.meta == {"limits": RATE.model_dump(mode="json")}
++        mcp._tool_manager.set_limits("limited", None)
++        [tool] = await mcp.list_tools()
++        assert tool.meta is None
++
++    async def test_visible_to_clients(self):
++        mcp = MCPServer()
++        mcp.add_tool(plain)
++        mcp.add_tool(limited, limits=BOTH)
++        async with Client(mcp) as client:
++            result = await client.list_tools()
++        tools = {tool.name: tool for tool in result.tools}
++        assert tools["plain"].meta is None
++        assert tools["limited"].meta == {"limits": BOTH.model_dump(mode="json")}
++
++    async def test_visible_to_legacy_clients(self):
++        mcp = MCPServer()
++        mcp.add_tool(limited, limits=RATE)
++        async with Client(mcp, mode="legacy") as client:
++            result = await client.list_tools()
++        assert result.tools[0].meta == {"limits": RATE.model_dump(mode="json")}
++
++
++def counting_server(policy: LimitPolicy) -> MCPServer:
++    mcp = MCPServer()
++    mcp._tool_manager.enforcer = LimitEnforcer(clock=lambda: 100.0)
++
++    @mcp.tool(limits=policy)
++    def counted(ctx: Context) -> str:
++        return f"{ctx.remaining_calls('counted')}"
++
++    @mcp.tool()
++    def inspect(name: str, ctx: Context) -> str:
++        return f"{ctx.tool_limits(name)!r}|{ctx.remaining_calls(name)}"
++
++    return mcp
++
++
++class TestContextHelpers:
++    async def test_remaining_calls_inside_the_tool(self):
++        mcp = counting_server(LimitPolicy(quota=Quota(max_calls=3)))
++        async with Client(mcp) as client:
++            assert text(await client.call_tool("counted", {})) == "3"
++            assert text(await client.call_tool("counted", {})) == "2"
++            assert text(await client.call_tool("counted", {})) == "1"
++            assert (await client.call_tool("counted", {})).is_error is True
++            assert text(await client.call_tool("inspect", {"name": "counted"})) == (
++                f"{LimitPolicy(quota=Quota(max_calls=3))!r}|0"
++            )
++
++    async def test_tool_without_policy_and_unknown_tool(self):
++        mcp = counting_server(LimitPolicy(quota=Quota(max_calls=3)))
++        async with Client(mcp) as client:
++            assert text(await client.call_tool("inspect", {"name": "inspect"})) == "None|None"
++            assert text(await client.call_tool("inspect", {"name": "missing"})) == "None|None"
++
++    async def test_tool_limits_returns_the_policy(self):
++        mcp = counting_server(RATE)
++        context = Context(mcp_server=mcp)
++        assert context.tool_limits("counted") == RATE
++        assert context.tool_limits("inspect") is None
++        assert context.remaining_calls("counted") == 5
++
++    async def test_empty_policy_has_no_remaining_count(self):
++        mcp = counting_server(LimitPolicy())
++        assert Context(mcp_server=mcp).remaining_calls("counted") is None
++
++    async def test_session_scoped_remaining_in_a_legacy_session(self):
++        mcp = counting_server(LimitPolicy(quota=Quota(max_calls=2), scope="session"))
++        async with Client(mcp, mode="legacy") as client:
++            assert text(await client.call_tool("counted", {})) == "2"
++            assert text(await client.call_tool("counted", {})) == "1"
++        # A direct context has no session and sees the (untouched) server-scope budget.
++        assert Context(mcp_server=mcp).remaining_calls("counted") == 2
++
++    async def test_without_a_server(self):
++        with pytest.raises(ValueError, match="Context is not available outside of a request"):
++            Context().tool_limits("x")
++        with pytest.raises(ValueError, match="Context is not available outside of a request"):
++            Context().remaining_calls("x")
+-- 
+2.54.0 (Apple Git-157)
+

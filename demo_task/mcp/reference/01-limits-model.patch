@@ -1,0 +1,486 @@
+From b3163d401fe952774f33a3dc2a2df4a76fbbd50c Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:10:47 -0800
+Subject: [PATCH 1/7] S1: limit policy model and pure decision logic
+
+Add mcp.server.mcpserver.limits with RateLimit, Quota, LimitPolicy,
+LimitDecision, the pure evaluate() function and the in-memory LimitState.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/server/mcpserver/limits.py            | 162 ++++++++++
+ .../server/mcpserver/test_limits_s1_model.py  | 293 ++++++++++++++++++
+ 2 files changed, 455 insertions(+)
+ create mode 100644 src/mcp/server/mcpserver/limits.py
+ create mode 100644 tests/server/mcpserver/test_limits_s1_model.py
+
+diff --git a/src/mcp/server/mcpserver/limits.py b/src/mcp/server/mcpserver/limits.py
+new file mode 100644
+index 0000000..56350dc
+--- /dev/null
++++ b/src/mcp/server/mcpserver/limits.py
+@@ -0,0 +1,162 @@
++"""Per-tool rate limits and quotas.
++
++A `LimitPolicy` combines an optional sliding-window `RateLimit` with an optional
++lifetime `Quota`. `evaluate` is the pure decision function; `LimitState` keeps
++the call history for one policy in memory.
++"""
++
++from __future__ import annotations
++
++import math
++from collections import deque
++from collections.abc import Sequence
++from typing import Literal
++
++from pydantic import BaseModel, Field
++
++
++class RateLimit(BaseModel):
++    """At most `max_calls` calls in any sliding window of `per_seconds` seconds."""
++
++    max_calls: int = Field(gt=0, description="Calls allowed per window")
++    per_seconds: float = Field(gt=0, allow_inf_nan=False, description="Window length in seconds")
++
++
++class Quota(BaseModel):
++    """At most `max_calls` calls over the lifetime of the scope."""
++
++    max_calls: int = Field(gt=0, description="Calls allowed in total")
++
++
++class LimitPolicy(BaseModel):
++    """The limits attached to one tool."""
++
++    rate_limit: RateLimit | None = None
++    quota: Quota | None = None
++    scope: Literal["server", "session"] = "server"
++
++
++class LimitDecision(BaseModel):
++    """The outcome of checking a policy against a call history."""
++
++    allowed: bool
++    retry_after: float | None = None
++    """Seconds until the next call would be allowed; `None` when allowed or when a quota is exhausted for good."""
++    remaining: int | None = None
++    """Calls left in the current window/quota after this decision (the smaller of the two when both apply)."""
++    reason: Literal["rate_limit", "quota"] | None = None
++
++
++def _check_now(now: float) -> None:
++    if not math.isfinite(now) or now < 0:
++        raise ValueError(f"now must be a finite, non-negative number, got {now!r}")
++
++
++def _decide(policy: LimitPolicy, window: Sequence[float], quota_used: int, now: float) -> LimitDecision:
++    """Decide from the calls inside the rate window (sorted ascending) and the quota count."""
++    rate_left: int | None = None
++    rate_retry: float | None = None
++    if policy.rate_limit is not None:
++        rate_left = policy.rate_limit.max_calls - len(window)
++        if rate_left <= 0:
++            # The window must shed enough calls to leave room for one more.
++            must_expire = window[len(window) - policy.rate_limit.max_calls]
++            rate_retry = must_expire + policy.rate_limit.per_seconds - now
++
++    quota_left = policy.quota.max_calls - quota_used if policy.quota is not None else None
++
++    if quota_left is not None and quota_left <= 0:
++        return LimitDecision(allowed=False, retry_after=None, remaining=0, reason="quota")
++    if rate_left is not None and rate_left <= 0:
++        return LimitDecision(allowed=False, retry_after=rate_retry, remaining=0, reason="rate_limit")
++
++    lefts = [left for left in (rate_left, quota_left) if left is not None]
++    remaining = min(lefts) - 1 if lefts else None
++    return LimitDecision(allowed=True, retry_after=None, remaining=remaining, reason=None)
++
++
++def evaluate(policy: LimitPolicy, call_times: list[float], now: float) -> LimitDecision:
++    """Decide whether one more call is allowed at `now`.
++
++    Args:
++        policy: The policy to apply.
++        call_times: Timestamps of previous allowed calls, on the same monotonic clock as `now`.
++        now: The current time in seconds.
++
++    The rate window counts calls with `now - t < per_seconds`: a call exactly
++    `per_seconds` old has left the window. The quota counts every entry of
++    `call_times`. When both deny, the quota wins (`reason="quota"`).
++
++    Raises:
++        ValueError: If `now` is negative or not finite, or `call_times` holds a
++            non-finite value or one later than `now`.
++    """
++    _check_now(now)
++    for t in call_times:
++        if not math.isfinite(t) or t > now:
++            raise ValueError(f"call_times must be finite and not later than now ({now!r}), got {t!r}")
++    window: list[float] = []
++    if policy.rate_limit is not None:
++        per_seconds = policy.rate_limit.per_seconds
++        window = sorted(t for t in call_times if now - t < per_seconds)
++    return _decide(policy, window, len(call_times), now)
++
++
++class LimitState:
++    """In-memory call history for one policy.
++
++    Only calls inside the rate window are kept as timestamps; the quota is a
++    counter that is never pruned.
++    """
++
++    def __init__(self, policy: LimitPolicy) -> None:
++        self.policy = policy
++        self._window: deque[float] = deque()
++        self._total = 0
++        self._last: float | None = None
++
++    @property
++    def total_calls(self) -> int:
++        """Calls recorded since creation or the last `reset`."""
++        return self._total
++
++    @property
++    def window_calls(self) -> list[float]:
++        """Timestamps still retained for the rate window."""
++        return list(self._window)
++
++    def _check_time(self, now: float) -> None:
++        _check_now(now)
++        if self._last is not None and now < self._last:
++            raise ValueError(f"now ({now!r}) is earlier than the last recorded call ({self._last!r})")
++
++    def _prune(self, now: float) -> None:
++        if self.policy.rate_limit is None:
++            return
++        per_seconds = self.policy.rate_limit.per_seconds
++        while self._window and now - self._window[0] >= per_seconds:
++            self._window.popleft()
++
++    def check(self, now: float) -> LimitDecision:
++        """Decide whether a call at `now` is allowed, without recording it."""
++        self._check_time(now)
++        window: list[float] = []
++        if self.policy.rate_limit is not None:
++            per_seconds = self.policy.rate_limit.per_seconds
++            window = [t for t in self._window if now - t < per_seconds]
++        return _decide(self.policy, window, self._total, now)
++
++    def record(self, now: float) -> None:
++        """Record an allowed call at `now`."""
++        self._check_time(now)
++        self._total += 1
++        self._last = now
++        if self.policy.rate_limit is not None:
++            self._window.append(now)
++            self._prune(now)
++
++    def reset(self) -> None:
++        """Forget every recorded call."""
++        self._window.clear()
++        self._total = 0
++        self._last = None
+diff --git a/tests/server/mcpserver/test_limits_s1_model.py b/tests/server/mcpserver/test_limits_s1_model.py
+new file mode 100644
+index 0000000..9968319
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s1_model.py
+@@ -0,0 +1,293 @@
++"""S1: limit policy model and the pure decision logic."""
++
++import math
++
++import pytest
++from pydantic import ValidationError
++
++from mcp.server.mcpserver.limits import (
++    LimitDecision,
++    LimitPolicy,
++    LimitState,
++    Quota,
++    RateLimit,
++    evaluate,
++)
++
++
++def rate(max_calls: int, per_seconds: float) -> LimitPolicy:
++    return LimitPolicy(rate_limit=RateLimit(max_calls=max_calls, per_seconds=per_seconds))
++
++
++def quota(max_calls: int) -> LimitPolicy:
++    return LimitPolicy(quota=Quota(max_calls=max_calls))
++
++
++class TestModels:
++    def test_defaults(self):
++        policy = LimitPolicy()
++        assert policy.rate_limit is None
++        assert policy.quota is None
++        assert policy.scope == "server"
++
++    @pytest.mark.parametrize("max_calls", [0, -1])
++    def test_rate_limit_max_calls_must_be_positive(self, max_calls: int):
++        with pytest.raises(ValidationError):
++            RateLimit(max_calls=max_calls, per_seconds=1)
++
++    @pytest.mark.parametrize("per_seconds", [0, -0.5, math.inf, math.nan])
++    def test_rate_limit_per_seconds_must_be_positive_and_finite(self, per_seconds: float):
++        with pytest.raises(ValidationError):
++            RateLimit(max_calls=1, per_seconds=per_seconds)
++
++    @pytest.mark.parametrize("max_calls", [0, -3])
++    def test_quota_max_calls_must_be_positive(self, max_calls: int):
++        with pytest.raises(ValidationError):
++            Quota(max_calls=max_calls)
++
++    def test_scope_is_restricted(self):
++        assert LimitPolicy(scope="session").scope == "session"
++        with pytest.raises(ValidationError):
++            LimitPolicy(scope="global")  # type: ignore[arg-type]
++
++    def test_json_dump(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=1.5), quota=Quota(max_calls=9))
++        assert policy.model_dump(mode="json") == {
++            "rate_limit": {"max_calls": 2, "per_seconds": 1.5},
++            "quota": {"max_calls": 9},
++            "scope": "server",
++        }
++
++
++class TestEvaluateRateLimit:
++    def test_first_call_allowed(self):
++        assert evaluate(rate(3, 10), [], 0.0) == LimitDecision(allowed=True, retry_after=None, remaining=2, reason=None)
++
++    def test_remaining_counts_down_to_zero(self):
++        policy = rate(3, 10)
++        assert evaluate(policy, [1.0], 2.0).remaining == 1
++        assert evaluate(policy, [1.0, 2.0], 3.0).remaining == 0
++
++    def test_full_window_denies_with_retry_after(self):
++        decision = evaluate(rate(2, 10), [0.0, 5.0], 9.0)
++        assert decision.allowed is False
++        assert decision.reason == "rate_limit"
++        assert decision.remaining == 0
++        assert decision.retry_after == pytest.approx(1.0)
++
++    def test_call_exactly_per_seconds_old_has_left_the_window(self):
++        policy = rate(1, 10)
++        assert evaluate(policy, [0.0], 9.999).allowed is False
++        decision = evaluate(policy, [0.0], 10.0)
++        assert decision.allowed is True
++        assert decision.remaining == 0
++
++    def test_retry_after_points_at_the_call_that_must_expire(self):
++        # Five calls in the window against a limit of 3: the 3rd oldest must leave.
++        decision = evaluate(rate(3, 10), [1.0, 2.0, 3.0, 4.0, 5.0], 6.0)
++        assert decision.allowed is False
++        assert decision.retry_after == pytest.approx(3.0 + 10 - 6.0)
++
++    def test_unsorted_history_is_accepted(self):
++        decision = evaluate(rate(2, 10), [5.0, 0.0], 9.0)
++        assert decision.retry_after == pytest.approx(1.0)
++
++    def test_calls_outside_window_are_ignored(self):
++        assert evaluate(rate(2, 1), [0.0, 0.5, 1.0, 1.2], 2.1).remaining == 0  # only 1.2 is inside
++        assert evaluate(rate(2, 1), [0.0, 0.5, 1.0, 1.2], 2.3).remaining == 1  # none inside
++
++
++class TestEvaluateSpecExamples:
++    def test_window_edge_examples(self):
++        policy = rate(2, 10)
++        decision = evaluate(policy, [0.0, 5.0], 9.999)
++        assert decision.allowed is False
++        assert decision.retry_after == pytest.approx(0.001)
++        assert evaluate(policy, [0.0, 5.0], 10.0) == LimitDecision(allowed=True, remaining=0)
++
++    def test_call_just_inside_the_window_still_counts(self):
++        assert evaluate(rate(1, 10), [0.0], 10 - 0.001).allowed is False
++
++    def test_call_at_now_counts(self):
++        assert evaluate(rate(1, 10), [3.0], 3.0).allowed is False
++
++    def test_now_plus_retry_after_allows(self):
++        policy = rate(3, 7.5)
++        history = [0.25, 1.0, 1.0, 6.0]
++        decision = evaluate(policy, history, 6.5)
++        assert decision.allowed is False and decision.retry_after is not None
++        assert decision.retry_after > 0
++        assert evaluate(policy, history, 6.5 + decision.retry_after).allowed is True
++
++    def test_duplicates_count_separately(self):
++        assert evaluate(rate(2, 10), [1.0, 1.0], 2.0).allowed is False
++        assert evaluate(quota(2), [1.0, 1.0], 2.0).reason == "quota"
++
++    def test_does_not_mutate_call_times(self):
++        history = [5.0, 1.0, 3.0]
++        evaluate(LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=10), quota=Quota(max_calls=9)), history, 6)
++        assert history == [5.0, 1.0, 3.0]
++
++    def test_both_limits_remaining_example(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=60), quota=Quota(max_calls=10))
++        assert evaluate(policy, [1.0, 2.0], 3.0).remaining == 2
++
++    def test_now_zero_is_valid(self):
++        assert evaluate(rate(1, 1), [], 0.0).allowed is True
++
++
++class TestEvaluateQuota:
++    def test_counts_all_calls(self):
++        assert evaluate(quota(3), [0.0, 100.0], 1000.0).remaining == 0
++        decision = evaluate(quota(3), [0.0, 100.0, 200.0], 1000.0)
++        assert decision == LimitDecision(allowed=False, retry_after=None, remaining=0, reason="quota")
++
++    def test_first_call(self):
++        assert evaluate(quota(1), [], 5.0) == LimitDecision(allowed=True, retry_after=None, remaining=0, reason=None)
++
++
++class TestEvaluateCombined:
++    def test_quota_beats_rate_limit(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=10), quota=Quota(max_calls=1))
++        decision = evaluate(policy, [0.0], 1.0)
++        assert decision.allowed is False
++        assert decision.reason == "quota"
++        assert decision.retry_after is None
++
++    def test_rate_limit_reported_when_quota_has_room(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=10), quota=Quota(max_calls=5))
++        decision = evaluate(policy, [0.0], 1.0)
++        assert decision.reason == "rate_limit"
++        assert decision.retry_after == pytest.approx(9.0)
++
++    def test_quota_denies_even_when_window_is_empty(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=1), quota=Quota(max_calls=2))
++        decision = evaluate(policy, [0.0, 1.0], 100.0)
++        assert decision.reason == "quota"
++        assert decision.remaining == 0
++
++    def test_remaining_is_the_smaller_of_the_two(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=10), quota=Quota(max_calls=3))
++        assert evaluate(policy, [0.0], 1.0).remaining == 1
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=10), quota=Quota(max_calls=30))
++        assert evaluate(policy, [0.0], 1.0).remaining == 0
++
++    def test_empty_policy_always_allows(self):
++        decision = evaluate(LimitPolicy(), [0.0] * 1000, 1.0)
++        assert decision == LimitDecision(allowed=True, retry_after=None, remaining=None, reason=None)
++
++
++class TestEvaluateValidation:
++    @pytest.mark.parametrize("now", [-1.0, math.inf, -math.inf, math.nan])
++    def test_bad_now(self, now: float):
++        with pytest.raises(ValueError):
++            evaluate(rate(1, 1), [], now)
++
++    def test_bad_now_rejected_for_empty_policy_too(self):
++        with pytest.raises(ValueError):
++            evaluate(LimitPolicy(), [], -0.1)
++
++    def test_future_call_time(self):
++        with pytest.raises(ValueError):
++            evaluate(quota(5), [1.0, 2.5], 2.0)
++
++    def test_call_time_equal_to_now_is_fine(self):
++        assert evaluate(quota(5), [2.0], 2.0).remaining == 3
++
++    @pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
++    def test_non_finite_call_time(self, bad: float):
++        with pytest.raises(ValueError):
++            evaluate(quota(5), [bad], 2.0)
++        with pytest.raises(ValueError):
++            evaluate(LimitPolicy(), [bad], 2.0)
++
++    def test_future_call_time_rejected_for_empty_policy(self):
++        with pytest.raises(ValueError):
++            evaluate(LimitPolicy(), [3.0], 2.0)
++
++
++class TestLimitState:
++    def test_check_does_not_record(self):
++        state = LimitState(rate(1, 10))
++        assert state.check(0.0).allowed is True
++        assert state.check(0.0).allowed is True
++        assert state.total_calls == 0
++
++    def test_record_then_deny_then_window_expiry(self):
++        state = LimitState(rate(2, 10))
++        state.record(0.0)
++        state.record(5.0)
++        decision = state.check(9.0)
++        assert decision.allowed is False
++        assert decision.retry_after == pytest.approx(1.0)
++        assert state.check(10.0).allowed is True
++
++    def test_record_prunes_the_rate_window(self):
++        state = LimitState(rate(2, 10))
++        state.record(0.0)
++        state.record(5.0)
++        state.record(10.0)
++        assert state.window_calls == [5.0, 10.0]
++        assert state.total_calls == 3
++
++    def test_quota_counter_survives_pruning(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=1), quota=Quota(max_calls=3))
++        state = LimitState(policy)
++        for t in (0.0, 5.0, 10.0):
++            assert state.check(t).allowed is True
++            state.record(t)
++        assert len(state.window_calls) == 1
++        assert state.check(100.0).reason == "quota"
++
++    def test_quota_only_keeps_no_timestamps(self):
++        state = LimitState(quota(2))
++        state.record(0.0)
++        assert state.window_calls == []
++        assert state.check(1.0).remaining == 0
++
++    def test_policy_is_public(self):
++        policy = quota(2)
++        assert LimitState(policy).policy is policy
++
++    def test_record_is_unconditional(self):
++        state = LimitState(quota(1))
++        state.record(0.0)
++        state.record(1.0)
++        assert state.total_calls == 2
++        assert state.check(2.0).reason == "quota"
++
++    def test_reset(self):
++        state = LimitState(quota(1))
++        state.record(0.0)
++        assert state.check(1.0).allowed is False
++        state.reset()
++        assert state.total_calls == 0
++        assert state.check(0.5).allowed is True
++
++    def test_agrees_with_evaluate(self):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=3, per_seconds=2), quota=Quota(max_calls=6))
++        state = LimitState(policy)
++        history: list[float] = []
++        t = 0.0
++        for _ in range(40):
++            assert state.check(t) == evaluate(policy, history, t)
++            if state.check(t).allowed:
++                state.record(t)
++                history.append(t)
++            t += 0.37
++
++    @pytest.mark.parametrize("now", [-1.0, math.nan, math.inf])
++    def test_bad_now(self, now: float):
++        state = LimitState(quota(1))
++        with pytest.raises(ValueError):
++            state.check(now)
++        with pytest.raises(ValueError):
++            state.record(now)
++
++    def test_time_going_backwards(self):
++        state = LimitState(rate(5, 10))
++        state.record(5.0)
++        with pytest.raises(ValueError):
++            state.check(4.0)
++        with pytest.raises(ValueError):
++            state.record(4.0)
+-- 
+2.54.0 (Apple Git-157)
+

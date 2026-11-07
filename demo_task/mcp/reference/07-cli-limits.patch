@@ -1,0 +1,260 @@
+From b5a130358e4bda369301a8d5a7d32f2a4470c904 Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:24:31 -0800
+Subject: [PATCH 7/7] S7: mcp limits CLI command
+
+mcp.cli.limits.format_limits_table() and the 'mcp limits FILE[:object]'
+subcommand, which resolves the server like 'mcp run' and prints one line
+per tool without running it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/cli/cli.py                            |  16 ++
+ src/mcp/cli/limits.py                         |  28 +++
+ .../mcpserver/test_limits_s7_cli_limits.py    | 165 ++++++++++++++++++
+ 3 files changed, 209 insertions(+)
+ create mode 100644 src/mcp/cli/limits.py
+ create mode 100644 tests/server/mcpserver/test_limits_s7_cli_limits.py
+
+diff --git a/src/mcp/cli/cli.py b/src/mcp/cli/cli.py
+index 203034c..f1d70b7 100644
+--- a/src/mcp/cli/cli.py
++++ b/src/mcp/cli/cli.py
+@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
+ 
+ try:
+     from mcp.cli import claude
++    from mcp.cli.limits import format_limits_table
+     from mcp.server.mcpserver.utilities.logging import get_logger
+ except ImportError:  # pragma: no cover
+     print("Error: mcp.server is not installed or not in PYTHONPATH")
+@@ -357,6 +358,21 @@ def run(
+         sys.exit(1)
+ 
+ 
++@app.command()
++def limits(
++    file_spec: str = typer.Argument(
++        ...,
++        help="Python file to inspect, optionally with :object suffix",
++    ),
++) -> None:
++    """Print each tool's rate limit, quota and scope without running the server."""
++    file, server_object = _parse_file_path(file_spec)
++    server = _import_server(file, server_object)
++    table = format_limits_table([(tool.name, tool.limits) for tool in server._tool_manager.list_tools()])
++    if table:
++        typer.echo(table)
++
++
+ @app.command()
+ def install(
+     file_spec: str = typer.Argument(
+diff --git a/src/mcp/cli/limits.py b/src/mcp/cli/limits.py
+new file mode 100644
+index 0000000..455fa28
+--- /dev/null
++++ b/src/mcp/cli/limits.py
+@@ -0,0 +1,28 @@
++"""Formatting of tool limit policies for `mcp limits`."""
++
++from mcp.server.mcpserver.limits import LimitPolicy
++
++
++def _format_seconds(seconds: float) -> str:
++    return str(int(seconds)) if float(seconds).is_integer() else str(float(seconds))
++
++
++def _format_line(name: str, policy: LimitPolicy | None) -> str:
++    rate = quota = "-"
++    scope = "server"
++    if policy is not None:
++        if policy.rate_limit is not None:
++            rate = f"{policy.rate_limit.max_calls}/{_format_seconds(policy.rate_limit.per_seconds)}s"
++        if policy.quota is not None:
++            quota = str(policy.quota.max_calls)
++        scope = policy.scope
++    return f"{name}  rate={rate}  quota={quota}  scope={scope}"
++
++
++def format_limits_table(tools: list[tuple[str, LimitPolicy | None]]) -> str:
++    """One line per tool: `name  rate=<max>/<per>s|-  quota=<max>|-  scope=<server|session>`.
++
++    Lines keep the input order and are joined with newlines, with no trailing
++    newline; an empty list gives an empty string.
++    """
++    return "\n".join(_format_line(name, policy) for name, policy in tools)
+diff --git a/tests/server/mcpserver/test_limits_s7_cli_limits.py b/tests/server/mcpserver/test_limits_s7_cli_limits.py
+new file mode 100644
+index 0000000..dcb072a
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s7_cli_limits.py
+@@ -0,0 +1,165 @@
++"""S7: `mcp limits FILE[:object]` and format_limits_table."""
++
++import logging
++import sys
++import textwrap
++from pathlib import Path
++
++import pytest
++from typer.testing import CliRunner
++
++from mcp.cli.cli import app
++from mcp.cli.limits import format_limits_table
++from mcp.server.mcpserver.limits import LimitPolicy, Quota, RateLimit
++
++
++class TestFormatLimitsTable:
++    def test_spec_example(self):
++        table = format_limits_table(
++            [
++                (
++                    "search",
++                    LimitPolicy(
++                        rate_limit=RateLimit(max_calls=5, per_seconds=60), quota=Quota(max_calls=100), scope="session"
++                    ),
++                ),
++                ("echo", None),
++            ]
++        )
++        assert table == "search  rate=5/60s  quota=100  scope=session\necho  rate=-  quota=-  scope=server"
++
++    def test_empty(self):
++        assert format_limits_table([]) == ""
++
++    def test_single_line_has_no_trailing_newline(self):
++        assert format_limits_table([("t", None)]) == "t  rate=-  quota=-  scope=server"
++
++    @pytest.mark.parametrize(
++        ("per_seconds", "shown"),
++        [(60.0, "60"), (1.0, "1"), (0.5, "0.5"), (1.25, "1.25"), (3600, "3600")],
++    )
++    def test_per_seconds_formatting(self, per_seconds: float, shown: str):
++        policy = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=per_seconds))
++        assert format_limits_table([("t", policy)]) == f"t  rate=2/{shown}s  quota=-  scope=server"
++
++    def test_quota_only(self):
++        policy = LimitPolicy(quota=Quota(max_calls=7))
++        assert format_limits_table([("t", policy)]) == "t  rate=-  quota=7  scope=server"
++
++    def test_empty_policy_keeps_its_scope(self):
++        assert format_limits_table([("t", LimitPolicy(scope="session"))]) == "t  rate=-  quota=-  scope=session"
++        assert format_limits_table([("t", LimitPolicy())]) == "t  rate=-  quota=-  scope=server"
++
++    def test_no_column_padding_and_input_order(self):
++        table = format_limits_table([("a_very_long_tool_name", None), ("b", LimitPolicy(quota=Quota(max_calls=1)))])
++        assert table.splitlines() == [
++            "a_very_long_tool_name  rate=-  quota=-  scope=server",
++            "b  rate=-  quota=1  scope=server",
++        ]
++
++
++SERVER_SOURCE = textwrap.dedent(
++    """
++    from mcp.server.mcpserver import MCPServer
++    from mcp.server.mcpserver.limits import LimitPolicy, Quota, RateLimit
++
++    {var} = MCPServer("limited")
++
++
++    @{var}.tool(
++        limits=LimitPolicy(
++            rate_limit=RateLimit(max_calls=5, per_seconds=60), quota=Quota(max_calls=100), scope="session"
++        )
++    )
++    def search(query: str) -> str:
++        return query
++
++
++    @{var}.tool()
++    def echo(text: str) -> str:
++        return text
++
++
++    @{var}.tool(limits=LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=0.5)))
++    def fast() -> str:
++        return "fast"
++    """
++)
++
++EXPECTED = (
++    "search  rate=5/60s  quota=100  scope=session\n"
++    "echo  rate=-  quota=-  scope=server\n"
++    "fast  rate=2/0.5s  quota=-  scope=server\n"
++)
++
++
++@pytest.fixture(autouse=True)
++def isolate_cli(monkeypatch: pytest.MonkeyPatch) -> None:
++    # The CLI's importer puts the server file's directory on sys.path.
++    monkeypatch.setattr(sys, "path", list(sys.path))
++    # pytest's live-logging handler on the root logger fights CliRunner over the
++    # std streams, so keep the CLI's error logs away from the root logger.
++    monkeypatch.setattr(logging.getLogger("cli"), "propagate", False)
++
++
++def write(tmp_path: Path, source: str, name: str = "server_file.py") -> Path:
++    path = tmp_path / name
++    path.write_text(source)
++    return path
++
++
++class TestLimitsCommand:
++    def test_prints_one_line_per_tool(self, tmp_path: Path):
++        path = write(tmp_path, SERVER_SOURCE.format(var="mcp"))
++        result = CliRunner().invoke(app, ["limits", str(path)])
++        assert result.exit_code == 0, result.output
++        assert result.output == EXPECTED
++
++    @pytest.mark.parametrize("var", ["server", "app"])
++    def test_finds_the_other_standard_names(self, tmp_path: Path, var: str):
++        path = write(tmp_path, SERVER_SOURCE.format(var=var))
++        result = CliRunner().invoke(app, ["limits", str(path)])
++        assert result.exit_code == 0, result.output
++        assert result.output == EXPECTED
++
++    def test_explicit_object(self, tmp_path: Path):
++        path = write(tmp_path, SERVER_SOURCE.format(var="custom_server"))
++        result = CliRunner().invoke(app, ["limits", f"{path}:custom_server"])
++        assert result.exit_code == 0, result.output
++        assert result.output == EXPECTED
++
++    def test_server_without_tools_prints_nothing(self, tmp_path: Path):
++        path = write(tmp_path, "from mcp.server.mcpserver import MCPServer\nmcp = MCPServer()\n")
++        result = CliRunner().invoke(app, ["limits", str(path)])
++        assert result.exit_code == 0
++        assert result.output == ""
++
++    def test_does_not_run_the_server(self, tmp_path: Path):
++        source = SERVER_SOURCE.format(var="mcp") + "\n\nif __name__ == '__main__':\n    raise SystemExit(3)\n"
++        result = CliRunner().invoke(app, ["limits", str(write(tmp_path, source))])
++        assert result.exit_code == 0
++
++    def test_missing_file(self, tmp_path: Path):
++        result = CliRunner().invoke(app, ["limits", str(tmp_path / "nope.py")])
++        assert result.exit_code == 1
++        assert result.stdout == ""
++
++    def test_not_a_file(self, tmp_path: Path):
++        result = CliRunner().invoke(app, ["limits", str(tmp_path)])
++        assert result.exit_code == 1
++
++    def test_missing_object(self, tmp_path: Path):
++        path = write(tmp_path, SERVER_SOURCE.format(var="mcp"))
++        result = CliRunner().invoke(app, ["limits", f"{path}:missing"])
++        assert result.exit_code == 1
++        assert result.stdout == ""
++
++    def test_object_that_is_not_a_server(self, tmp_path: Path):
++        path = write(tmp_path, "mcp = 42\n")
++        assert CliRunner().invoke(app, ["limits", f"{path}:mcp"]).exit_code == 1
++        assert CliRunner().invoke(app, ["limits", str(path)]).exit_code == 1
++
++    def test_listed_in_help(self):
++        result = CliRunner().invoke(app, ["--help"])
++        assert result.exit_code == 0
++        assert "limits" in result.output
+-- 
+2.54.0 (Apple Git-157)
+

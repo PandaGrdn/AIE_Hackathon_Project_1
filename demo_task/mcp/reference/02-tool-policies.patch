@@ -1,0 +1,206 @@
+From f4f26bd00923cd8b6190de75d3c41f793252d4eb Mon Sep 17 00:00:00 2001
+From: ethan_liu <eveflyhigh12345@gmail.com>
+Date: Sat, 7 Nov 2026 13:11:37 -0800
+Subject: [PATCH 2/7] S2: attach limit policies to tools
+
+Tool.limits, Tool.from_function(limits=...), ToolManager.add_tool(limits=...),
+ToolManager.get_limits() and ToolManager.set_limits().
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mcp/server/mcpserver/tools/base.py        |  5 +
+ .../server/mcpserver/tools/tool_manager.py    | 20 ++++
+ .../mcpserver/test_limits_s2_tool_policies.py | 92 +++++++++++++++++++
+ 3 files changed, 117 insertions(+)
+ create mode 100644 tests/server/mcpserver/test_limits_s2_tool_policies.py
+
+diff --git a/src/mcp/server/mcpserver/tools/base.py b/src/mcp/server/mcpserver/tools/base.py
+index 10a2d6c..c07b1bd 100644
+--- a/src/mcp/server/mcpserver/tools/base.py
++++ b/src/mcp/server/mcpserver/tools/base.py
+@@ -14,6 +14,7 @@ from mcp.server.mcpserver.exceptions import (
+     UnexpectedResourceError,
+     UnexpectedToolError,
+ )
++from mcp.server.mcpserver.limits import LimitPolicy
+ from mcp.server.mcpserver.resolve import (
+     build_resolver_plans,
+     find_resolved_parameters,
+@@ -56,6 +57,7 @@ class Tool(BaseModel):
+     annotations: ToolAnnotations | None = Field(None, description="Optional annotations for the tool")
+     icons: list[Icon] | None = Field(default=None, description="Optional list of icons for this tool")
+     meta: dict[str, Any] | None = Field(default=None, description="Optional metadata for this tool")
++    limits: LimitPolicy | None = Field(default=None, description="Optional rate limit and quota for this tool")
+ 
+     @cached_property
+     def output_schema(self) -> dict[str, Any] | None:
+@@ -73,6 +75,8 @@ class Tool(BaseModel):
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        *,
++        limits: LimitPolicy | None = None,
+     ) -> Tool:
+         """Create a Tool from a function."""
+         func_name = name or fn.__name__
+@@ -129,6 +133,7 @@ class Tool(BaseModel):
+             annotations=annotations,
+             icons=icons,
+             meta=meta,
++            limits=limits,
+         )
+ 
+     async def run(
+diff --git a/src/mcp/server/mcpserver/tools/tool_manager.py b/src/mcp/server/mcpserver/tools/tool_manager.py
+index 9e7910e..53b7fbf 100644
+--- a/src/mcp/server/mcpserver/tools/tool_manager.py
++++ b/src/mcp/server/mcpserver/tools/tool_manager.py
+@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
+ from mcp_types import Icon, ToolAnnotations
+ 
+ from mcp.server.mcpserver.exceptions import ToolError
++from mcp.server.mcpserver.limits import LimitPolicy
+ from mcp.server.mcpserver.tools.base import Tool
+ from mcp.server.mcpserver.utilities.logging import get_logger
+ 
+@@ -46,6 +47,8 @@ class ToolManager:
+         icons: list[Icon] | None = None,
+         meta: dict[str, Any] | None = None,
+         structured_output: bool | None = None,
++        *,
++        limits: LimitPolicy | None = None,
+     ) -> Tool:
+         """Add a tool to the server."""
+         tool = Tool.from_function(
+@@ -57,6 +60,7 @@ class ToolManager:
+             icons=icons,
+             meta=meta,
+             structured_output=structured_output,
++            limits=limits,
+         )
+         existing = self._tools.get(tool.name)
+         if existing:
+@@ -66,6 +70,22 @@ class ToolManager:
+         self._tools[tool.name] = tool
+         return tool
+ 
++    def get_limits(self, name: str) -> LimitPolicy | None:
++        """The limit policy attached to a tool; `None` when it has none or the tool is unknown."""
++        tool = self._tools.get(name)
++        return None if tool is None else tool.limits
++
++    def set_limits(self, name: str, policy: LimitPolicy | None) -> None:
++        """Attach `policy` to a registered tool, or clear it with `None`.
++
++        Raises:
++            ToolError: If the tool is unknown.
++        """
++        tool = self._tools.get(name)
++        if tool is None:
++            raise ToolError(f"Unknown tool: {name}")
++        tool.limits = policy
++
+     def remove_tool(self, name: str) -> None:
+         """Remove a tool by name."""
+         if name not in self._tools:
+diff --git a/tests/server/mcpserver/test_limits_s2_tool_policies.py b/tests/server/mcpserver/test_limits_s2_tool_policies.py
+new file mode 100644
+index 0000000..ff59f9c
+--- /dev/null
++++ b/tests/server/mcpserver/test_limits_s2_tool_policies.py
+@@ -0,0 +1,92 @@
++"""S2: attaching limit policies to tools."""
++
++import pytest
++
++from mcp.server.mcpserver.exceptions import ToolError
++from mcp.server.mcpserver.limits import LimitPolicy, Quota, RateLimit
++from mcp.server.mcpserver.tools import Tool, ToolManager
++
++POLICY = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=60), quota=Quota(max_calls=10))
++
++
++def search(query: str) -> str:  # pragma: no cover
++    return query
++
++
++def other() -> str:  # pragma: no cover
++    return "other"
++
++
++def test_tool_defaults_to_no_limits():
++    assert Tool.from_function(search).limits is None
++
++
++def test_from_function_accepts_limits():
++    tool = Tool.from_function(search, limits=POLICY)
++    assert tool.limits == POLICY
++
++
++def test_add_tool_passes_limits_through():
++    manager = ToolManager()
++    tool = manager.add_tool(search, limits=POLICY)
++    assert tool.limits == POLICY
++    assert manager.get_limits("search") == POLICY
++
++
++def test_add_tool_without_limits():
++    manager = ToolManager()
++    manager.add_tool(search)
++    assert manager.get_limits("search") is None
++
++
++def test_duplicate_add_tool_keeps_the_existing_policy():
++    manager = ToolManager(warn_on_duplicate_tools=False)
++    first = manager.add_tool(search, limits=POLICY)
++    again = manager.add_tool(search, limits=LimitPolicy(quota=Quota(max_calls=1)))
++    assert again is first
++    assert manager.get_limits("search") == POLICY
++
++
++def test_duplicate_add_tool_without_limits_keeps_the_policy():
++    manager = ToolManager(warn_on_duplicate_tools=False)
++    manager.add_tool(search, limits=POLICY)
++    manager.add_tool(search)
++    assert manager.get_limits("search") == POLICY
++
++
++def test_get_limits_unknown_tool_is_none():
++    assert ToolManager().get_limits("nope") is None
++
++
++def test_set_limits_replaces_and_clears():
++    manager = ToolManager()
++    manager.add_tool(search)
++    manager.set_limits("search", POLICY)
++    assert manager.get_limits("search") is POLICY
++    tool = manager.get_tool("search")
++    assert tool is not None and tool.limits is POLICY
++
++    session_policy = LimitPolicy(quota=Quota(max_calls=1), scope="session")
++    manager.set_limits("search", session_policy)
++    assert manager.get_limits("search") == session_policy
++
++    manager.set_limits("search", None)
++    assert manager.get_limits("search") is None
++
++
++def test_set_limits_only_touches_the_named_tool():
++    manager = ToolManager()
++    manager.add_tool(search)
++    manager.add_tool(other)
++    manager.set_limits("search", POLICY)
++    assert manager.get_limits("other") is None
++
++
++def test_set_limits_unknown_tool_raises_tool_error():
++    with pytest.raises(ToolError, match="Unknown tool: missing"):
++        ToolManager().set_limits("missing", POLICY)
++
++
++def test_tool_manager_init_keeps_prebuilt_tool_limits():
++    manager = ToolManager(tools=[Tool.from_function(search, limits=POLICY)])
++    assert manager.get_limits("search") == POLICY
+-- 
+2.54.0 (Apple Git-157)
+
