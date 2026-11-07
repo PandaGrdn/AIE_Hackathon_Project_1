@@ -25,9 +25,9 @@ class Settings:
     subq_model: str = field(default_factory=lambda: _env("SUBQ_MODEL", "subq-snap-1.1"))
 
     meta_api_key: str = field(default_factory=lambda: _env("META_API_KEY"))
-    meta_base_url: str = field(default_factory=lambda: _env("META_BASE_URL", "https://api.dev.meta.ai/v1"))
-    meta_model_code: str = field(default_factory=lambda: _env("META_MODEL_CODE", "muse-code"))
-    meta_model_spark: str = field(default_factory=lambda: _env("META_MODEL_SPARK", "muse-spark"))
+    meta_base_url: str = field(default_factory=lambda: _env("META_BASE_URL", "https://api.meta.ai/v1"))
+    meta_model_code: str = field(default_factory=lambda: _env("META_MODEL_CODE", "muse-wonder-1.0"))
+    meta_model_spark: str = field(default_factory=lambda: _env("META_MODEL_SPARK", "muse-spark-1.3"))
 
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash"))
