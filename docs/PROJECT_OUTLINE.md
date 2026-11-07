@@ -157,6 +157,7 @@ Agents' own tests are **not used**: they are derived from the agent's implementa
 
 **Correlating a failure to a reasoning region.** A failing test alone says *that* the agent was wrong; the divergence point says *where in its reasoning*. Three signals are combined, strongest first, and the result is confirmed before it becomes a lesson:
 
+0. **SubQ Snap decision (primary when a key is present).** The failed path (steps labelled `[S0]…[Sn]`), the consensus assumptions per phase and the failing evidence go into `state`; Snap answers `root_step` (a `choice` over the labels plus `none`) with a probability per step, `kind` (`bug` / `spec_ambiguity` / `acceptable_variation`) and `generalizes` (`noul`). `spec_ambiguity` routes to the decomposer instead of charging the agent; low `generalizes` lowers the lesson's starting confidence. Signals 1–3 below corroborate and are the fallback offline (`core/llm/decisions.py`).
 1. **Path divergence.** Align the failed path with the consensus path by subtask phase; candidate = first step whose distance to the consensus cluster exceeds the swarm's own spread (needs ≥3 verified runs; with fewer, fall back to signal 2 only).
 2. **Locality to the failure.** Among candidate steps, prefer ones whose `files_touched` include the file of the failing function, and whose `assumption` text is semantically close to the failing case (embedding of "function + failing input + expected vs actual"). A step that is both off-consensus and local to the failure wins.
 3. **Live-test timing.** If the agent ran `run_spec_tests` during the run, the step just before the first time the (visible) failing case went red is a strong candidate; if the case was never green, the earliest local step is.
@@ -193,7 +194,8 @@ Agents' own tests are **not used**: they are derived from the agent's implementa
 
 | Layer | Tool | Why |
 | --- | --- | --- |
-| Reflector + long-context review | **Subquadratic SubQ Snap 1.1** (console.subq.ai, 100M free tokens) | Needs the failed path, consensus paths, results and lesson history in one call |
+| Root-cause localization, failure classification, lesson triage | **Subquadratic SubQ Snap 1.1** (console.subq.ai, 100M free tokens) | Snap is a **Decisions API** (`POST /v1/systemone`), not chat: it returns calibrated probabilities over choices with zero output tokens and a 384K context. We put the whole failed reasoning path, the consensus paths and the failing test in `state` and ask three questions: which step is the root cause (`choice` over step labels), what kind of failure (`bug` / `spec_ambiguity` / `acceptable_variation`), and whether a lesson would generalize (`noul`). Live test: S2 at 0.98, spec_ambiguity 0.79, generalizes 0.98, 477 input tokens |
+| Decomposer, spec-test author, reflector lesson text | **Gemini** (`gemini-3.8-flash`; `gemini-3.1-pro-preview` via v1beta for harder prompts) | Text generation roles; SubQ cannot generate text |
 | Swarm agents | **Meta Model API — Muse Code, Muse Spark** (dev.meta.ai, $100 credits) | Independent implementers; Best Use of Meta |
 | Swarm agents + embeddings | **Gemini** (Google DeepMind guide) | Another family; embedding model for steps and lessons |
 | Swarm agents | Claude, 1–2 open models (optional) | Diversity |
