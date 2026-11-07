@@ -1,6 +1,8 @@
 """Thin chat clients for every provider. Owner: Lucas.
 
-SubQ and Meta expose OpenAI-compatible endpoints, so they share one adapter.
+Meta exposes an OpenAI-compatible endpoint, so it uses the OpenAI-compatible adapter.
+SubQ has no client here: it is a decision model reached only through the Decisions API in
+`core/harness/subq_judge.py`, and it is never a swarm agent.
 Every client has the same `chat(messages, tools=None) -> dict` surface so the
 swarm runner and reflector don't care which provider is behind an identity.
 
@@ -75,7 +77,7 @@ def _usage(inp: Any, out: Any) -> dict[str, int]:
 
 
 class OpenAICompatClient:
-    """Works for SubQ, Meta Model API and OpenAI itself."""
+    """Works for the Meta Model API and OpenAI itself."""
 
     def __init__(self, identity: AgentIdentity, api_key: str, base_url: str):
         from openai import OpenAI
@@ -287,7 +289,6 @@ def parse_anthropic_response(resp: Any) -> ChatResponse:
 # ---------- factory + roster ----------
 
 _PROVIDER_KEYS = {
-    "subq": "subq_api_key",
     "meta": "meta_api_key",
     "gemini": "gemini_api_key",
     "anthropic": "anthropic_api_key",
@@ -302,8 +303,6 @@ def provider_available(provider: str) -> bool:
 
 def get_client(identity: AgentIdentity) -> LLMClient:
     p = identity.provider
-    if p == "subq":
-        return OpenAICompatClient(identity, settings.subq_api_key, settings.subq_base_url)
     if p == "meta":
         return OpenAICompatClient(identity, settings.meta_api_key, settings.meta_base_url)
     if p == "gemini":
@@ -329,8 +328,8 @@ def reflector_identity() -> AgentIdentity:
 def swarm_identities() -> list[AgentIdentity]:
     """The default swarm roster (6: 2 meta, 2 gemini, 2 anthropic). Vary temperature/prompt so identities differ.
 
-    SubQ is deliberately absent: it authors the ground-truth spec tests (and runs the reflector),
-    and the test-independence rule (outline §5.5) forbids the test author from also implementing.
+    SubQ is deliberately absent: it is the verdict judge (Decisions API, no chat endpoint), and a
+    judge must not also implement. Gemini writes the spec tests and lessons.
     The full roster is returned regardless of configured keys; the router filters with
     `provider_available`.
     """

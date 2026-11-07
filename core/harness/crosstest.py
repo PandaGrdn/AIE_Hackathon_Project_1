@@ -18,8 +18,11 @@ Verdict per run:
   - violates a spec property on any case whose call returned normally                      -> failed
   - visible spec misses and fuzz-majority disagreements are evidence only; they go to the
     reflector as the breaking case when nothing stronger exists
-  - spec author vs swarm majority disagree on a spec case/test -> AmbiguityFlag, nobody is charged
-    (regression tests are exempt: breaking existing behavior is always charged)
+  - spec author vs swarm majority disagree on a spec case/test -> AmbiguityFlag. SubQ (the judge,
+    `subq_judge.py`) reads the initial spec + the case + both answers, never any code: if it sides
+    with the author the dissenting runs are charged; if it sides with the majority the case is
+    dropped from the verdict; without SubQ nobody is charged. Regression tests are exempt:
+    breaking existing behavior is always charged.
   - no spec tests at all -> legacy fuzz-majority verdict (every run outside the majority fails)
 """
 
@@ -44,6 +47,7 @@ from core.harness.equivalence import equivalent
 from core.harness.majority import trust_weighted_majority
 from core.harness.spec_tests import SpecTests, check_property, load_cached, spec_node_ids
 from core.harness.strategies import generate_cases
+from core.harness.subq_judge import SubQJudge
 from core.models import (  # noqa: F401 — MajorityVote resolves CrossTestResult's forward ref
     AgentRun,
     CrossTestResult,
@@ -88,6 +92,13 @@ class AmbiguityFlag(BaseModel):
     expected: Any
     majority: Outcome
     agreement: float
+    author_right_p: float | None = None  # SubQ's P(author follows the spec); None when no judge ran
+    resolution: str = "unresolved"  # unresolved | author (dissenters charged) | majority (case dropped)
+
+
+def default_judge() -> SubQJudge | None:
+    j = SubQJudge()
+    return j if j.available else None
 
 
 class VerdictResult(CrossTestResult):
@@ -247,6 +258,10 @@ def _parse_junit(xml: Path, tmp_name: str, written: dict[str, str]) -> dict[str,
     return out
 
 
+def _majority_value(o: Outcome) -> Any:
+    return {"raises": o.exception} if not o.ok else o.value
+
+
 def _pytest_case(node_id: str, source: str) -> TestCase:
     """A synthetic TestCase for one pytest test so the verdict and the reflector treat it like any other case."""
     cid = "pt_" + hashlib.sha256(node_id.encode()).hexdigest()[:10]
@@ -265,10 +280,13 @@ def cross_test(
     spec_cases: list[TestCase] | None = None,
     spec: SpecTests | None = None,
     repo: Path | None = None,
+    judge: SubQJudge | None | str = "default",
 ) -> VerdictResult:
-    """`spec` is the SubQ-authored SpecTests (preferred). `spec_cases` alone (the orchestrator's current
-    call) recovers the expectations from the per-subtask cache. `repo` is the base repo; its own tests
-    at `tests/` are the regression suite run in every sandbox."""
+    """`spec` is the authored SpecTests (preferred). `spec_cases` alone (the orchestrator's current call)
+    recovers the expectations from the per-subtask cache. `repo` is the base repo; its own tests at
+    `tests/` are the regression suite run in every sandbox. `judge` is SubQ for ambiguity resolution
+    ("default" = use it when a key is configured; None = off)."""
+    judge = default_judge() if judge == "default" else judge
     if spec is None and spec_cases:
         spec = load_cached(subtask)
     sig_by_name = {s.name: s for s in subtask.interface}
@@ -333,10 +351,18 @@ def cross_test(
             # only a real majority (> half the trust weight) can overrule the author; a tie or a lone
             # dissenter is charged as a miss
             if mv.agreement > 0.5 and not equivalent(mv.representative, exp):
-                flagged.add(cid)
                 c = by_id[cid]
                 raw = spec.expected.get(cid, "passed")
-                flags.append(AmbiguityFlag(case_id=cid, function=c.function, args=c.args, expected=raw, majority=mv.representative, agreement=mv.agreement))
+                flag = AmbiguityFlag(case_id=cid, function=c.function, args=c.args, expected=raw, majority=mv.representative, agreement=mv.agreement)
+                if judge is not None and c.source == "spec":  # function case: both answers are plain values SubQ can compare to the spec
+                    try:
+                        flag.author_right_p = judge.judge_ambiguity(subtask.spec, c.function, c.args, raw, _majority_value(mv.representative))
+                        flag.resolution = "author" if flag.author_right_p >= 0.5 else "majority"
+                    except Exception:  # noqa: BLE001 — judge down: fall back to charging nobody
+                        flag.resolution = "unresolved"
+                if flag.resolution != "author":
+                    flagged.add(cid)  # not charged to anyone (dropped if the judge sided with the majority)
+                flags.append(flag)
         props_by_fn: dict[str, list] = defaultdict(list)
         for p in spec.properties:
             props_by_fn[p.function].append(p)

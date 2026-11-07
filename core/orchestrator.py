@@ -98,7 +98,11 @@ def run_subtask(
     console.print("agents: " + ", ".join(a.id for a in agents))
 
     # 3. swarm
-    runs = asyncio.run(swarm_fn(subtask, agents, repo, lesson_ids, store))
+    # The real runner takes `spec` so agents can run the visible spec tests live; fakes may not accept it.
+    import inspect
+
+    accepts_spec = "spec" in inspect.signature(swarm_fn).parameters
+    runs = asyncio.run(swarm_fn(subtask, agents, repo, lesson_ids, store, spec=spec) if accepts_spec else swarm_fn(subtask, agents, repo, lesson_ids, store))
     store.save_manifest(RunManifest(task_id=task.id, subtask_id=subtask.id, agent_ids=[a.id for a in agents], lessons_used=lesson_ids))
 
     # 4–5. cross-test

@@ -196,8 +196,10 @@ def test_403_raises_subq_error():
     failed, verified, breaking, fo = _pricing_case()
     with pytest.raises(SubQError):
         locate_divergence_subq(SPEC, failed, verified, breaking, fo, client=_client(handler), fallback=False)
-    # with fallback, find_divergence finds nothing (no embeddings) -> None, no exception
-    assert locate_divergence_subq(SPEC, failed, verified, breaking, fo, client=_client(handler)) is None
+    # with fallback: no exception; the embedding-path heuristic decides (it may return None when there
+    # are no embeddings, or a path/locality candidate), and nothing SubQ-specific is attached
+    div = locate_divergence_subq(SPEC, failed, verified, breaking, fo, client=_client(handler))
+    assert div is None or ("subq" not in div.signals and not div.step_probabilities and div.kind is None)
 
 
 def test_429_then_200_retries_once():

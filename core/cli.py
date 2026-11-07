@@ -71,7 +71,7 @@ def run(
         raise typer.BadParameter(f"reference dir not found: {ref} (pass --reference-dir)")
     task = fake_decompose(load_task(task_file), ref)
     print(f"[bold]{task.title}[/] → {len(task.subtasks)} subtasks [dim](fake, reference: {ref})[/]")
-    runner = make_heldout_runner(store, swarm_fn=fake_swarm(), heldout_dir=heldout_dir, n_fuzz=FAKE_N_FUZZ) if heldout else None
+    runner = make_heldout_runner(store, swarm_fn=fake_swarm(), spec_fn=fake_spec_tests, heldout_dir=heldout_dir, n_fuzz=FAKE_N_FUZZ) if heldout else None
     summary = run_task(
         task, store, runner,
         swarm_fn=fake_swarm(ref), spec_fn=partial(fake_spec_tests, reference_dir=ref), reflect_fn=fake_reflect, n_fuzz=FAKE_N_FUZZ,

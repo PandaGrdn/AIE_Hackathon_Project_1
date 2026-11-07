@@ -111,13 +111,16 @@ class Sandbox:
         tok = uuid.uuid4().hex[:8]
         tests_dir = self.path / "tests"
         tests_dir.mkdir(exist_ok=True)
-        files = {f"_spec_{tok}_{name}": tests_dir / f"_spec_{tok}_{name}.py" for name in modules}
-        stem_to_mod = {stem: name for stem, name in zip(files, modules)}
+        # harness module names carry a .py suffix ("test_x.py"); the stem must not, or the junit
+        # classname splits on the dot and the result keys never match the harness's node ids
+        stems = {name: f"_spec_{tok}_{name.removesuffix('.py')}" for name in modules}
+        files = {stems[name]: tests_dir / f"{stems[name]}.py" for name in modules}
+        stem_to_mod = {stem: name for name, stem in stems.items()}
         fd, junit = tempfile.mkstemp(prefix="junit_", suffix=".xml")
         os.close(fd)
         try:
             for name, src in modules.items():
-                files[f"_spec_{tok}_{name}"].write_text(src)
+                files[stems[name]].write_text(src)
             cmd = [sys.executable, *_PYTEST, f"--junitxml={junit}", *(str(p.relative_to(self.path)) for p in files.values())]
             if _has_pytest_timeout():
                 cmd += ["--timeout", str(timeout)]
