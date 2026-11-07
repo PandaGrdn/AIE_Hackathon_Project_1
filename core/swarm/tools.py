@@ -41,6 +41,15 @@ RUN_TESTS_TOOL = {
     },
 }
 
+RUN_SPEC_TESTS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "run_spec_tests",
+        "description": "Run the independent acceptance tests for this subtask against your current code. Returns pass/fail per case with the input and, on failure, expected vs actual. These tests were written from the spec before any implementation; a hidden set decides the final verdict.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
 DONE_TOOL = {
     "type": "function",
     "function": {
@@ -50,4 +59,4 @@ DONE_TOOL = {
     },
 }
 
-AGENT_TOOLS = [LOG_STEP_TOOL, WRITE_FILE_TOOL, RUN_TESTS_TOOL, DONE_TOOL]
+AGENT_TOOLS = [LOG_STEP_TOOL, WRITE_FILE_TOOL, RUN_TESTS_TOOL, RUN_SPEC_TESTS_TOOL, DONE_TOOL]

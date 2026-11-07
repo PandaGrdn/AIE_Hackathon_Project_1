@@ -71,6 +71,8 @@ class ReasoningStep(BaseModel):
     files_touched: list[str] = []
     ts: datetime = Field(default_factory=now)
     embedding: list[float] | None = None
+    # case_id -> passed, filled when the agent calls run_spec_tests right after this step
+    live_results: dict[str, bool] | None = None
 
     def as_text(self) -> str:
         touches = ", ".join(self.files_touched) or "-"
@@ -138,6 +140,8 @@ class Divergence(BaseModel):
     consensus_step_texts: list[str]
     breaking_case: TestCase | None = None
     majority_outcome: Outcome | None = None
+    signals: list[str] = []  # which of path|locality|live_timing pointed at this step
+    confirmed: bool = False  # counterfactual replay fixed the failing case
 
 
 # ---------- self-improvement ----------

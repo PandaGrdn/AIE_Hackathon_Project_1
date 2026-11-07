@@ -41,6 +41,15 @@ class SpecTests(BaseModel):
     cases: list[TestCase]
     expected: dict[str, object]  # case_id -> expected value, or {"raises": "ValueError"}
     properties: list[SpecProperty]
+    visible_ids: list[str] = []  # ~40% of cases agents may run live; the rest + properties decide the verdict
+
+    @property
+    def visible(self) -> list[TestCase]:
+        return [c for c in self.cases if c.id in self.visible_ids]
+
+    @property
+    def hidden(self) -> list[TestCase]:
+        return [c for c in self.cases if c.id not in self.visible_ids]
 
 
 AUTHOR_PROMPT = """You are writing acceptance tests for a subtask BEFORE anyone implements it.
@@ -94,7 +103,21 @@ def author(subtask: Subtask, repo: Path) -> SpecTests:
         cases.append(tc)
         expected[tc.id] = c["expected"]
     props = [SpecProperty(name=p["name"], function=p["function"], predicate_src=p["predicate"], description=p.get("description", "")) for p in data.get("properties", [])]
-    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props)
+    visible = [c.id for c in cases[:: 5][:0]]  # placeholder, replaced below
+    visible = _split_visible(cases, VISIBLE_SHARE)
+    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible)
+
+
+VISIBLE_SHARE = 0.4
+
+
+def _split_visible(cases: list[TestCase], share: float) -> list[str]:
+    """Deterministic split so the same subtask always exposes the same visible cases."""
+    import hashlib
+
+    ranked = sorted(cases, key=lambda c: hashlib.sha256(c.id.encode()).hexdigest())
+    n = max(1, int(len(ranked) * share)) if ranked else 0
+    return [c.id for c in ranked[:n]]
 
 
 def check_property(prop: SpecProperty, args: list, result: object) -> bool:

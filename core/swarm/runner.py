@@ -60,6 +60,11 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
                         result = f"wrote {args['path']}"
                     elif name == "run_tests":
                         result = sb.run_tests()
+                    elif name == "run_spec_tests":
+                        # TODO(Lucas): run spec.visible cases via harness._call against sb.path,
+                        # compare to spec.expected, set run.steps[-1].live_results = {case_id: passed},
+                        # and return per-case pass/fail with expected vs actual on failures.
+                        result = "run_spec_tests not wired yet"
                     elif name == "done":
                         finished = True
                         result = "ok"

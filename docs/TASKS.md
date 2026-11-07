@@ -27,7 +27,7 @@ Need a new field or dependency? Post it in chat; Ethan Liu adds it within minute
 
 | Hour | Deliverable |
 | --- | --- |
-| 1 | Get keys working: SubQ, Meta, Gemini, Anthropic. Finish tool-call mapping in `GeminiClient.chat` and `AnthropicClient.chat` (`core/llm/clients.py`). One agent implements demo subtask 1 for real via `run_one`, producing `steps.jsonl`-style `ReasoningStep`s and a diff. |
+| 1 | Get keys working: SubQ, Meta, Gemini, Anthropic. Finish tool-call mapping in `GeminiClient.chat` and `AnthropicClient.chat` (`core/llm/clients.py`). One agent implements demo subtask 1 for real via `run_one`, producing `steps.jsonl`-style `ReasoningStep`s and a diff. Implement the `run_spec_tests` tool in `runner.py` + `sandbox.py`: runs the subtask's **visible** spec cases against the sandbox and returns pass/fail per case; record the result on the preceding `ReasoningStep` (`live_results`). |
 | 2 | Full roster of 6 in parallel (`run_swarm`), timeouts and token budgets enforced, `Sandbox.diff()` for the copy backend. Make agents reliably call `log_step` before every action (tighten `prompts.py` if they skip it). |
 | 3 | Reliability: retries on API errors, graceful failure per agent, cost/time logging per run. Help with the live run and demo fallback. |
 
@@ -37,7 +37,8 @@ Need a new field or dependency? Post it in chat; Ethan Liu adds it within minute
 
 | Hour | Deliverable |
 | --- | --- |
-| 1 | **Spec tests** (`core/harness/spec_tests.py`): a test-author model writes cases with expected values and metamorphic properties from spec + interface + base repo only, cached per subtask, run before the swarm; wire into `cross_test` as `source="spec"` / `source="property"`. Reflector live on SubQ: `reflect()` returns a real lesson from a failed run (`core/reflect/reflector.py`; pass the failed run's actual outcome instead of the `_fmt` stub). |
+| 1 | **Spec tests** (`core/harness/spec_tests.py`): a test-author model writes cases with expected values and metamorphic properties from spec + interface + base repo only, cached per subtask, run before the swarm; **split into visible (~40%) and hidden** (`SpecTests.visible_ids`); wire into `cross_test` as `source="spec"` / `source="property"` with the verdict on hidden + properties only. Reflector live on SubQ: `reflect()` returns a real lesson from a failed run (`core/reflect/reflector.py`; pass the failed run's actual outcome instead of the `_fmt` stub). |
+| 2b | **Failure correlation** (`core/paths/divergence.py`): combine path divergence with locality (files_touched ∋ failing function's file; assumption close to the failing case) and live-test timing (`live_results` on steps); add counterfactual replay in `core/reflect/` (re-run from the candidate step with the consensus assumption; confirmed → region now, else `confidence ≤ 0.3`, no region until a second hit). |
 | 1b | Cross-test matrix in `core/harness/crosstest.py` (each run's `tests/` × every impl) as tie-breaker evidence only; spec-vs-majority disagreement surfaces as an ambiguity flag, not a failure. |
 | 2 | MongoDB: `MongoStore` wired, `ensure_indexes`, `regions_near` via `$vectorSearch`. Tune `dedup.py` thresholds (`BASE_RADIUS`, similarity) on real Gemini embeddings. Check `find_divergence` picks the right step on real paths; adjust `divergence_sigma` / `N_BINS`. |
 | 3 | `proposer.py`: cluster adopted lessons → `ChangeKind.tool` proposal (reflector writes a small tool). Trust leaderboard data for the UI. Help debug the gate on the full run. |

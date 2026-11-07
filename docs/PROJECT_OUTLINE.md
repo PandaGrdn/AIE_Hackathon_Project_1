@@ -58,7 +58,7 @@ Long task
        ├─ 2. Router ────────────── pick N agents by trust score for this subtask type
        │
        ├─ 3. Swarm Runner ──────── N sandboxes at current repo state; each agent implements,
-       │        writes tests, logs reasoning via log_step
+       │        logs reasoning via log_step, runs the VISIBLE spec tests via run_spec_tests
        │        live check: if a new step enters a known failure region → inject that lesson now
        │
        ├─ 4. Path Embedder ─────── embed every reasoning step → vector store
@@ -71,8 +71,8 @@ Long task
        │        no majority → subtask marked ambiguous, re-decomposed or escalated
        │
        ├─ 7. Reflector ─────────── for each failed agent:
-       │        align its path to the consensus path → divergence point
-       │        + breaking input + majority behavior → lesson resolving the reasoning error
+       │        path divergence + locality to the failing test + live-test timing → candidate step
+       │        counterfactual replay confirms it → lesson resolving the reasoning error
        │
        ├─ 8. Change Proposer ───── lesson → context change; trust update → routing change;
        │        repeated failure cluster → tool proposal (e.g. a boundary-case test generator)
@@ -113,7 +113,9 @@ Every change gets a version, a `candidate → adopted | rolled_back` status, and
 - Agent mix: Meta Muse Code, Muse Spark, Gemini, Claude, 1–2 open models. Each (model, config) is an identity with a trust score.
 - Required tool `log_step(assumption, action, files_touched)` before every edit or command.
 - **Live check:** each new step is embedded and compared with failure regions; a hit injects the matching lesson into the agent's context before it acts.
-- Output per agent: `impl/`, `tests/`, `steps.jsonl`.
+- **Live verification against independent tests.** Agents get a `run_spec_tests` tool that runs the subtask's *visible* spec tests (see split below) against their current code and returns pass/fail per case. They never see the hidden set or the properties. Each call is logged as a step so a failing live test is tied to the reasoning step that preceded it.
+- **Visible / hidden split.** The spec-test author's output is split once per subtask and cached: about 40% of cases are visible (live feedback), the rest plus all properties are hidden (verdict only). A visible test can still fail at verdict time, but the verdict is decided on the hidden set and properties, so iterating against the visible set can't game it.
+- Output per agent: `impl/`, `tests/`, `steps.jsonl` (includes `run_spec_tests` results per step).
 
 ### 5.4 Path Embedder
 - Embeds the structured step string `"assumption: … | action: … | touches: …"` (not raw chain-of-thought; raw text clusters by topic, not by reasoning pattern).
@@ -144,8 +146,16 @@ Four test sources, in order of weight:
 - Agreement ≤50% → subtask flagged ambiguous; decomposer splits it or the system asks for clarification. The long task never silently advances on a non-verified step.
 
 ### 5.7 Reflector
-- Aligns the failed agent's path with the consensus path by subtask phase; divergence point = first step whose distance to the consensus cluster exceeds the swarm's own spread.
-- Input to the reflector model: the failed path, the divergence step, the consensus steps at that phase, the minimal breaking input, the majority's output.
+
+**Correlating a failure to a reasoning region.** A failing test alone says *that* the agent was wrong; the divergence point says *where in its reasoning*. Three signals are combined, strongest first, and the result is confirmed before it becomes a lesson:
+
+1. **Path divergence.** Align the failed path with the consensus path by subtask phase; candidate = first step whose distance to the consensus cluster exceeds the swarm's own spread (needs ≥3 verified runs; with fewer, fall back to signal 2 only).
+2. **Locality to the failure.** Among candidate steps, prefer ones whose `files_touched` include the file of the failing function, and whose `assumption` text is semantically close to the failing case (embedding of "function + failing input + expected vs actual"). A step that is both off-consensus and local to the failure wins.
+3. **Live-test timing.** If the agent ran `run_spec_tests` during the run, the step just before the first time the (visible) failing case went red is a strong candidate; if the case was never green, the earliest local step is.
+
+**Confirmation (counterfactual replay).** Re-run the failed agent from the chosen step with the consensus assumption injected into its context. If the hidden failing case now passes, the step is a confirmed root cause and the lesson is written. If not, try the next candidate (at most 2 retries); if none confirms, write the lesson anyway but mark it `confidence ≤ 0.3` and it does not create a failure region until a second hit confirms it. Confirmed lessons create regions immediately.
+
+- Input to the reflector model: the failed path, the confirmed divergence step, the consensus steps at that phase, the minimal breaking input, the agent's output vs. the majority's / expected output.
 - Output: `{lesson_text, divergence_embedding, tags, breaking_input, confidence}`. A rule that resolves the reasoning error, not a description of the bug.
 - Dedup: near-identical lesson (vector similarity above threshold) → increment `hit_count`, widen the failure region.
 
