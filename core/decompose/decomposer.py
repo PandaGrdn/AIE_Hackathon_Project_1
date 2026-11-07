@@ -39,14 +39,23 @@ def _tree(repo: Path, max_files: int = 200) -> str:
 
 PRECOMPUTED_NAME = "subtasks.json"
 
+# task id -> directory of the task file it was loaded from (LongTask has no field for it)
+_TASK_DIRS: dict[str, Path] = {}
+
+
+def task_dir(task: LongTask) -> Path:
+    """The directory of the task file `task` was loaded from.
+
+    Recorded by `load_task`. For a LongTask built some other way, fall back to the convention that
+    `repo:` names a direct child of the task file's directory (e.g. demo_task/pricing/repo,
+    demo_task/mcp/repo), so the task file's directory is `repo_path`'s parent.
+    """
+    return _TASK_DIRS.get(task.id) or Path(task.repo_path).parent
+
 
 def precomputed_path(task: LongTask) -> Path:
-    """Where a hand-authored decomposition for `task` lives.
-
-    `load_task` resolves `repo_path` as `<task_file_dir>/<repo:>`, and by convention `repo:` names a
-    direct child of the task file's directory, so the task file's directory is `repo_path`'s parent.
-    """
-    return Path(task.repo_path).parent / PRECOMPUTED_NAME
+    """Where a hand-authored decomposition for `task` lives: `subtasks.json` next to the task file."""
+    return task_dir(task) / PRECOMPUTED_NAME
 
 
 def decompose(task: LongTask, precomputed: str | Path | None = None) -> LongTask:
@@ -148,16 +157,23 @@ def validate_decomposition(data: dict) -> None:
 
 def load_task(path: str | Path) -> LongTask:
     """A task file is markdown with a front-matter-ish header: first line `# title`, then the description.
-    A `repo:` line names the repo path relative to the task file."""
-    p = Path(path)
+
+    A `repo:` line (first one wins, default `repo`) names the repo path relative to the task file,
+    e.g. `repo: repo` for demo_task/pricing/task.md → demo_task/pricing/repo. The task file's
+    directory is remembered so `precomputed_path` finds its `subtasks.json`.
+    """
+    p = Path(path).resolve()
     text = p.read_text()
     lines = text.splitlines()
     title = lines[0].lstrip("# ").strip() if lines else p.stem
     repo = "repo"
     for ln in lines:
         if ln.startswith("repo:"):
-            repo = ln.split(":", 1)[1].strip()
-    return LongTask(title=title, description=text, repo_path=str((p.parent / repo).resolve()))
+            repo = ln.split(":", 1)[1].strip() or repo
+            break
+    task = LongTask(title=title, description=text, repo_path=str((p.parent / repo).resolve()))
+    _TASK_DIRS[task.id] = p.parent
+    return task
 
 
 def _extract_json(text: str) -> str:

@@ -1,24 +1,36 @@
-"""CLI: `swarm run <task.md>`, `swarm eval`, `swarm changelog`.
+"""CLI: `swarm setup <task dir>`, `swarm run <task.md>`, `swarm eval`, `swarm changelog`.
 
-Offline demo (no API keys, no network):
+Two demo tasks, one folder each under demo_task/ (task.md, subtasks.json, repo/, reference/):
 
-    swarm run demo_task/task.md --fake --reference-dir demo_task/reference
+    demo_task/pricing/   tiered-pricing module on a near-empty package; offline fallback, no setup
+    demo_task/mcp/       per-tool rate limits and quotas on the MCP Python SDK at a pinned commit;
+                         `swarm setup demo_task/mcp` first (runs its setup.sh: clone + uv sync)
+
+    swarm run demo_task/pricing/task.md --fake       # offline demo, no API keys, no network
+    swarm setup demo_task/mcp && swarm run demo_task/mcp/task.md
 
 `--fake` swaps every LLM-dependent piece for eval/fake_swarm.py: the decomposer (one subtask per
 reference module, interface pinned with ast), the spec-test author (expected values from the
 reference), the swarm (reference copies plus a boundary-bug mutant) and the reflector; embeddings
 use the deterministic fake_embed. `--reference-dir` defaults to `<task dir>/reference`; it must mirror
-the repo layout (e.g. reference/pricing/tiers.py). The held-out gate runs on eval/heldout/ (or
-`--heldout-dir`) with the same fakes.
+the repo layout (e.g. demo_task/pricing/reference/pricing/tiers.py). The held-out gate runs on
+eval/heldout/ (or `--heldout-dir`) with the same fakes.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import typer
 from rich import print
 from rich.table import Table
+
+# The installed package is `core` only (pyproject: packages.find include = ["core*"]), so the
+# `swarm` console script cannot import the sibling `eval` package unless run from the repo root.
+_ROOT = Path(__file__).resolve().parents[1]
+if (_ROOT / "eval" / "__init__.py").is_file() and str(_ROOT) not in sys.path:
+    sys.path.append(str(_ROOT))
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -67,6 +79,22 @@ def run(
     print(summary)
     print(summarize(store))
     _print_changes(store)
+
+
+@app.command()
+def setup(task_dir: str):
+    """Prepare a task folder by running its setup.sh (e.g. `swarm setup demo_task/mcp`)."""
+    import subprocess
+
+    d = Path(task_dir)
+    if d.is_file():  # accept the task file too
+        d = d.parent
+    script = d / "setup.sh"
+    if not script.is_file():
+        raise typer.BadParameter(f"no setup.sh in {d}")
+    rc = subprocess.run(["bash", str(script.resolve())], cwd=d.resolve()).returncode
+    if rc:
+        raise typer.Exit(rc)
 
 
 @app.command()

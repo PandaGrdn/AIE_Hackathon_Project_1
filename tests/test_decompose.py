@@ -9,8 +9,9 @@ from core.decompose.decomposer import decompose, load_task, subtasks_from_json
 from core.decompose.interfaces import extract_interface
 
 ROOT = Path(__file__).resolve().parents[1]
-TASK_FILE = ROOT / "demo_task" / "task.md"
-SUBTASKS_FILE = ROOT / "demo_task" / "subtasks.json"
+TASK_DIR = ROOT / "demo_task" / "pricing"
+TASK_FILE = TASK_DIR / "task.md"
+SUBTASKS_FILE = TASK_DIR / "subtasks.json"
 
 EXPECTED = [
     ("tier_for", "pricing/tiers.py", ["amount: float"], "str"),
@@ -84,6 +85,38 @@ def test_falls_back_to_llm_without_precomputed(monkeypatch, tmp_path):
 
     monkeypatch.setattr(decomposer, "get_client", lambda identity: Fake())
     assert len(decompose(load_task(tmp_path / "task.md")).subtasks) == 4
+
+
+def test_pricing_task_paths():
+    task = load_task(TASK_FILE)
+    assert Path(task.repo_path) == TASK_DIR / "repo"
+    assert decomposer.precomputed_path(task) == SUBTASKS_FILE
+
+
+@pytest.mark.parametrize("name", ["pricing", "mcp"])
+def test_precomputed_found_next_to_task_file(offline, tmp_path, name):
+    # demo_task/<name>/{task.md, subtasks.json, repo/}; the mcp files may not exist yet, so use a copy
+    d = tmp_path / "demo_task" / name
+    (d / "repo").mkdir(parents=True)
+    (d / "task.md").write_text("# Tiered pricing module\n\nrepo: repo\n")
+    (d / "subtasks.json").write_text(SUBTASKS_FILE.read_text())
+    task = load_task(d / "task.md")
+    assert Path(task.repo_path) == (d / "repo").resolve()
+    assert decomposer.precomputed_path(task) == (d / "subtasks.json").resolve()
+    assert len(decompose(task).subtasks) == 4
+
+
+def test_precomputed_follows_task_file_not_repo(offline, tmp_path):
+    # `repo:` may point outside the task's folder; subtasks.json is still the one next to task.md
+    (tmp_path / "elsewhere" / "repo").mkdir(parents=True)
+    d = tmp_path / "task"
+    d.mkdir()
+    (d / "task.md").write_text("# Tiered pricing module\n\nrepo: ../elsewhere/repo\n")
+    (d / "subtasks.json").write_text(SUBTASKS_FILE.read_text())
+    task = load_task(d / "task.md")
+    assert Path(task.repo_path) == (tmp_path / "elsewhere" / "repo").resolve()
+    assert decomposer.precomputed_path(task) == (d / "subtasks.json").resolve()
+    assert len(decompose(task).subtasks) == 4
 
 
 def test_precomputed_for_other_task_is_rejected(offline):

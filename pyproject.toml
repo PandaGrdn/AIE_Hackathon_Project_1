@@ -33,7 +33,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*"]
+include = ["core*", "eval*", "ui*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

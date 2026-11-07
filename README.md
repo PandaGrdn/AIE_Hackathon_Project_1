@@ -22,11 +22,25 @@ Without uv: `python3.12 -m venv .venv && source .venv/bin/activate && pip instal
 
 ## Run
 
+Two long tasks, one folder each under `demo_task/`:
+
+- **`demo_task/mcp/`: the real task.** Per-tool rate limits and quotas on the [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) at a pinned commit ([README](demo_task/mcp/README.md), [contract](demo_task/mcp/CONTRACT.md)). Needs setup first: it clones the SDK into `demo_task/mcp/repo/`, installs it with uv and runs its baseline suite.
+- **`demo_task/pricing/`: the offline fallback.** A tiered-pricing module on a near-empty package ([README](demo_task/pricing/README.md)). No setup, no network.
+
 ```bash
-swarm run demo_task/task.md          # run the long task end to end
-swarm eval                            # run held-out eval and print metrics
-swarm reflect --run-id <id>           # re-run reflection on a stored run
+# real task
+swarm setup demo_task/mcp                     # clone + uv sync + baseline tests (runs demo_task/mcp/setup.sh)
+swarm run demo_task/mcp/task.md               # run the long task end to end (API keys in .env)
+swarm run demo_task/mcp/task.md --fake        # offline, against demo_task/mcp/reference
+
+# offline fallback: no API keys, no network
+swarm run demo_task/pricing/task.md --fake    # fake swarm/spec/reflector, reference = demo_task/pricing/reference
+
+swarm eval                                    # run held-out eval and print metrics (--fake offline)
+swarm changelog                               # every versioned change and its held-out decision
 ```
+
+`--fake` replaces every LLM call with the deterministic fakes in `eval/fake_swarm.py`; `--reference-dir` defaults to `<task dir>/reference`.
 
 ## Layout and owners
 
@@ -46,7 +60,9 @@ core/
   orchestrator.py   the per-subtask loop                          Ethan Liu
   cli.py                                                          Ethan Liu
   models.py, config.py   shared schemas and settings              Ethan Liu (ask for changes)
-demo_task/     the long task and the repo it runs against         Ethan Liu
+demo_task/     one folder per long task: task.md, subtasks.json,   Ethan Liu
+               repo/, reference/ (pricing = offline fallback;
+               mcp = real task, repo/ cloned by setup.sh)
 eval/          held-out subtasks, reference impls, metrics        Ethan Liu
 ui/            changelog, trust leaderboard, reasoning map        Ethan Liu
 docker/        agent sandbox image                                Lucas Chen

@@ -16,3 +16,6 @@ ui/node_modules/
 ui/dist/
 AIE_Hackathon_Project_1/
 .python-version.local
+
+# MCP task: cloned by demo_task/mcp/setup.sh, has its own .git, never vendored
+demo_task/mcp/repo/
