@@ -413,6 +413,7 @@ def run_phase(phase: str, args, con) -> dict:
         task = decompose(load_task(TASK_A if phase == "a" else TASK_B))
         repo = Path(task.repo_path)
         resuming = phase == "a" and args.start_subtask > 0
+        reset: dict[str, Any] | None = None
         if resuming:
             from eval.heldout_specs import _git
 
