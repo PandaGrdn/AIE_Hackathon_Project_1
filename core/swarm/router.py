@@ -14,6 +14,13 @@ def route(subtask: Subtask, store: Store, n: int) -> list[AgentIdentity]:
     # Skip providers with no API key so a missing key never produces an agent that dies at get_client.
     # With no keys at all (offline tests, fake swarm) keep the full roster.
     roster = [a for a in swarm_identities() if provider_available(a.provider)] or swarm_identities()
+    # SWARM_AGENTS="gemini-t2,claude-t2,meta-spark-t5" pins the roster for a recorded run (order kept).
+    import os
+
+    pinned = [s.strip() for s in os.environ.get("SWARM_AGENTS", "").split(",") if s.strip()]
+    if pinned:
+        by_id = {a.id: a for a in roster}
+        roster = [by_id[i] for i in pinned if i in by_id] or roster
     scored = [(store.get_trust(a.id).score, a) for a in roster]
     scored.sort(key=lambda x: -x[0])
     chosen = [a for _, a in scored[:n]]

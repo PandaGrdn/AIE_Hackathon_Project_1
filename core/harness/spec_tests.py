@@ -134,7 +134,9 @@ Return JSON:
   "literals": {{"<function>": {{"<str param name>": ["valid", "values"]}}}}}}
 
 Rules:
-- `modules`: one or two pytest files, 8 to 20 small top-level test functions named test_*, one assertion
+- `modules`: one or two pytest files, 15 to 30 small top-level test functions named test_*, one assertion
+  each; at least one test per numbered requirement in the spec, and for every boundary the spec names a
+  test AT the boundary and one just past it (exact equality, zero, empty, negative, None where allowed);
   each, importing the code by its repo path (pricing/tiers.py -> `from pricing.tiers import tier_for`;
   in a src/ layout drop the `src/` prefix: src/pkg/mod.py -> `from pkg.mod import f`).
   Use only pytest and the standard library. Each test must follow from the spec literally.
