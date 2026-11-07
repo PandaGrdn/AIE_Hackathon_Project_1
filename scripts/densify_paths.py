@@ -80,6 +80,12 @@ def turn_chunks(transcript: dict, logged: list[dict]) -> list[tuple[int, str]]:
         seen_log += sum(1 for c in turn.get("tool_calls") or [] if c.get("name") == "log_step")
         for c in chunk_text(turn.get("text") or ""):
             out.append((gap, c))
+        # Newer transcripts carry a one-line `summary` per tool call (what was written/read/run); each is an
+        # action point on the path. log_step calls are skipped: they are the logged steps themselves.
+        for call in turn.get("tool_calls") or []:
+            summ = (call.get("summary") or "").strip()
+            if summ and call.get("name") != "log_step" and len(summ) >= 20:
+                out.append((gap, summ[:400]))
     return out
 
 

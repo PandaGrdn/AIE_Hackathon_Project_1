@@ -34,6 +34,21 @@ from core.swarm.sandbox import Sandbox
 from core.swarm.tools import AGENT_TOOLS, GATED_TOOLS
 
 MAX_TURNS = 40
+
+
+def _call_summary(call: dict[str, Any], limit: int = 240) -> str:
+    """One line per tool call for the transcript, so a run's path can be densified from its actions
+    (scripts/densify_paths.py): what was written/read/run, not just the tool name."""
+    name = call.get("name") or ""
+    a = call.get("arguments") or {}
+    if name == "log_step":
+        return f"log_step: {a.get('assumption', '')}"[:limit]
+    if name == "write_file":
+        body = str(a.get("content", "")).strip().replace("\n", " ")
+        return f"write_file {a.get('path', '')}: {body}"[:limit]
+    if name in ("read_file", "list_files", "run_tests"):
+        return f"{name} {a.get('path') or a.get('pattern') or ''}".strip()[:limit]
+    return (name + (": " + ", ".join(f"{k}={str(v)[:40]}" for k, v in a.items()) if a else ""))[:limit]
 TOKEN_BUDGET = 400_000
 REJECT_MSG = "REJECTED: call log_step first (assumption, action, files_touched), then retry this call."
 REJECT_NUDGE = "\nYou have been rejected 3 times in a row. Every write_file/run_tests/run_spec_tests needs its OWN log_step immediately before it. Call log_step now."
@@ -213,7 +228,8 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
                 st.turns += 1
                 trace.append({"turn": st.turns, "chat_s": round(time.time() - t_turn, 1), "usage": resp.get("usage"),
                               "text": (resp.get("text") or "")[:2000],
-                              "tool_calls": [{"name": c.get("name"), "arg_keys": sorted((c.get("arguments") or {}).keys())} for c in resp.get("tool_calls") or []]})
+                              "tool_calls": [{"name": c.get("name"), "arg_keys": sorted((c.get("arguments") or {}).keys()),
+                                              "summary": _call_summary(c)} for c in resp.get("tool_calls") or []]})
                 usage = resp.get("usage") or {}
                 st.input_tokens += int(usage.get("input_tokens") or 0)
                 st.output_tokens += int(usage.get("output_tokens") or 0)
