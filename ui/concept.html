@@ -125,7 +125,7 @@ const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const lighten = (h, f) => "#" + [1, 3, 5].map((i) => { const v = parseInt(h.slice(i, i + 2), 16); return Math.round(v + (255 - v) * f).toString(16).padStart(2, "0"); }).join("");
 const shade = (h, f) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(h.slice(i, i + 2), 16) * f).toString(16).padStart(2, "0")).join("");
 
-const SPEED = 3.2;        // cells per second
+const SPEED = 6;          // cells per second
 const HSCALE = 4.2;       // height of the tallest ridge, in cells
 const SIG2 = 2 * 3.2 * 3.2;
 const BEETLE_CELLS = 4.2;  // beetle length in world cells
@@ -187,7 +187,7 @@ function noise(x, y) {
 }
 
 // ---------- world: an endless heightfield with the reasoning data in the middle ----------
-const world = { knownPits: [], data: null, pts: [], pits: [], byAgent: new Map(), roots: {}, beetles: [], corpses: [], follow: null, hcache: new Map(), bbox: null, runCount: 0, subtasks: 0, tiles: new Map() };
+const world = { cycle: 0, knownPits: [], data: null, pts: [], pits: [], byAgent: new Map(), roots: {}, beetles: [], corpses: [], follow: null, hcache: new Map(), bbox: null, runCount: 0, subtasks: 0, tiles: new Map() };
 
 function hCell(ix, iy) {
   const key = (ix + 65536) * 131072 + (iy + 65536);
@@ -277,7 +277,7 @@ function crawl(pts, seed) {
 function makeBeetles(runFilter) {
   const beetles = []; let k = 0; const seen = {};
   world.byAgent.forEach((allRuns, agent) => {
-    const runs = runFilter ? allRuns.filter((r) => runFilter(r)) : allRuns;
+    const runs = runFilter ? allRuns.filter((r) => runFilter(r)) : [allRuns[world.cycle % allRuns.length]];  // recorded: one run per cycle
     if (!runs.length) return;
     const co = companyOf(agent), skin = SKIN[co.key] || SKIN.subq;
     const nth = (seen[co.key] = (seen[co.key] || 0) + 1);  // second agent of a company gets the stripe
@@ -307,7 +307,7 @@ const cam = { yaw: 0.9, dist: 30, tx: 0, ty: 0, focal: 1, W: 1, H: 1, g: [0, 1],
 const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 function updateCamera(dt) {
-  const live = world.beetles.filter((b) => !b.done && !b.flipped);
+  const live = world.beetles.filter((b) => !b.flipped);
   let tgt = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done);
   if (tgt && tgt.flipped && now() - tgt.flippedAt > 4) { world.follow = null; tgt = null; renderLegend(); }
   cam.g = [Math.cos(cam.yaw), Math.sin(cam.yaw)]; cam.r = [Math.sin(cam.yaw), -Math.cos(cam.yaw)];
@@ -435,7 +435,7 @@ function drawSprite(ctx, rows, skin, x, y, heading, px) {
 function drawBeetle(ctx, b, t, flipped) {
   const k = kScale(), px = Math.max(1, Math.round((k * BEETLE_CELLS) / 16));
   const p = project(b.x, b.y);
-  let rows = flipped ? SPRITE_DEAD : (reduced || Math.floor(t * 8) % 2 === 0 ? SPRITE_A : SPRITE_B);
+  let rows = flipped ? SPRITE_DEAD : (reduced || b.done || Math.floor(t * 10) % 2 === 0 ? SPRITE_A : SPRITE_B);
   if (b.striped && !flipped) rows = stripe(rows);
   const skin = flipped ? ["#2A2922", "#6E6A5E", PAL.salt] : b.skin;
   drawSprite(ctx, rows, skin, p[0], p[1], flipped ? 0 : b.heading, px);
@@ -514,10 +514,10 @@ function stepSim(dt, t) {
     if (b.done || b.flipped) continue;
     if (b.wait > 0) { b.wait -= dt; continue; }
     const a = b.wps[b.i], z = b.wps[b.i + 1];
-    if (!z) { b.done = true; continue; }
+    if (!z) { b.done = true; b.doneAt = now(); continue; }
     const len = Math.hypot(z.x - a.x, z.y - a.y) || 1;
     const slope = Math.max(0.55, 1 - 0.35 * Math.max(0, hAt(z.x, z.y) - hAt(a.x, a.y)) / len);
-    b.t += (SPEED * (mode === "live" ? 1.9 : 1) * b.pace * slope * dt) / len;
+    b.t += (SPEED * (mode === "live" ? 1.4 : 1) * b.pace * slope * dt) / len;
     const px = b.x, py = b.y, u = Math.min(1, b.t);
     b.x = a.x + (z.x - a.x) * u; b.y = a.y + (z.y - a.y) * u;
     const dx = b.x - px, dy = b.y - py;
@@ -533,7 +533,7 @@ function stepSim(dt, t) {
     }
   }
   if (mode === "live") simTick(dt);
-  else if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 12))) { world.beetles = makeBeetles(); world.corpses = []; clearTracks(); }
+  else if (world.beetles.length && world.beetles.every((b) => (b.done && now() - b.doneAt > 5) || (b.flipped && now() - b.flippedAt > 5))) { world.cycle++; world.beetles = makeBeetles(); world.corpses = []; }
 }
 function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
 
@@ -595,7 +595,7 @@ function render(t) {
   // the burrow and the mound: where every run starts and ends
   for (const pt of [START, END]) { const q = project(pt.x, pt.y), r = Math.max(2, 0.9 * kScale()); pctx.fillStyle = PAL.salt; pctx.fillRect(Math.round(q[0] - r), Math.round(q[1] - r), Math.round(2 * r), Math.round(2 * r)); pctx.fillStyle = PAL.ground; pctx.fillRect(Math.round(q[0] - r / 2), Math.round(q[1] - r / 2), Math.round(r), Math.round(r)); }
   for (const c of world.corpses) drawBeetle(pctx, c, t, true);
-  for (const b of world.beetles) if (!b.done && !b.flipped) drawBeetle(pctx, b, t, false);
+  for (const b of world.beetles) if (!b.flipped) drawBeetle(pctx, b, t, false);  // done beetles rest at the mound
   const k = (pitchCss * dpr) / 2;  // sprite px -> device px
   lctx.clearRect(0, 0, labels.width, labels.height);
   lctx.font = `600 ${Math.round(13 * dpr)}px ui-monospace, 'SF Mono', Menlo, Consolas, monospace`; lctx.textBaseline = "middle";
@@ -607,7 +607,7 @@ function render(t) {
   for (const c of world.corpses) tag(c.screen, `${c.agent}  ${c.label}`, PAL.salt);
   tag(project(START.x, START.y), "start: the spec", PAL.sage); tag(project(END.x, END.y), "end: hidden tests pass", PAL.sage);
   for (const pt of world.knownPits) { const s = project(pt.x, pt.y); tag(s, `flag ${pt.lesson}`, PAL.sage); }
-  for (const b of world.beetles) if (!b.done && b.steerUntil > t && b.screen) tag(b.screen, `around the pit with ${b.steerLabel}`, b.skin[2]);
+  for (const b of world.beetles) if (b.steerUntil > t && b.screen) tag(b.screen, `around the pit with ${b.steerLabel}`, b.skin[2]);
   const f = world.follow && world.beetles.find((b) => b.agent === world.follow && !b.done && !b.flipped);
   if (f) tag(f.screen, f.agent, f.color);
 }
