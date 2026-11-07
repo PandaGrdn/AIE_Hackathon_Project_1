@@ -103,7 +103,6 @@ def author(subtask: Subtask, repo: Path) -> SpecTests:
         cases.append(tc)
         expected[tc.id] = c["expected"]
     props = [SpecProperty(name=p["name"], function=p["function"], predicate_src=p["predicate"], description=p.get("description", "")) for p in data.get("properties", [])]
-    visible = [c.id for c in cases[:: 5][:0]]  # placeholder, replaced below
     visible = _split_visible(cases, VISIBLE_SHARE)
     return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible)
 
