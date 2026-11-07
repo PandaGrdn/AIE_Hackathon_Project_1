@@ -1,0 +1,18 @@
+{
+  "subtask_id": "15af7ada9924",
+  "cases": [],
+  "expected": {},
+  "properties": [],
+  "visible_ids": [
+    "test_limits.py::test_limit_state_time_must_not_go_backwards",
+    "test_limits.py::test_evaluate_rate_limit_exact_boundary",
+    "test_limits.py::test_limit_policy_invalid_scope",
+    "test_limits.py::test_evaluate_rejects_call_time_in_future",
+    "test_limits.py::test_evaluate_quota_denied"
+  ],
+  "literals": {},
+  "modules": {
+    "test_limits.py": "import pytest\nfrom pydantic import ValidationError\nfrom mcp.server.mcpserver.limits import (\n    LimitDecision,\n    LimitPolicy,\n    LimitState,\n    Quota,\n    RateLimit,\n    evaluate,\n)\n\n\ndef test_rate_limit_invalid_max_calls():\n    with pytest.raises(ValidationError):\n        RateLimit(max_calls=0, per_seconds=1.0)\n\n\ndef test_limit_policy_invalid_scope():\n    with pytest.raises(ValidationError):\n        LimitPolicy(scope=\"invalid_scope\")\n\n\ndef test_evaluate_empty_policy_allows():\n    decision = evaluate(LimitPolicy(), [1.0, 2.0], 5.0)\n    assert decision == LimitDecision(allowed=True, remaining=None, retry_after=None, reason=None)\n\n\ndef test_evaluate_rejects_call_time_in_future():\n    with pytest.raises(ValueError):\n        evaluate(LimitPolicy(), [5.01], 5.0)\n\n\ndef test_evaluate_rate_limit_exact_boundary():\n    policy = LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=10.0))\n    decision = evaluate(policy, [0.0], 10.0)\n    assert decision.allowed is True\n\n\ndef test_evaluate_rate_limit_denied_retry_after():\n    policy = LimitPolicy(rate_limit=RateLimit(max_calls=2, per_seconds=10.0))\n    decision = evaluate(policy, [0.0, 5.0], 9.0)\n    assert decision == LimitDecision(allowed=False, retry_after=1.0, remaining=0, reason=\"rate_limit\")\n\n\ndef test_evaluate_quota_allowed_remaining():\n    policy = LimitPolicy(quota=Quota(max_calls=3))\n    decision = evaluate(policy, [1.0, 2.0], 100.0)\n    assert decision == LimitDecision(allowed=True, retry_after=None, remaining=0, reason=None)\n\n\ndef test_evaluate_quota_denied():\n    policy = LimitPolicy(quota=Quota(max_calls=2))\n    decision = evaluate(policy, [1.0, 2.0], 3.0)\n    assert decision == LimitDecision(allowed=False, retry_after=None, remaining=0, reason=\"quota\")\n\n\ndef test_evaluate_both_limits_quota_takes_precedence_on_deny():\n    policy = LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=10.0), quota=Quota(max_calls=1))\n    decision = evaluate(policy, [1.0], 2.0)\n    assert decision == LimitDecision(allowed=False, retry_after=None, remaining=0, reason=\"quota\")\n\n\ndef test_evaluate_does_not_mutate_call_times():\n    times = [5.0, 1.0, 3.0]\n    evaluate(LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=10.0)), times, 10.0)\n    assert times == [5.0, 1.0, 3.0]\n\n\ndef test_limit_state_check_and_record():\n    state = LimitState(LimitPolicy(rate_limit=RateLimit(max_calls=1, per_seconds=10.0)))\n    state.record(1.0)\n    assert state.check(2.0).allowed is False\n\n\ndef test_limit_state_time_must_not_go_backwards():\n    state = LimitState(LimitPolicy())\n    state.record(5.0)\n    with pytest.raises(ValueError):\n        state.record(4.9)\n\n\ndef test_limit_state_reset():\n    state = LimitState(LimitPolicy(quota=Quota(max_calls=1)))\n    state.record(1.0)\n    state.reset()\n    assert state.check(2.0).allowed is True\n\n\ndef test_limit_state_quota_persists_across_rate_window_pruning():\n    state = LimitState(LimitPolicy(rate_limit=RateLimit(max_calls=5, per_seconds=1.0), quota=Quota(max_calls=2)))\n    state.record(0.0)\n    state.record(2.0)\n    assert state.check(3.0) == LimitDecision(allowed=False, retry_after=None, remaining=0, reason=\"quota\")\n"
+  },
+  "author_id": "spec-author-gemini"
+}
