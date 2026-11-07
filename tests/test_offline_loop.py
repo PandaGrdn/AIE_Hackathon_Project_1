@@ -132,10 +132,16 @@ def test_offline_loop_end_to_end(tmp_path, offline):
     changes = store.list_changes()
     assert changes
     decided = [c for c in changes if c.status in (ChangeStatus.adopted, ChangeStatus.rolled_back)]
-    assert decided and all(c.heldout_before and c.heldout_after for c in decided)
+    # gated kinds carry held-out scores; ungated kinds (routing, by default) are applied directly and say so
+    from core.config import settings
+
+    gated = [c for c in decided if str(c.kind) in settings.gate_kinds]
+    ungated = [c for c in decided if str(c.kind) not in settings.gate_kinds]
+    assert gated and all(c.heldout_before and c.heldout_after for c in gated)
+    assert all("not gated" in c.reason for c in ungated)
 
     # the first lesson (inclusive 'up to N') fixes the held-out late_fee mutant: adopted on improvement
-    adopted = [c for c in decided if c.status == ChangeStatus.adopted]
+    adopted = [c for c in gated if c.status == ChangeStatus.adopted]
     assert adopted, [(c.kind, c.status, c.heldout_before, c.heldout_after) for c in changes]
     first = adopted[0]
     assert first.heldout_after["accuracy"] > first.heldout_before["accuracy"]
