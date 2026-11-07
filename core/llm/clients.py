@@ -86,12 +86,16 @@ class OpenAICompatClient:
         self._client = OpenAI(api_key=api_key, base_url=base_url)
 
     def chat(self, messages, tools=None):
+        extra: dict[str, Any] = {}
+        if tools and self.identity.provider == "meta" and settings.meta_agent_reasoning:
+            extra["reasoning_effort"] = settings.meta_agent_reasoning  # tool-loop turns: keep per-turn latency down
         resp = _with_retries(
             lambda: self._client.chat.completions.create(
                 model=self.identity.model,
                 messages=messages,
                 temperature=self.identity.temperature,
                 tools=tools or None,
+                **extra,
             )
         )
         msg = resp.choices[0].message
@@ -180,11 +184,15 @@ class GeminiClient:
         from google.genai import types
 
         system, contents = gemini_messages(messages)
+        # Tool-loop turns (swarm agents) run at a low thinking level: the model default thinks for minutes per
+        # turn on a real repo. Single-shot text roles (spec author, reflector) keep the model default.
+        thinking = types.ThinkingConfig(thinking_level=settings.gemini_agent_thinking) if tools and settings.gemini_agent_thinking else None
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=self.identity.temperature,
             tools=gemini_tools(tools),
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            thinking_config=thinking,
         )
         resp = _with_retries(
             lambda: self._client.models.generate_content(model=self.identity.model, contents=contents, config=config)
@@ -206,7 +214,8 @@ def parse_gemini_response(resp: Any) -> ChatResponse:
     return {
         "text": "".join(text),
         "tool_calls": calls,
-        "usage": _usage(getattr(um, "prompt_token_count", 0), getattr(um, "candidates_token_count", 0)),
+        # thinking tokens are billed as output but reported separately
+        "usage": _usage(getattr(um, "prompt_token_count", 0), int(getattr(um, "candidates_token_count", 0) or 0) + int(getattr(um, "thoughts_token_count", 0) or 0)),
     }
 
 

@@ -7,8 +7,10 @@ against the subtask's visible spec tests (results tied to the preceding step).
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
+import re
 import shutil
 import time
 from dataclasses import dataclass, field
@@ -38,6 +40,7 @@ REJECT_NUDGE = "\nYou have been rejected 3 times in a row. Every write_file/run_
 NO_TOOLS_NUDGE = "Use the tools. Call log_step, then write_file or run_tests/run_spec_tests, then done."
 
 META: dict[str, dict[str, Any]] = {}
+_TOOL_NAMES = {t["function"]["name"] for t in AGENT_TOOLS}
 _console = Console()
 
 
@@ -47,6 +50,7 @@ class _Stats:
     input_tokens: int = 0
     output_tokens: int = 0
     rejections: int = 0
+    text_calls: int = 0  # tool calls recovered from "[name] {args}" text replies
     consecutive_rejections: int = 0
     armed: bool = False
     extra_lessons: list[str] = field(default_factory=list)
@@ -66,9 +70,29 @@ def run_meta(run: AgentRun, stats: _Stats | None = None) -> dict[str, Any]:
         "output_tokens": s.output_tokens,
         "steps": len(run.steps),
         "rejections": s.rejections,
+        "text_calls": s.text_calls,
         "error": run.error,
         "lessons_used": list(run.lessons_used),
     }
+
+
+_TEXT_CALL = re.compile(r"^\s*\[(\w+)\]\s*(\{.*\})\s*$", re.S)
+
+
+def _text_tool_calls(text: str) -> list[dict[str, Any]]:
+    """`[write_file] {'path': ..., 'content': ...}` written as plain text -> one tool call, when the name is a real
+    tool and the args parse as a Python/JSON dict literal; otherwise []."""
+    m = _TEXT_CALL.match(text or "")
+    if not m or m.group(1) not in _TOOL_NAMES:
+        return []
+    try:
+        args = ast.literal_eval(m.group(2))
+    except (ValueError, SyntaxError):
+        try:
+            args = json.loads(m.group(2))
+        except json.JSONDecodeError:
+            return []
+    return [{"name": m.group(1), "arguments": args}] if isinstance(args, dict) else []
 
 
 def _fmt_args(case) -> str:
@@ -92,6 +116,10 @@ def _run_spec_tests(sb, subtask: Subtask, spec, run: AgentRun) -> str:
     if modules:
         results = dict(sb.run_pytest_modules(modules))
         lines = [f"{'PASS' if ok else 'FAIL'} {tid}" for tid, ok in results.items()]
+        if not results:  # collection failed (e.g. the module under test does not import yet): show why
+            lines = ["no visible spec test ran; pytest output:", getattr(sb, "last_pytest_output", "")[-2500:]]
+        elif not all(results.values()):  # failures: the assertion text is what lets the agent fix them
+            lines += ["pytest output (tail):", getattr(sb, "last_pytest_output", "")[-2500:]]
     if getattr(spec, "visible", None):
         sigs = {s.name: s for s in subtask.interface}
         for case in spec.visible:
@@ -165,6 +193,7 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
     t0 = time.time()
     deadline = t0 + settings.agent_timeout_s
     st = _Stats()
+    trace: list[dict[str, Any]] = []  # per-turn timing, usage and tool calls -> runs/<id>/transcript.json
     client = get_client(agent)
     live = LiveCheck(store)
 
@@ -179,14 +208,23 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
                 if time.time() >= deadline:
                     run.error = f"timeout: agent exceeded {settings.agent_timeout_s}s"
                     break
+                t_turn = time.time()
                 resp = client.chat(messages, tools=AGENT_TOOLS)
                 st.turns += 1
+                trace.append({"turn": st.turns, "chat_s": round(time.time() - t_turn, 1), "usage": resp.get("usage"),
+                              "text": (resp.get("text") or "")[:2000],
+                              "tool_calls": [{"name": c.get("name"), "arg_keys": sorted((c.get("arguments") or {}).keys())} for c in resp.get("tool_calls") or []]})
                 usage = resp.get("usage") or {}
                 st.input_tokens += int(usage.get("input_tokens") or 0)
                 st.output_tokens += int(usage.get("output_tokens") or 0)
                 if st.input_tokens + st.output_tokens > TOKEN_BUDGET:
                     run.error = f"token budget exceeded: {st.input_tokens + st.output_tokens} > {TOKEN_BUDGET}"
                     break
+                if not resp.get("tool_calls"):
+                    # The history shows calls as "[name] {args}" text, and some models answer in that format
+                    # instead of a function call: accept it rather than burn a turn on a nudge.
+                    resp["tool_calls"] = _text_tool_calls(resp.get("text", ""))
+                    st.text_calls += len(resp["tool_calls"])
                 if not resp.get("tool_calls"):
                     messages.append({"role": "assistant", "content": resp.get("text", "")})
                     messages.append({"role": "user", "content": NO_TOOLS_NUDGE})
@@ -206,7 +244,9 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
         try:
             run.diff = sb.diff()
             keep = settings.runs_dir / run.id
-            shutil.copytree(sb.path, keep, ignore=shutil.ignore_patterns(".git"), dirs_exist_ok=True)
+            # no bytecode: .pyc files compiled in the sandbox carry its path as co_filename, which breaks tests
+            # that compare warning/traceback filenames once the code is graded from runs/<id>
+            shutil.copytree(sb.path, keep, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"), dirs_exist_ok=True)
             run.sandbox_path = str(keep)
         except Exception as e:  # noqa: BLE001
             run.error = run.error or f"{type(e).__name__}: {e}"
@@ -218,7 +258,8 @@ def run_one(subtask: Subtask, agent: AgentIdentity, repo: Path, lessons_block: s
         keep = settings.runs_dir / run.id
         keep.mkdir(parents=True, exist_ok=True)
         (keep / "meta.json").write_text(json.dumps(meta, indent=2))
-    except OSError:
+        (keep / "transcript.json").write_text(json.dumps({"turns": trace, "messages": messages}, indent=1, default=str))
+    except (OSError, NameError):
         pass
     status = "ok" if run.error is None else f"ERROR {run.error[:60]}"
     _console.print(f"[{agent.id}] {run.duration_s:.1f}s {len(run.steps)} steps {st.input_tokens / 1000:.1f}k in / {st.output_tokens / 1000:.1f}k out tokens {st.rejections} rejected {status}")

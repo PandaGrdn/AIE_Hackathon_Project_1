@@ -31,8 +31,13 @@ class Settings:
     meta_model_code: str = field(default_factory=lambda: _env("META_MODEL_CODE", "muse-wonder-1.0"))
     meta_model_spark: str = field(default_factory=lambda: _env("META_MODEL_SPARK", "muse-spark-1.3"))
 
+    # reasoning_effort for Meta tool-loop (swarm agent) turns: minimal | low | medium | high, "" = model default
+    meta_agent_reasoning: str = field(default_factory=lambda: _env("META_AGENT_REASONING", "low"))
+
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash"))
+    # thinking level for Gemini tool-loop (swarm agent) turns: low | medium | high, "" = model default
+    gemini_agent_thinking: str = field(default_factory=lambda: _env("GEMINI_AGENT_THINKING", "low"))
     gemini_embed_model: str = field(default_factory=lambda: _env("GEMINI_EMBED_MODEL", "gemini-embedding-2"))
     # Text-generating roles (decomposer, spec-test author, reflector lesson text) run on Gemini;
     # SubQ Snap answers the decision questions (root-cause step, failure kind, generalizes).

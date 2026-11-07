@@ -43,6 +43,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from core.config import settings
 from core.harness.equivalence import equivalent
 from core.harness.majority import trust_weighted_majority
 from core.harness.spec_tests import SpecTests, check_property, load_cached, spec_node_ids
@@ -59,6 +60,7 @@ from core.models import (  # noqa: F401 — MajorityVote resolves CrossTestResul
 )
 
 PYTEST_TIMEOUT_S = 180
+BUDGET_STOP_PREFIXES = ("timeout:", "token budget exceeded")  # AgentRun.error set by the runner's budgets
 PASSED = Outcome(ok=True, value="passed")
 
 _EXEC = r"""
@@ -158,18 +160,28 @@ def run_cases(subtask: Subtask, impl_dirs: dict[str, str], cases: list[TestCase]
 
 
 def repo_test_files(repo: Path | None) -> list[str]:
-    """The repository's own test files at the base commit, repo-relative. Agents' new test files are not in it."""
-    if repo is None or not (repo / "tests").exists():
+    """The repository's own test files at the base commit, repo-relative. Agents' new test files are not in it.
+
+    `settings.regression_test_paths` (env REGRESSION_TEST_PATHS, default "tests") names the directories
+    that make up the regression suite, e.g. "tests/server tests/shared" for the MCP SDK, whose full
+    tests/ tree has parts that only run under its own CI setup."""
+    if repo is None:
         return []
-    return sorted(str(p.relative_to(repo)) for p in (repo / "tests").rglob("test_*.py"))
+    out: set[str] = set()
+    for d in settings.regression_test_paths:
+        base = repo / d
+        if base.is_dir():
+            out |= {str(p.relative_to(repo)) for p in base.rglob("test_*.py")}
+    return sorted(out)
 
 
-def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], timeout: float = PYTEST_TIMEOUT_S) -> dict[str, tuple[bool, str]]:
+def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], timeout: float = PYTEST_TIMEOUT_S, base_repo: Path | None = None) -> dict[str, tuple[bool, str]]:
     """Copy the hidden modules into the sandbox under a temp dir, run them plus the repo suite with a junit
     report, remove them, and return {node_id: (passed, message)}. Node ids: "<module filename>::<test>" for
     spec modules, "<repo path>::<test>" for the repo suite. Tests that never ran (collection error, timeout)
-    are reported as failed with the reason."""
-    sb = Path(sandbox)
+    are reported as failed with the reason. With `base_repo` holding a `.venv`, pytest runs on that interpreter
+    with the sandbox's sources first on sys.path (core.swarm.sandbox.pytest_prefix)."""
+    sb = Path(sandbox).resolve()  # cwd of the pytest subprocess: every path below must be absolute
     tmp = sb / f"_spec_{uuid.uuid4().hex[:8]}"
     tmp.mkdir()
     written: dict[str, str] = {}  # stem on disk -> original filename
@@ -182,17 +194,30 @@ def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], tim
         if not paths:
             return {}
         xml = tmp / "junit.xml"
+        from core.swarm.sandbox import pytest_env, pytest_prefix  # lazy: core.swarm imports this module
+
+        prefix, _ = pytest_prefix(sb, base_repo)
         cmd = [
-            sys.executable, "-I", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--continue-on-collection-errors",
+            *prefix, "-q", "-p", "no:cacheprovider", "--continue-on-collection-errors",
             "-o", "addopts=", "-o", "pythonpath=.", f"--junitxml={xml}", *paths,
         ]
         try:
-            subprocess.run(cmd, cwd=sb, capture_output=True, text=True, timeout=timeout, check=False)
+            subprocess.run(cmd, cwd=sb, capture_output=True, text=True, timeout=timeout, check=False, env=pytest_env())
         except subprocess.TimeoutExpired:
             return {t: (False, "timeout: pytest run exceeded the limit") for t in _expected_node_ids(modules, repo_tests, sb)}
         results = _parse_junit(xml, tmp.name, written) if xml.exists() else {}
+        spec_ids = set(spec_node_ids(modules))
+        # files that ran; class-based tests come back as "<file stem>/<Class>.py::<test>" (see _parse_junit)
+        collected_files = {k.split("::", 1)[0] for k in results if "::" in k}
+        collected_files |= {f.rsplit("/", 1)[0] + ".py" for f in collected_files if "/" in f}
         for t in _expected_node_ids(modules, repo_tests, sb):
-            results.setdefault(t, (False, _collection_error(results, t) or "not collected"))
+            if t in results:
+                continue
+            if any(k.startswith(t + "[") for k in results):
+                continue  # parametrized: junit reports "<test>[<param>]" per case, not the bare name
+            if t not in spec_ids and t.split("::", 1)[0] in collected_files:
+                continue  # a repo file that ran: a missing top-level `test*` name is a fixture/helper, not a test
+            results[t] = (False, _collection_error(results, t) or "not collected")
         return results
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -258,6 +283,14 @@ def _parse_junit(xml: Path, tmp_name: str, written: dict[str, str]) -> dict[str,
     return out
 
 
+_NO_RUN_MARKERS = ("collection error", "not collected", "timeout", "ModuleNotFoundError", "ImportError", "SyntaxError")
+
+
+def _not_a_disagreement(case: TestCase, o: Outcome) -> bool:
+    """A pytest case whose majority outcome is "the test could not run" carries no opinion about the spec."""
+    return case.source == "pytest" and not o.ok and any(m in (o.exception or "") for m in _NO_RUN_MARKERS)
+
+
 def _majority_value(o: Outcome) -> Any:
     return {"raises": o.exception} if not o.ok else o.value
 
@@ -295,7 +328,8 @@ def cross_test(
     for sig in subtask.interface:
         cases += generate_cases(sig, n_fuzz=n_fuzz, literals=(spec.literals.get(sig.name) if spec else None))
 
-    runs = [r for r in runs if r.error is None and Path(r.sandbox_path).exists()]
+    # a run stopped by its own time/token budget (core.swarm.runner) is graded on what it wrote; a crashed one is not
+    runs = [r for r in runs if (r.error is None or r.error.startswith(BUDGET_STOP_PREFIXES)) and Path(r.sandbox_path).exists()]
     outcomes = run_cases(subtask, {r.id: r.sandbox_path for r in runs}, cases)
 
     # pytest oracle: hidden spec modules + repo suite -> synthetic cases
@@ -307,7 +341,7 @@ def cross_test(
     repo_tests = repo_test_files(repo)
     if runs and (modules or repo_tests):
         with ThreadPoolExecutor(max_workers=4) as ex:
-            per_run = dict(zip([r.id for r in runs], ex.map(lambda r: run_pytest(r.sandbox_path, modules, repo_tests), runs)))
+            per_run = dict(zip([r.id for r in runs], ex.map(lambda r: run_pytest(r.sandbox_path, modules, repo_tests, base_repo=repo), runs)))
         spec_test_ids = set(spec_node_ids(modules))
         all_nodes = sorted({n for res in per_run.values() for n in res} | spec_test_ids)
         visible = set(spec.visible_ids) if spec else set()
@@ -328,7 +362,8 @@ def cross_test(
                 ok, msg = per_run[r.id].get(node, (False, "not collected"))
                 outcomes[r.id][tc.id] = PASSED if ok else Outcome(ok=False, exception=msg)
 
-    majority = {c.id: trust_weighted_majority(c.id, {r.id: outcomes[r.id][c.id] for r in runs}, weights) for c in cases}
+    # no gradable run (every agent errored): no majority at all, the orchestrator treats that as ambiguous
+    majority = {c.id: trust_weighted_majority(c.id, {r.id: outcomes[r.id][c.id] for r in runs}, weights) for c in cases} if runs else {}
 
     spec_misses: dict[str, list[str]] = {r.id: [] for r in runs}
     visible_misses: dict[str, list[str]] = {r.id: [] for r in runs}
@@ -348,9 +383,10 @@ def cross_test(
             if cid in regression_ids:
                 continue
             mv = majority[cid]
-            # only a real majority (> half the trust weight) can overrule the author; a tie or a lone
-            # dissenter is charged as a miss
-            if mv.agreement > 0.5 and not equivalent(mv.representative, exp):
+            # only a real majority (> half the trust weight, at least two runs) can overrule the author; a tie or
+            # a lone dissenter is charged as a miss. A hidden pytest test that did not even run (import or
+            # collection error, timeout) is the code's fault, never spec ambiguity.
+            if mv.agreement > 0.5 and len(mv.group_run_ids) >= 2 and not equivalent(mv.representative, exp) and not _not_a_disagreement(by_id[cid], mv.representative):
                 c = by_id[cid]
                 raw = spec.expected.get(cid, "passed")
                 flag = AmbiguityFlag(case_id=cid, function=c.function, args=c.args, expected=raw, majority=mv.representative, agreement=mv.agreement)

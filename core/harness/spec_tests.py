@@ -37,6 +37,7 @@ from core.models import AgentIdentity, Subtask, TestCase
 
 CACHE_DIR = settings.runs_dir / "spec_tests"
 VISIBLE_SHARE = 0.4
+AUTHOR_ATTEMPTS = 3
 
 
 def author_identity() -> AgentIdentity:
@@ -134,7 +135,8 @@ Return JSON:
 
 Rules:
 - `modules`: one or two pytest files, 8 to 20 small top-level test functions named test_*, one assertion
-  each, importing the code by its repo path (pricing/tiers.py -> `from pricing.tiers import tier_for`).
+  each, importing the code by its repo path (pricing/tiers.py -> `from pricing.tiers import tier_for`;
+  in a src/ layout drop the `src/` prefix: src/pkg/mod.py -> `from pkg.mod import f`).
   Use only pytest and the standard library. Each test must follow from the spec literally.
 - `cases`/`properties` only when the pinned interface is pure functions; otherwise return empty lists.
 - 10 to 25 cases. Cover every boundary the spec names (inclusive vs exclusive, equality, zero, empty, negative).
@@ -187,9 +189,20 @@ def author(subtask: Subtask, repo: Path) -> SpecTests:
     code = "\n\n".join(f"# {f}\n{(repo / f).read_text()}" for f in subtask.files if (repo / f).exists())[:20_000]
     identity = author_identity()
     client = get_client(identity)
-    resp = client.chat([{"role": "user", "content": AUTHOR_PROMPT.format(spec=subtask.spec, iface=iface, code=code or "(none)")}])
-    data = json.loads(_extract_json(resp["text"]))
-    return parse_author_output(subtask, data, identity.id)
+    prompt = AUTHOR_PROMPT.format(spec=subtask.spec, iface=iface, code=code or "(none)")
+    last_err = "no attempt"
+    for _ in range(AUTHOR_ATTEMPTS):  # a model can return broken JSON or modules that don't parse: ask again
+        resp = client.chat([{"role": "user", "content": prompt}])
+        try:
+            data = json.loads(_extract_json(resp["text"]))
+        except json.JSONDecodeError as e:
+            last_err = f"invalid JSON: {e}"
+            continue
+        st = parse_author_output(subtask, data, identity.id)
+        if st.test_node_ids or st.cases:
+            return st
+        last_err = "no parseable test module and no cases"
+    raise ValueError(f"spec author produced no usable tests for {subtask.title!r} after {AUTHOR_ATTEMPTS} attempts: {last_err}")
 
 
 def parse_author_output(subtask: Subtask, data: dict, author_id: str = "") -> SpecTests:
@@ -211,7 +224,7 @@ def parse_author_output(subtask: Subtask, data: dict, author_id: str = "") -> Sp
     for fn, params in (data.get("literals") or {}).items():
         if fn in known and isinstance(params, dict):
             literals[fn] = {k: list(v) for k, v in params.items() if isinstance(v, list) and v}
-    modules = {str(k): v for k, v in (data.get("modules") or {}).items() if isinstance(v, str) and str(k).endswith(".py") and v.strip()}
+    modules = {str(k): v for k, v in (data.get("modules") or {}).items() if isinstance(v, str) and str(k).endswith(".py") and v.strip() and _parses(v)}
     visible = _split_visible([c.id for c in cases], VISIBLE_SHARE) + _split_visible(spec_node_ids(modules), VISIBLE_SHARE)
     return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible, literals=literals, modules=modules, author_id=author_id)
 
@@ -236,6 +249,14 @@ def check_property(prop: SpecProperty, args: list, result: object) -> bool:
         fn = eval(prop.predicate_src, {"__builtins__": _PREDICATE_BUILTINS})
         return bool(fn(args, result))
     except Exception:
+        return False
+
+
+def _parses(src: str) -> bool:
+    try:
+        ast.parse(src)
+        return True
+    except SyntaxError:
         return False
 
 

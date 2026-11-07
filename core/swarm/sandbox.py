@@ -3,6 +3,11 @@
 Backends: `worktree` (git worktree, fast, default when the repo has .git) and `copy`
 (plain copytree). All agent-facing paths go through `resolve()` so nothing escapes the
 sandbox. Tests run with `python -I`, so `-o pythonpath=.` puts the repo root back on sys.path.
+
+When the base repo has its own venv (`<repo>/.venv`, e.g. the uv-managed MCP SDK), tests run with
+that interpreter instead of ours, and the sandbox's sources are prepended to sys.path: the venv's
+editable `.pth` entries point into the *original* repo, so without the remap a sandbox would test
+the original's code (see `pytest_prefix`).
 """
 
 from __future__ import annotations
@@ -21,7 +26,67 @@ from typing import Self
 from core.config import settings
 
 _SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules"}
-_PYTEST = ["-I", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "pythonpath=."]
+_BOOT = "import sys; sys.path[:0] = {paths!r}; import pytest; raise SystemExit(pytest.main(sys.argv[1:]))"
+
+
+def repo_python(base_repo: Path | None) -> str | None:
+    """`<base_repo>/.venv/bin/python` when it exists (a worktree or copied sandbox has no .venv of its own)."""
+    if base_repo is None:
+        return None
+    cand = Path(base_repo).absolute() / ".venv" / "bin" / "python"  # absolute, not resolved: the venv python is a symlink
+    return str(cand) if cand.exists() else None
+
+
+def sandbox_source_paths(sandbox: Path, base_repo: Path, python: str) -> list[str]:
+    """sys.path entries that make `sandbox`'s code shadow the venv's editable installs of `base_repo`:
+    every absolute `.pth` entry under the base repo remapped into the sandbox, then `<sandbox>/src`, then the
+    sandbox root. Mirrors eval/heldout_runner._source_paths."""
+    sandbox = Path(sandbox).resolve()
+    venv = Path(python).parent.parent
+    # the base repo, and the project the venv was built for (differs when .venv is a symlink into another checkout)
+    roots = list(dict.fromkeys([Path(base_repo).resolve(), venv.resolve().parent]))
+    paths: list[Path] = []
+    for pth in sorted(venv.glob("lib/python*/site-packages/*.pth")):
+        try:
+            lines = pth.read_text().splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith(("#", "import")) or not os.path.isabs(line):
+                continue
+            p = Path(line).resolve()
+            for root in roots:
+                if p.is_relative_to(root):
+                    if (sandbox / p.relative_to(root)).is_dir():
+                        paths.append(sandbox / p.relative_to(root))
+                    break
+    if (sandbox / "src").is_dir():
+        paths.append(sandbox / "src")
+    paths.append(sandbox)
+    out: list[str] = []
+    for p in paths:
+        if str(p) not in out:
+            out.append(str(p))
+    return out
+
+
+def pytest_prefix(sandbox: Path, base_repo: Path | None) -> tuple[list[str], bool]:
+    """(argv prefix that runs pytest for `sandbox`, whether pytest-timeout is installed for that interpreter).
+
+    With a base-repo venv: `<venv python> -I -c <boot>` where the boot prepends the sandbox's sources to
+    sys.path, and the repo's own pytest config (pythonpath etc.) is left alone. Otherwise our interpreter
+    with `-o pythonpath=.`. Callers add `-q -p no:cacheprovider` etc. themselves."""
+    py = repo_python(base_repo)
+    if py is None:
+        return [sys.executable, "-I", "-m", "pytest", "-o", "pythonpath=."], _has_pytest_timeout()
+    venv = Path(py).parent.parent
+    has_timeout = any(venv.glob("lib/python*/site-packages/pytest_timeout*"))
+    return [py, "-I", "-c", _BOOT.format(paths=sandbox_source_paths(sandbox, base_repo, py))], has_timeout
+
+
+def pytest_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "PYTEST_ADDOPTS", "PYTHONPATH")}
 
 
 class Sandbox:
@@ -30,6 +95,7 @@ class Sandbox:
         self.run_id = run_id
         self.backend = backend or settings.sandbox_backend
         self.path = settings.sandboxes_dir / run_id
+        self.last_pytest_output = ""  # tail of the last run_pytest_modules output (shown when nothing was collected)
 
     def __enter__(self) -> Self:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,15 +156,20 @@ class Sandbox:
 
     # ---- tests -----------------------------------------------------------------------------
 
-    def run_tests(self, path: str | None = None, timeout: int = 120) -> str:
-        cmd = [sys.executable, *_PYTEST, "-x"]
-        if _has_pytest_timeout():
+    def _pytest_cmd(self, timeout: int) -> list[str]:
+        prefix, has_timeout = pytest_prefix(self.path, self.repo)
+        cmd = [*prefix, "-q", "-p", "no:cacheprovider", "--color=no"]
+        if has_timeout:
             cmd += ["--timeout", str(timeout)]
+        return cmd
+
+    def run_tests(self, path: str | None = None, timeout: int = 120) -> str:
+        cmd = [*self._pytest_cmd(timeout), "-x"]
         if path:
             self.resolve(path)
             cmd.append(path)
         try:
-            r = subprocess.run(cmd, check=False, cwd=self.path, capture_output=True, text=True, timeout=timeout + 10)
+            r = subprocess.run(cmd, check=False, cwd=self.path, capture_output=True, text=True, timeout=timeout + 10, env=pytest_env())
             return (r.stdout + r.stderr)[-6000:]
         except subprocess.TimeoutExpired:
             return "TIMEOUT"
@@ -121,12 +192,12 @@ class Sandbox:
         try:
             for name, src in modules.items():
                 files[stems[name]].write_text(src)
-            cmd = [sys.executable, *_PYTEST, f"--junitxml={junit}", *(str(p.relative_to(self.path)) for p in files.values())]
-            if _has_pytest_timeout():
-                cmd += ["--timeout", str(timeout)]
+            cmd = [*self._pytest_cmd(timeout), f"--junitxml={junit}", *(str(p.relative_to(self.path)) for p in files.values())]
             try:
-                subprocess.run(cmd, check=False, cwd=self.path, capture_output=True, text=True, timeout=timeout + 10)
+                r = subprocess.run(cmd, check=False, cwd=self.path, capture_output=True, text=True, timeout=timeout + 10, env=pytest_env())
+                self.last_pytest_output = (r.stdout + r.stderr)[-4000:]
             except subprocess.TimeoutExpired:
+                self.last_pytest_output = "TIMEOUT"
                 return {}
             return _parse_junit(Path(junit), stem_to_mod)
         finally:
