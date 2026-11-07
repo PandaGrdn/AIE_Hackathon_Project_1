@@ -126,3 +126,35 @@ read from a `divergences` collection if one exists. What each card needs:
 `MemoryStore.list_changes()` sorts on `decided_at or hash(id)` and raises `TypeError` once
 decided and undecided changes are mixed. The UI works around it (it reads `store.changes`
 directly and hands `summarize` a proxy with a safe sort), but the CLI and other callers still hit it.
+
+## Concept page: `/concept` (`ui/concept.html`)
+
+A second page, same server and endpoints, that renders the swarm as a 3D halftone terrain. It is
+self-contained (no build step, no CDN) and reads `/api/steps`, `/api/divergences`, `/api/regions`
+and `/api/trust`.
+
+How it works, top to bottom of the script:
+
+- **PCA**: step embeddings (task runs only; `heldout-*` subtasks are skipped) are projected to two
+  components by power iteration, decompressed with a signed power curve so the fake embeddings'
+  tight cluster spreads, and scaled so the data spans about 64 world cells.
+- **Heightfield** `hCell(ix, iy)`: value-noise dunes everywhere plus a soft-saturating density of
+  step positions inside the data bbox (ridges where agents reasoned) minus a gaussian per failure
+  region (pits). Memoised per integer cell, so the world is unbounded and cheap to extend.
+- **Beetles** `makeBeetles()`: one per agent, colour from the agent id prefix (`meta`, `gemini`,
+  `claude`, `openai`, `subq`, see `COMPANY`). Waypoints are the run's steps in `step_index` order,
+  with a small waver between steps. A waypoint whose step is the divergence's `step_index` is the
+  root: the beetle flips there and stays (`world.corpses`).
+- **Camera** `updateCamera()`: follows one agent (`world.follow`, set by the legend; by default the
+  beetle that will flip) or the swarm centroid, backing off with the swarm's spread. `cam.pitch`
+  is the tilt (1.22 rad is nearly top-down), `cam.ortho` switches to the 2D orthographic view.
+- **Scene** `drawScene()`: terrain cells in a `VIEW_R` window around the target, painter-sorted by
+  distance, flat-shaded (`rampColor`: lambert plus elevation, quantised to nine tones, fogged into
+  soil). Trails, step pins, corpses and beetles are interleaved by depth. `drawBeetle()` builds the
+  body from projected ellipsoid domes, a tripod-gait leg set and antennae, scaled by `BS`.
+- **Halftone** `composite()`: the scene canvas is one pixel per dot; a WebGL fragment shader (`FS`)
+  turns each pixel into a dot whose radius follows luminance above the ground colour. Pitch is
+  `pitchCss` (buttons: fine 3, medium 4, coarse 6). Labels are drawn crisp on a third canvas.
+
+Knobs worth touching first: `PAL` and `RAMP` (colours), `BS` (beetle size), `SPEED`, `TRAIL_LIFE`,
+`cam.pitch` / `wantDist` in `updateCamera`, the tone formula `v = ...` in `drawScene`, and `FS`.
