@@ -48,8 +48,8 @@
   <button data-pitch="6" aria-pressed="false">coarse</button>
   <button id="halftone" aria-pressed="true">halftone</button>
   <span class="caption">view</span>
-  <button id="v3d" aria-pressed="true">3D</button>
-  <button id="v2d" aria-pressed="false">2D</button>
+  <button id="v2d" aria-pressed="true">2D</button>
+  <button id="v3d" aria-pressed="false">3D</button>
 </header>
 <div id="wrap">
   <canvas id="scene"></canvas>
@@ -83,7 +83,7 @@ const SPEED = 3.2;        // cells per second
 const TRAIL_LIFE = 22;    // seconds
 const HSCALE = 4.2;       // cells of height for the tallest ridge
 const SIG2 = 2 * 3.2 * 3.2;
-const BS = 2.1;           // beetle scale in cells (about 4.5 cells long)
+const BS = 1.5;           // beetle scale in cells (about 4.5 cells long)
 
 // ---------- PCA ----------
 function topComponents(X, k, iters) {
@@ -200,7 +200,7 @@ function makeBeetles() {
 }
 
 // ---------- camera ----------
-const cam = { ortho: false, yaw: 0.9, pitch: 1.22, dist: 30, tx: 0, ty: 0, tz: 0, eye: [0, 0, 0], R: [1, 0, 0], U: [0, 0, 1], F: [0, 1, 0], focal: 1, W: 1, H: 1, horizon: 0 };
+const cam = { ortho: true, yaw: 0.9, pitch: 1.22, dist: 30, tx: 0, ty: 0, tz: 0, eye: [0, 0, 0], R: [1, 0, 0], U: [0, 0, 1], F: [0, 1, 0], focal: 1, W: 1, H: 1, horizon: 0 };
 function updateCamera(dt) {
   let fx = 0, fy = 0, n = 0;
   const live = world.beetles.filter((b) => !b.done && !b.flipped);
@@ -288,9 +288,9 @@ function drawScene(t) {
     if (maxx < 0 || minx > W || maxy < 0 || miny > H) continue;
     const n = norm([h00 - h10 + h01 - h11, h00 - h01 + h10 - h11, 2]);
     const lam = Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
-    const elev = Math.max(0, Math.min(1, (h00 + h11) / (2 * HSCALE)));
-    let v = 0.09 + 0.5 * Math.pow(lam, 1.8) + 0.34 * elev * elev;
-    v = Math.round(v * 9) / 9;
+    const elev = Math.max(0, Math.min(1, ((h00 + h11) / 2 + 0.6) / (HSCALE + 0.6)));  // pits go below zero, so offset
+    let v = cam.ortho ? 0.05 + 0.8 * elev + 0.15 * lam * lam : 0.09 + 0.5 * Math.pow(lam, 1.8) + 0.34 * elev * elev;
+    if (!cam.ortho) v = Math.round(v * 9) / 9;  // the 2D map stays continuous: height reads as dot size and density
     const far = Math.sqrt(c.depth);
     const fog = Math.max(0, Math.min(1, (far - FOG0) / (FOG1 - FOG0)));
     sctx.fillStyle = rampColor(v, fog);
@@ -406,9 +406,19 @@ void main(){
   vec3 c = texture2D(t, ctr / res).rgb;
   float lum = dot(c, vec3(0.299, 0.587, 0.114)); float bl = dot(bg, vec3(0.299, 0.587, 0.114));
   float f = clamp((lum - bl) / (1.0 - bl), 0.0, 1.0);
-  float r = 0.5 * pitch * (0.12 + 0.92 * sqrt(f));
+  // density: below 0.45 every other dot drops out, below 0.2 three of four
+  // ordered dither (Bayer 4x4): the fraction of dots present ramps with tone, so troughs thin out smoothly
+  vec2 bc = mod(cell, 4.0);
+  float bayer = 0.0;
+  if (bc.y < 1.0) bayer = bc.x < 1.0 ? 0.0 : bc.x < 2.0 ? 8.0 : bc.x < 3.0 ? 2.0 : 10.0;
+  else if (bc.y < 2.0) bayer = bc.x < 1.0 ? 12.0 : bc.x < 2.0 ? 4.0 : bc.x < 3.0 ? 14.0 : 6.0;
+  else if (bc.y < 3.0) bayer = bc.x < 1.0 ? 3.0 : bc.x < 2.0 ? 11.0 : bc.x < 3.0 ? 1.0 : 9.0;
+  else bayer = bc.x < 1.0 ? 15.0 : bc.x < 2.0 ? 7.0 : bc.x < 3.0 ? 13.0 : 5.0;
+  float density = smoothstep(0.0, 0.55, f) * 0.85 + 0.15 * step(0.02, f);
+  float vis = density > (bayer + 0.5) / 16.0 ? 1.0 : 0.0;
+  float r = 0.5 * pitch * (0.1 + 0.95 * sqrt(f));
   float d = distance(gl_FragCoord.xy, ctr);
-  float a = 1.0 - smoothstep(r - 0.6, r + 0.6, d);
+  float a = vis * (1.0 - smoothstep(r - 0.6, r + 0.6, d));
   gl_FragColor = vec4(mix(bg, c, a), 1.0);
 }`;
 function initGL() {
