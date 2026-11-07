@@ -67,7 +67,7 @@ def test_roster_uses_real_swarm_identities_with_mocked_keys(monkeypatch):
     monkeypatch.setattr(clients, "provider_available", no_anthropic)
     roster, dropped = rr.build_roster("all", 6)
     assert roster and all(a.provider in {"gemini", "meta"} for a in roster)
-    assert all(d.startswith("claude") for d in dropped)
+    assert all(d.startswith(("claude", "openai")) for d in dropped)  # providers without keys in this test
 
 
 def _task(n: int) -> LongTask:

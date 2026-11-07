@@ -46,6 +46,10 @@ class Settings:
     anthropic_api_key: str = field(default_factory=lambda: _env("ANTHROPIC_API_KEY"))
     anthropic_model: str = field(default_factory=lambda: _env("ANTHROPIC_MODEL", "claude-sonnet-5-5"))
 
+    openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
+    openai_base_url: str = field(default_factory=lambda: _env("OPENAI_BASE_URL", "https://api.openai.com/v1"))
+    openai_model: str = field(default_factory=lambda: _env("OPENAI_MODEL", "gpt-5.4-mini"))
+
     # Store
     mongodb_uri: str = field(default_factory=lambda: _env("MONGODB_URI"))
     mongodb_db: str = field(default_factory=lambda: _env("MONGODB_DB", "swarm"))

@@ -252,6 +252,12 @@ def _parse_junit(junit: Path, stem_to_mod: dict[str, str]) -> dict[str, bool]:
         parts = (tc.get("classname") or "").split(".")
         idx = next((i for i, part in enumerate(parts) if part in stem_to_mod), None)
         if idx is None:
+            # collection error: classname is empty and `name` is the dotted module path
+            nparts = (tc.get("name") or "").replace("/", ".").removesuffix(".py").split(".")
+            stem = next((p for p in nparts if p in stem_to_mod), None)
+            if stem is None:
+                continue
+            results[f"{stem_to_mod[stem]}::<collection error>"] = False
             continue
         key = "::".join([stem_to_mod[parts[idx]], *parts[idx + 1 :], tc.get("name", "")])
         results[key] = not any(tc.find(tag) is not None for tag in ("failure", "error", "skipped"))
