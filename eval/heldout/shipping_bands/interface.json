@@ -1,0 +1,3 @@
+[
+  {"name": "shipping_fee", "file": "shipping.py", "params": ["weight_kg: float"], "returns": "float"}
+]

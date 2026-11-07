@@ -1,0 +1,4 @@
+[
+  {"name": "late_fine", "file": "fines.py", "params": ["days_late: int", "item_type: str"], "returns": "float"},
+  {"name": "top_fined", "file": "fines.py", "params": ["fines: dict[str, float]", "n: int"], "returns": "list[str]"}
+]

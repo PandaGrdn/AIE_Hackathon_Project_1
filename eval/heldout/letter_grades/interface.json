@@ -1,0 +1,4 @@
+[
+  {"name": "letter_grade", "file": "grades.py", "params": ["score: int"], "returns": "str"},
+  {"name": "final_score", "file": "grades.py", "params": ["scores: list[int]"], "returns": "int | None"}
+]

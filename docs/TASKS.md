@@ -42,6 +42,7 @@ Need a new field or dependency? Post it in chat; Ethan Liu adds it within minute
 | 1b | In `cross_test`: a run is **verified iff it passes every hidden spec case and property**; fuzz majority is secondary evidence only and never fails a run alone. No cross-running of agents' own tests. Spec-vs-majority disagreement surfaces as an ambiguity flag, not a failure. |
 | 2 | MongoDB: `MongoStore` wired, `ensure_indexes`, `regions_near` via `$vectorSearch`. Tune `dedup.py` thresholds (`BASE_RADIUS`, similarity) on real Gemini embeddings. Check `find_divergence` picks the right step on real paths; adjust `divergence_sigma` / `N_BINS`. |
 | 3 | `proposer.py`: cluster adopted lessons → `ChangeKind.tool` proposal (reflector writes a small tool). Trust leaderboard data for the UI. Help debug the gate on the full run. |
+| any | **Fuzzer gaps** found against the held-out references (`core/harness/strategies.py`): (a) `str` params draw random text, so an enum-like arg (`item_type`) never gets a valid value — have the spec-test author emit the valid literals and feed them to the strategy; (b) `int` draws ±10000 so bounded domains (scores 0–100) are almost all out of range — bias toward the boundary values the spec names; (c) no boundary examples for `dict[...]`, so seed cases pass `None` and implementations disagree on the exception type — add `{}` and a one-entry dict as boundaries. |
 
 ---
 
