@@ -27,9 +27,9 @@ class Settings:
     subq_decisions_url: str = field(default_factory=lambda: _env("SUBQ_DECISIONS_URL", "https://api.subq.ai/v1/systemone"))
 
     meta_api_key: str = field(default_factory=lambda: _env("META_API_KEY"))
-    meta_base_url: str = field(default_factory=lambda: _env("META_BASE_URL", "https://api.dev.meta.ai/v1"))
-    meta_model_code: str = field(default_factory=lambda: _env("META_MODEL_CODE", "muse-code"))
-    meta_model_spark: str = field(default_factory=lambda: _env("META_MODEL_SPARK", "muse-spark"))
+    meta_base_url: str = field(default_factory=lambda: _env("META_BASE_URL", "https://api.meta.ai/v1"))
+    meta_model_code: str = field(default_factory=lambda: _env("META_MODEL_CODE", "muse-wonder-1.0"))
+    meta_model_spark: str = field(default_factory=lambda: _env("META_MODEL_SPARK", "muse-spark-1.3"))
 
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash"))
@@ -50,6 +50,8 @@ class Settings:
     swarm_size: int = field(default_factory=lambda: int(_env("SWARM_SIZE", "6")))
     agent_timeout_s: int = field(default_factory=lambda: int(_env("AGENT_TIMEOUT_S", "600")))
     sandbox_backend: str = field(default_factory=lambda: _env("SANDBOX_BACKEND", "worktree"))
+    # Directories (repo-relative) whose tests form the regression suite run in every sandbox at verdict time.
+    regression_test_paths: tuple[str, ...] = field(default_factory=lambda: tuple(_env("REGRESSION_TEST_PATHS", "tests").replace(",", " ").split()))
 
     # Paths
     runs_dir: Path = ROOT / "runs"
@@ -60,6 +62,13 @@ class Settings:
     majority_ambiguous_threshold: float = 0.50
     divergence_sigma: float = 2.0  # steps > mean + sigma*std from consensus are divergent
     lesson_dedup_similarity: float = 0.90
+
+    # Live-run cost control. Every held-out sweep costs <slices> × <heldout_swarm_size> real agent runs,
+    # and each gated change needs a "with" sweep (the "without" sweep is cached per lesson set).
+    heldout_swarm_size: int = field(default_factory=lambda: int(_env("HELDOUT_SWARM_SIZE", "2")))
+    # Which change kinds go through the held-out gate. Routing (trust) changes are batched per subtask
+    # and, when not gated, are applied directly and recorded as adopted with reason "not gated".
+    gate_kinds: tuple[str, ...] = field(default_factory=lambda: tuple(_env("GATE_KINDS", "context,skill,tool").replace(",", " ").split()))
 
 
 settings = Settings()

@@ -26,7 +26,7 @@ from core.config import settings
 from core.context.builder import build_context
 from core.harness.crosstest import breaking_case, cross_test
 from core.harness.spec_tests import SpecTests, load_or_author
-from core.models import AgentIdentity, AgentRun, Divergence, Lesson, LongTask, RunManifest, Subtask
+from core.models import AgentIdentity, AgentRun, ChangeStatus, Divergence, Lesson, LongTask, RunManifest, Subtask
 from core.paths.divergence import find_divergence
 from core.reflect.reflector import reflect
 from core.store.base import Store
@@ -174,6 +174,17 @@ def run_subtask(
         if run_heldout is None:
             store.save_change(ch)
             report["changes"].append(ch.id)
+            continue
+        if str(ch.kind) not in settings.gate_kinds:
+            # Not gated (live-run cost control): applied directly and labelled so the changelog is honest.
+            from datetime import datetime, timezone
+
+            ch.status = ChangeStatus.adopted
+            ch.reason = "applied directly; kind not gated (GATE_KINDS)"
+            ch.decided_at = datetime.now(timezone.utc)
+            store.save_change(ch)
+            report["changes"].append(ch.id)
+            console.print(f"[dim]applied (not gated) {ch.kind}: {ch.description[:80]}")
             continue
         ch = evaluate_change(ch, store, run_heldout)
         report["changes"].append(ch.id)
