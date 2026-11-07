@@ -7,8 +7,12 @@ from core.store.base import Store
 
 
 def update_trust(runs: list[AgentRun], result: CrossTestResult, store: Store) -> list[Change]:
-    """Returns routing-change candidates (one per agent whose score moved)."""
-    changes = []
+    """Apply trust updates and return ONE routing-change candidate per subtask summarizing them.
+
+    One change per agent per subtask drowned the changelog (6 agents × N subtasks of near-identical
+    rolled-back rows); the gate evaluates routing as a whole, so a batched change is what it decides on.
+    """
+    deltas: list[str] = []
     for run in runs:
         t = store.get_trust(run.agent.id)
         before = t.score
@@ -20,8 +24,10 @@ def update_trust(runs: list[AgentRun], result: CrossTestResult, store: Store) ->
             continue
         t.history.append(t.score)
         store.save_trust(t)
-        changes.append(Change(kind=ChangeKind.routing, ref_id=run.agent.id, description=f"trust {run.agent.id}: {before:.2f} → {t.score:.2f}"))
-    return changes
+        deltas.append(f"{run.agent.id} {before:.2f}→{t.score:.2f}")
+    if not deltas:
+        return []
+    return [Change(kind=ChangeKind.routing, ref_id=result.subtask_id, description="trust: " + ", ".join(deltas))]
 
 
 def weights_for(runs: list[AgentRun], store: Store) -> dict[str, float]:
