@@ -1,30 +1,42 @@
-"""Independent spec tests. Owner: Ethan Li.
+"""Independent spec tests — SubQ is the verifier. Owner: Ethan Li.
 
 Test independence rule (outline §5.5): no test used for a verdict is derived from any
-implementation. A dedicated test-author model reads ONLY the subtask spec, the pinned
-interface and the repo at the base commit, and writes:
+implementation. A dedicated test-author identity (SubQ) reads ONLY the initial subtask
+spec, the pinned interface and the repo at the base commit — never a swarm agent's code,
+reasoning or tests — and writes:
 
   - cases: concrete inputs with expected values (source="spec")
   - properties: metamorphic rules that must hold for any correct implementation
     (source="property"), expressed as small Python predicates over (args, result)
+  - literals: for string params with a closed set of valid values, the valid values,
+    so the fuzzer can draw them (a random string never hits "book" or "dvd")
 
-Generated once per subtask and cached under runs/spec_tests/<subtask_id>.json so every
-run of that subtask, including held-out re-runs, uses the same independent tests.
+Generated once per subtask and cached under runs/spec_tests/<content-hash>.json, keyed by
+(title, spec, interface) rather than the subtask's random id, so every run of that subtask,
+including held-out re-runs and a fresh `swarm run`, uses the same independent tests.
 The author identity must not be one of the implementers for that subtask.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from core.config import settings
-from core.llm.clients import get_client, reflector_identity
-from core.models import Subtask, TestCase
+from core.llm.clients import get_client
+from core.models import AgentIdentity, Subtask, TestCase
 
 CACHE_DIR = settings.runs_dir / "spec_tests"
+VISIBLE_SHARE = 0.4
+
+
+def author_identity() -> AgentIdentity:
+    """The verifier. Separate id from the swarm's `subq-t3` so trust/routing never mix them;
+    routing must not pick this identity as an implementer."""
+    return AgentIdentity(id="spec-author-subq", provider="subq", model=settings.subq_model, temperature=0.0)
 
 
 class SpecProperty(BaseModel):
@@ -42,6 +54,8 @@ class SpecTests(BaseModel):
     expected: dict[str, object]  # case_id -> expected value, or {"raises": "ValueError"}
     properties: list[SpecProperty]
     visible_ids: list[str] = []  # ~40% of cases agents may run live; the rest + properties decide the verdict
+    literals: dict[str, dict[str, list]] = {}  # function -> param -> valid literal values (str params)
+    author_id: str = ""
 
     @property
     def visible(self) -> list[TestCase]:
@@ -66,77 +80,109 @@ You see only the spec, the pinned interface and the existing code. Do not guess 
 
 Return JSON:
 {{"cases": [{{"function": str, "args": [...], "expected": <value> | {{"raises": "ExceptionName"}}, "why": str}}],
-  "properties": [{{"name": str, "function": str, "predicate": "lambda args, result: <bool expr>", "description": str}}]}}
+  "properties": [{{"name": str, "function": str, "predicate": "lambda args, result: <bool expr>", "description": str}}],
+  "literals": {{"<function>": {{"<str param name>": ["valid", "values"]}}}}}}
 
 Rules:
 - 10 to 25 cases. Cover every boundary the spec names (inclusive vs exclusive, equality, zero, empty, negative).
 - Expected values must follow from the spec literally. If the spec is ambiguous for a case, omit the case and
-  add a property instead.
+  add a property instead. Use JSON numbers for numeric results (2 decimals where the spec rounds), JSON null for None.
 - 3 to 8 properties that hold for ANY correct implementation (monotonicity, bounds, idempotence, empty-input shape).
+  A predicate sees one call only: `args` is the argument list, `result` the return value. Predicates are not run on raised exceptions.
+- `literals`: only for string params whose valid values are a closed set named by the spec (tier names, item types);
+  omit the key otherwise.
 """
 
 
+def cache_key(subtask: Subtask) -> str:
+    iface = [s.model_dump() for s in sorted(subtask.interface, key=lambda s: (s.file, s.name))]
+    blob = json.dumps({"title": subtask.title, "spec": subtask.spec, "interface": iface}, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
 def _cache_path(subtask: Subtask) -> Path:
-    return CACHE_DIR / f"{subtask.id}.json"
+    return CACHE_DIR / f"{cache_key(subtask)}.json"
+
+
+def load_cached(subtask: Subtask) -> SpecTests | None:
+    p = _cache_path(subtask)
+    if not p.exists():
+        return None
+    st = SpecTests.model_validate_json(p.read_text())
+    st.subtask_id = subtask.id  # ids are regenerated per decomposition; the tests are the same
+    return st
+
+
+def save_cached(subtask: Subtask, st: SpecTests) -> Path:
+    p = _cache_path(subtask)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(st.model_dump_json(indent=2))
+    return p
 
 
 def load_or_author(subtask: Subtask, repo: Path) -> SpecTests:
-    p = _cache_path(subtask)
-    if p.exists():
-        return SpecTests.model_validate_json(p.read_text())
-    st = author(subtask, repo)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(st.model_dump_json(indent=2))
+    st = load_cached(subtask)
+    if st is None:
+        st = author(subtask, repo)
+        save_cached(subtask, st)
     return st
 
 
 def author(subtask: Subtask, repo: Path) -> SpecTests:
+    """Ask the verifier for tests. It sees the initial spec, interface and base-commit code only."""
     iface = "\n".join(f"- {s.file}: def {s.name}({', '.join(s.params)}) -> {s.returns or 'Any'}" for s in subtask.interface)
     code = "\n\n".join(f"# {f}\n{(repo / f).read_text()}" for f in subtask.files if (repo / f).exists())[:20_000]
-    client = get_client(reflector_identity())  # TODO(Ethan Li): dedicated author identity, excluded from that subtask's swarm
+    identity = author_identity()
+    client = get_client(identity)
     resp = client.chat([{"role": "user", "content": AUTHOR_PROMPT.format(spec=subtask.spec, iface=iface, code=code or "(none)")}])
     data = json.loads(_extract_json(resp["text"]))
+    return parse_author_output(subtask, data, identity.id)
 
+
+def parse_author_output(subtask: Subtask, data: dict, author_id: str = "") -> SpecTests:
+    """Validate the model's JSON into SpecTests; drops cases for unknown functions or malformed args."""
+    known = {s.name for s in subtask.interface}
     cases, expected = [], {}
     for c in data.get("cases", []):
+        if not isinstance(c, dict) or c.get("function") not in known or not isinstance(c.get("args"), list) or "expected" not in c:
+            continue
         tc = TestCase(function=c["function"], args=c["args"], source="spec")
         cases.append(tc)
         expected[tc.id] = c["expected"]
-    props = [SpecProperty(name=p["name"], function=p["function"], predicate_src=p["predicate"], description=p.get("description", "")) for p in data.get("properties", [])]
+    props = [
+        SpecProperty(name=str(p.get("name", f"p{i}")), function=p["function"], predicate_src=p["predicate"], description=str(p.get("description", "")))
+        for i, p in enumerate(data.get("properties", []))
+        if isinstance(p, dict) and p.get("function") in known and isinstance(p.get("predicate"), str)
+    ]
+    literals: dict[str, dict[str, list]] = {}
+    for fn, params in (data.get("literals") or {}).items():
+        if fn in known and isinstance(params, dict):
+            literals[fn] = {k: list(v) for k, v in params.items() if isinstance(v, list) and v}
     visible = _split_visible(cases, VISIBLE_SHARE)
-    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible)
-
-
-VISIBLE_SHARE = 0.4
+    return SpecTests(subtask_id=subtask.id, cases=cases, expected=expected, properties=props, visible_ids=visible, literals=literals, author_id=author_id)
 
 
 def _split_visible(cases: list[TestCase], share: float) -> list[str]:
     """Deterministic split so the same subtask always exposes the same visible cases."""
-    import hashlib
-
     ranked = sorted(cases, key=lambda c: hashlib.sha256(c.id.encode()).hexdigest())
     n = max(1, int(len(ranked) * share)) if ranked else 0
     return [c.id for c in ranked[:n]]
 
 
+_PREDICATE_BUILTINS = {
+    "len": len, "abs": abs, "min": min, "max": max, "all": all, "any": any, "sum": sum, "round": round, "sorted": sorted,
+    "isinstance": isinstance, "int": int, "float": float, "str": str, "list": list, "dict": dict, "set": set, "tuple": tuple,
+    "bool": bool, "range": range, "zip": zip, "enumerate": enumerate, "True": True, "False": False, "None": None,
+}
+
+
 def check_property(prop: SpecProperty, args: list, result: object) -> bool:
     """Evaluate a property predicate. Predicates are model-written: run them only on values, never on code."""
     try:
-        fn = eval(prop.predicate_src, {"__builtins__": {"len": len, "abs": abs, "min": min, "max": max, "all": all, "any": any, "sum": sum, "round": round, "sorted": sorted, "isinstance": isinstance, "int": int, "float": float, "str": str, "list": list, "dict": dict}})
+        fn = eval(prop.predicate_src, {"__builtins__": _PREDICATE_BUILTINS})
         return bool(fn(args, result))
     except Exception:
         return False
-
-
-# TODO(Ethan Li): in crosstest.cross_test —
-#   1. cases = spec.cases + fuzz cases; outcomes as now.
-#   2. for spec cases: compare each run's outcome to `expected`; a run that misses an expected value
-#      is failed on that case regardless of the majority. If the majority disagrees with `expected`,
-#      record an AmbiguityFlag(case_id, expected, majority) instead of failing anyone.
-#   3. for properties: check_property on every (run, case) for the property's function; a violation
-#      fails that run on that case even when the whole swarm agrees (shared-blind-spot catch).
-#   4. verified_runs = runs passing every hidden case and property; fuzz-majority disagreements
-#      go to the reflector as evidence only. Agents' own tests are never run by the harness.
 
 
 def _extract_json(text: str) -> str:
