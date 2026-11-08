@@ -266,3 +266,12 @@ def test_summary_file(tmp_path, monkeypatch, client):
     assert client.get("/api/summary_file").json()["per_subtask"][0]["verified"] == 1
     monkeypatch.setenv("SWARM_SUMMARY", str(tmp_path / "missing.json"))
     assert client.get("/api/summary_file").json() == {}
+
+
+def test_bundle_serves_named_snapshots(client):
+    fake = client.get("/api/bundle?snap=fake").json()
+    assert fake["meta"]["simulated"] is True
+    assert {"steps", "divergences", "lessons", "changes", "trust", "regions", "summary", "runs", "summary_files"} <= set(fake)
+    real = client.get("/api/bundle?snap=real").json()
+    assert real["meta"]["simulated"] is False and len(real["runs"]) > 0
+    assert "error" in client.get("/api/bundle?snap=nope").json()
