@@ -129,6 +129,8 @@ aside{border-left:1px solid var(--line);background:var(--panel);display:flex;fle
 #stepmode.on{border-color:var(--amber);color:var(--amber)}
 header{grid-row:1}.banner{grid-row:2}.pipe{grid-row:3}.stage{grid-row:4;grid-column:1}aside{grid-row:4;grid-column:2}footer{grid-row:5}
 @media (max-width:980px){header,.banner,.pipe,.stage,aside,footer{grid-row:auto;grid-column:auto}}
+.go{pointer-events:auto;margin-top:18px;font:700 16px var(--mono);padding:12px 26px;border-radius:10px;border:1px solid var(--amber);background:#2a2214;color:var(--amber);cursor:pointer}
+.go:hover:not(:disabled){background:#3a2e17}.go:disabled{opacity:.5;cursor:wait}
 .modes{display:flex;gap:6px;margin-left:8px}
 .modes button{font-size:11px;padding:6px 10px}
 .modes button.on{border-color:var(--amber);color:var(--amber);background:#241e12}
@@ -174,7 +176,7 @@ button:hover{border-color:#4a4334}
     <div class="mapwrap" id="mapwrap">
     <canvas id="map"></canvas>
     <div class="paused" id="paused">❚❚ paused · press space to continue</div>
-    <div class="overlay" id="intro"><div class="card"><h1 id="introH"></h1><p id="introP"></p><p style="margin-top:10px">Each beetle is one agent run. When a run fails, the pit marks where its reasoning left the swarm, and a flag marks the lesson written from it. Only lessons that pass the held-out gate are kept.</p></div></div>
+    <div class="overlay" id="intro"><div class="card"><h1 id="introH">Colony</h1><p id="introP"></p><p style="margin-top:10px">Each beetle is one agent run. When a run fails, the pit marks where its reasoning left the swarm, and a flag marks the lesson written from it. Only lessons that pass the held-out gate are kept.</p><button class="go" id="go" disabled>loading run data…</button></div></div>
     <div class="overlay bottom" id="outro"><div class="card">
       <h1 id="outroH"></h1>
       <p id="outroP"></p>
@@ -309,9 +311,10 @@ function adapt(B) {
 document.querySelectorAll('.modes button').forEach(b => { b.classList.toggle('on', b.dataset.snap === SNAP); b.onclick = () => { if (b.dataset.snap !== SNAP) location.search = '?snap=' + b.dataset.snap; }; });
 let BUNDLE;
 try {
-  BUNDLE = await fetch('/api/bundle?snap=' + SNAP, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  BUNDLE = await fetch('/api/bundle?embeddings=false&snap=' + SNAP, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
   if (BUNDLE.error) throw new Error(BUNDLE.error);
 } catch (e) {
+  document.getElementById('go').style.display = 'none';
   document.getElementById('mapwrap').insertAdjacentHTML('beforeend', `<div class="err">Could not load run data (${String(e.message).replace(/</g, '&lt;')}).<br><br>Start the server:<br>USE_MEMORY_STORE=1 .venv/bin/uvicorn ui.server:app --port 8787<br>then open http://127.0.0.1:8787/colony</div>`);
   return;
 }
@@ -969,7 +972,7 @@ $('introP').innerHTML = `${esc2(taskName)}: ${nSubs} subtasks replayed as ${R.le
 
 // ---------- main loop + controls ----------
 const params = new URLSearchParams(location.search);
-let T = clamp(parseFloat(params.get('t')) || 0, 0, TOTAL), playing = !params.has('paused') && !params.has('t'), speed = 1, stepMode = false, last = performance.now();
+let T = clamp(parseFloat(params.get('t')) || 0, 0, TOTAL), playing = params.has('autoplay'), speed = 1, stepMode = false, last = performance.now();
 
 function render() {
   const { s, ox, oy, dpr } = view;
@@ -1014,16 +1017,20 @@ const tlSeek = e => { const r = tl.getBoundingClientRect(); seek((e.clientX - r.
 tl.addEventListener('pointerdown', e => { drag = true; tl.setPointerCapture(e.pointerId); tlSeek(e); });
 tl.addEventListener('pointermove', e => drag && tlSeek(e));
 tl.addEventListener('pointerup', () => drag = false);
-$('play').onclick = () => { if (T >= TOTAL) seek(0); playing = !playing; };
+$('play').onclick = () => { if (T >= TOTAL) seek(0); if (T === 0) { start(); return; } playing = !playing; };
+// title screen: nothing moves until the presenter starts it; Start skips straight to the first subtask
+function start() { seek(INTRO - .5); playing = true; }
+$('go').disabled = false; $('go').textContent = '▶ Start the run';
+$('go').onclick = start;
 $('stepmode').onclick = () => { stepMode = !stepMode; $('stepmode').textContent = 'stop at each step: ' + (stepMode ? 'on' : 'off'); $('stepmode').classList.toggle('on', stepMode); };
 $('speed').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? .5 : 1; $('speed').textContent = speed + '×'; };
 window.addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
+  if (e.code === 'Space' || (e.key === 'Enter' && T === 0)) { e.preventDefault(); $('play').click(); }
   else if (e.key === 'ArrowRight') seek(BEATS.find(b => b > T + .05) ?? TOTAL);
   else if (e.key === 'ArrowLeft') seek([...BEATS].reverse().find(b => b < T - .3) ?? 0);
   else if (e.key >= '1' && e.key <= '9' && R[+e.key - 1]) seek(R[+e.key - 1].T0);
   else if (e.key === 's' || e.key === 'S') $('stepmode').click();
-  else if (e.key === 'r' || e.key === 'R') { seek(0); playing = true; }
+  else if (e.key === 'r' || e.key === 'R') { seek(0); playing = false; }
   else if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
 });
 

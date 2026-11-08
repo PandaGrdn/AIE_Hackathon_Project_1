@@ -275,3 +275,11 @@ def test_bundle_serves_named_snapshots(client):
     real = client.get("/api/bundle?snap=real").json()
     assert real["meta"]["simulated"] is False and len(real["runs"]) > 0
     assert "error" in client.get("/api/bundle?snap=nope").json()
+
+
+def test_bundle_can_drop_embeddings(client):
+    light = client.get("/api/bundle?snap=real&embeddings=false").json()
+    assert light["steps"] and all("embedding" not in s for s in light["steps"])
+    assert all("centroid" not in r for r in light["regions"])
+    full = client.get("/api/bundle?snap=real").json()
+    assert any(s.get("embedding") for s in full["steps"])

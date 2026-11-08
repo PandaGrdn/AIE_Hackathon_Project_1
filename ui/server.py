@@ -467,7 +467,7 @@ def make_app(store=None) -> FastAPI:
         return v_summary(get())
 
     @app.get("/api/bundle")
-    def bundle(snap: str = "fake"):
+    def bundle(snap: str = "fake", embeddings: bool = True):
         """Everything one page needs for one of the named demo snapshots (BUNDLE_SNAPSHOTS)."""
         path = BUNDLE_SNAPSHOTS.get(snap)
         if path is None:
@@ -483,7 +483,13 @@ def make_app(store=None) -> FastAPI:
                 "summary": v_summary(st), "runs": v_runs(st),
                 "summary_files": {k: read_summary_file(f) for k, f in SUMMARY_FILES.items()},
             })
-        return state[("bundle", snap)][1]
+        data = state[("bundle", snap)][1]
+        if embeddings:
+            return data
+        # light payload for pages that don't project embeddings (cuts the real run from ~27 MB to well under 1 MB)
+        strip = lambda rows, keys: [{k: v for k, v in r.items() if k not in keys} for r in rows]
+        return {**data, "steps": strip(data["steps"], {"embedding"}), "lessons": strip(data["lessons"], {"embedding", "divergence_embedding"}),
+                "regions": strip(data["regions"], {"centroid"})}
 
     return app
 
