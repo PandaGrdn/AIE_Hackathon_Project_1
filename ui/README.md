@@ -191,3 +191,34 @@ How it works, top to bottom of the script:
 
 Knobs worth touching first: `PAL`, `RAMP` and `CONT` (map look), the `density` and `r` lines in
 `FS` (dot size and thinning), `SKIN` and the `SPRITE_*` bitmaps, `BEETLE_CELLS`, `SPEED`, `stampTrack` tints, `wantDist` (zoom).
+Knobs worth touching first: `PAL`, `RAMP` and `CONT` (map look), `BS` (beetle size), `SPEED`,
+`TRAIL_LIFE`, `wantDist` in `updateCamera` (zoom), and the elevation/hillshade mix in `renderTile`.
+
+## /live — the demo page (real-run data, updates while a run is going)
+
+```bash
+source .venv/bin/activate
+SWARM_SNAPSHOT=demo/pricing_real.json USE_MEMORY_STORE=1 uvicorn ui.server:app --port 8787
+open http://localhost:8787/live
+```
+
+The server re-reads the snapshot file whenever it changes, so a live run that writes to the same path
+shows up on the page within 2 seconds, subtask by subtask:
+
+```bash
+swarm run demo_task/pricing/task.md --snapshot demo/pricing_real.json          # needs GEMINI_API_KEY (+ SUBQ_API_KEY for the judge)
+swarm run demo_task/pricing/task.md --fake --snapshot demo/pricing_real.json   # offline, no keys
+```
+
+If `demo_task/mcp/repo` has been set up, point the gate at the four function slices so it does not send
+pricing lessons into the MCP SDK: `--heldout-dir <folder with symlinks to eval/heldout/{letter_grades,library_fines,parking_billing,shipping_bands}>`.
+
+Sections: numbers strip (subtasks verified, lessons, changes adopted vs rolled back, held-out accuracy first→last),
+the swarm timeline (one chip per live agent: green verified, red failed, with the lessons each failure produced and the
+gate's decision), the held-out gate chart (accuracy before vs after each change), the SubQ root-cause card
+(probability per reasoning step, the blamed step, breaking input, agent's result vs expected, the lesson and its SubQ
+confidence), the trust leaderboard, the changelog, and the reasoning map (2-D projection of step embeddings; amber ring
+= blamed step).
+
+`demo/pricing_real_3of4.json` is a completed real run (six Gemini agents, 3 of 4 subtasks verified, 3 lessons, 2 adopted,
+1 rolled back, held-out 0.67 → 0.71) to serve when no live run is available.
