@@ -7,201 +7,219 @@
 <style>
 :root{
   --bg:#0e0d0b;--panel:#15130f;--panel2:#1b1813;--line:#2a261e;--ink:#ece6d8;--mute:#9a917f;--dim:#625a4b;
-  --ok:#7fd49a;--bad:#ff6b5e;--amber:#f2b552;--blue:#7aa7ff;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ok:#7fd49a;--bad:#ff6b5e;--amber:#f2b552;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
-.app{display:grid;grid-template-rows:auto auto auto auto 1fr auto;grid-template-columns:minmax(0,1fr) 384px;height:100vh}
-header{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:12px 22px;border-bottom:1px solid var(--line);min-width:0}
-.brand{display:flex;flex-direction:column;min-width:140px}
+.app{display:grid;grid-template-rows:auto auto auto 1fr auto;grid-template-columns:minmax(0,1fr) 384px;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:26px;padding:12px 22px;border-bottom:1px solid var(--line);min-width:0}
+.brand{display:flex;flex-direction:column;min-width:150px}
 .brand b{letter-spacing:.32em;font-size:13px}
 .brand span{color:var(--mute);font-size:12px}
-.task{flex:1;min-width:0}
-.task .k{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
-.task .v{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tag{display:inline-block;font:600 10.5px var(--mono);padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:2px}
-.tag.sim{background:#3a2a10;color:var(--amber)}.tag.real{background:#1d2a22;color:var(--ok)}
+.round{flex:1;min-width:0}
+.round .k{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.round .v{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-block;margin-left:10px;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1px solid currentColor;vertical-align:3px}
 .metric{display:flex;flex-direction:column;align-items:flex-end}
 .metric .k{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
-.metric .v{font:600 20px/1.15 var(--mono)}
-.metric .v small{font-size:11.5px;color:var(--mute);font-weight:500}
-.modes{display:flex;gap:6px}
-.modes button{font-size:11.5px;padding:6px 11px}
-.modes button.on{border-color:var(--amber);color:var(--amber);background:#241e12}
-.strip{grid-row:2;grid-column:1/-1;display:flex;gap:34px;align-items:flex-end;padding:12px 22px 14px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
-.strip .n{display:flex;flex-direction:column;min-width:0}
-.strip .n b{font:700 38px/1 var(--mono);letter-spacing:-.02em;white-space:nowrap}
-.strip .n b small{font-size:18px;color:var(--mute);font-weight:600}
-.strip .n span{margin-top:5px;font-size:12px;color:var(--mute);white-space:nowrap}
-.strip .n.ok b{color:var(--ok)}.strip .n.bad b{color:var(--bad)}
-.hero{border:1px solid #3a4a3e;background:linear-gradient(180deg,#17211b,#15130f);border-radius:12px;padding:12px 14px}
-.hero h3{margin:0 0 2px;font-size:14px}
-.hero .lbl{font:10.5px var(--mono);color:var(--ok);margin-bottom:8px}
-.rescue{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 0;border-top:1px solid #26302a}
-.rescue .t{font-size:12.5px;font-weight:600}
-.rescue .s{font:11px var(--mono);color:var(--mute);grid-column:1}
-.rescue .f{grid-row:1/3;grid-column:2;align-self:center;font:700 18px var(--mono);white-space:nowrap}
-.rescue .f .a{color:var(--bad)}.rescue .f .b{color:var(--ok)}
-.rc{padding:8px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;background:var(--panel2)}
-.rc:hover{border-color:#4a4334}
-.rc .top{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--mute)}
-.rc .top .p{font:700 15px var(--mono);color:var(--bad)}
-.rc .pb{height:5px;background:#2a261e;border-radius:3px;overflow:hidden;margin:5px 0}
-.rc .pb i{display:block;height:100%;background:var(--bad)}
-.rc .tx{font-size:12.5px;line-height:1.35}
-.chg.rb .d{color:#ffb7ae}.chg.route{opacity:.6}
-.banner{grid-row:3;grid-column:1/-1;padding:8px 22px;background:#2a1512;border-bottom:1px solid #4a2420;color:#ffc9c2;font-size:13px}
-.banner b{color:var(--bad)}
-.banner:empty{display:none}
-.subs{grid-row:4;grid-column:1/-1;display:flex;gap:6px;padding:8px 18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;background:var(--panel)}
-.sub{flex:none;display:flex;flex-direction:column;gap:2px;padding:6px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;min-width:150px;max-width:250px}
-.sub:hover{border-color:#4a4334}
-.sub.on{border-color:var(--amber);background:#241e12}
-.sub .t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sub .c{font:11px var(--mono);color:var(--mute)}
-.sub .c .ok{color:var(--ok)}.sub .c .bad{color:var(--bad)}
-.sub .bar{display:flex;height:4px;border-radius:3px;overflow:hidden;background:#2a261e;margin-top:2px}
-.sub .bar i{display:block;height:100%}
-.stage{grid-row:5;grid-column:1;display:grid;grid-template-rows:minmax(0,1fr) 268px;min-height:0;min-width:0}
+.metric .v{font:600 22px/1.15 var(--mono)}
+.metric .v small{font-size:12px;color:var(--mute);font-weight:500}
+.metric.big .v{font-size:30px;color:var(--ok)}
+.stage{display:grid;grid-template-rows:minmax(0,1fr) 256px;min-height:0;min-width:0}
 .mapwrap{position:relative;min-height:0}
-canvas#map{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
-.legend{position:absolute;left:14px;bottom:10px;font:11px var(--mono);color:var(--mute);display:flex;gap:14px;flex-wrap:wrap;pointer-events:none}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
-.hint{position:absolute;right:14px;top:10px;font:11px var(--mono);color:var(--dim);pointer-events:none}
-.err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--bad);font:13px var(--mono);padding:30px;text-align:center}
-.trace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border-top:1px solid var(--line);background:var(--panel);min-height:0}
+.trace{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);border-top:1px solid var(--line);background:var(--panel);min-height:0}
 .tcol{padding:12px 16px;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.why{border-left:1px solid var(--line);overflow:auto;scrollbar-width:thin}
+.why{border-left:1px solid var(--line)}
 .th{display:flex;align-items:center;gap:10px;margin-bottom:8px;min-width:0}
 .th canvas{width:24px;height:24px;flex:none}
 .th b{font:600 13px var(--mono);white-space:nowrap}
-.th .tsub{color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-ol#steps{list-style:none;margin:0;padding:0;overflow:auto;min-height:0;scrollbar-width:thin}
-#steps li{display:grid;grid-template-columns:50px 1fr;gap:8px;padding:4px 7px;border-radius:7px;margin-bottom:1px}
-#steps li .n{font:600 10.5px var(--mono);color:var(--mute);padding-top:2px}
-#steps li .as{font-size:13px;line-height:1.35}
-#steps li .do{font:11px var(--mono);color:var(--mute);margin-top:1px;word-break:break-word}
-#steps li.msg .as{color:var(--mute);font-style:italic;font-size:12px}
-#steps li.cur{background:#1e1b15;box-shadow:inset 2px 0 0 var(--amber)}
-#steps li.div{background:rgba(255,107,94,.11);box-shadow:inset 2px 0 0 var(--bad)}
-#steps li.div .n{color:var(--bad)}
-.pill{font:600 10px var(--mono);padding:1px 6px;border-radius:4px;margin-left:6px;color:#0e0d0b;background:var(--bad)}
-.why h3{margin:0 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.badge{font:600 10.5px var(--mono);padding:2px 7px;border-radius:5px;background:#2a1a17;color:var(--bad);letter-spacing:0;text-transform:none}
-.badge.ok{background:#1d2a22;color:var(--ok)}.badge.dim{background:#211e18;color:var(--mute)}
-.probs{display:grid;grid-template-columns:34px 1fr 40px;gap:3px 8px;align-items:center;font:11px var(--mono);margin:4px 0 10px}
-.probs .b{height:9px;background:#2a261e;border-radius:3px;overflow:hidden}
-.probs .b i{display:block;height:100%;background:#7a6a55}
-.probs .hl{color:var(--bad)}.probs .b.hl i{background:var(--bad)}
-.kv{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:12.5px;margin-bottom:10px}
-.kv .k{font:10.5px var(--mono);color:var(--mute);text-transform:uppercase;letter-spacing:.06em;padding-top:2px}
-.kv .v{word-break:break-word}
-.kv .v.bad{color:#ffb7ae}.kv .v.ok{color:#c4f0d1}
-.meter{height:6px;background:#2a261e;border-radius:3px;overflow:hidden;margin-top:4px;max-width:220px}
-.meter i{display:block;height:100%;background:var(--blue)}
-.lesson{border-left:3px solid var(--amber);background:rgba(242,181,82,.07);padding:6px 10px;border-radius:0 7px 7px 0;margin:6px 0;font-size:13px}
-.lesson.rolled_back{border-color:var(--bad);background:rgba(255,107,94,.07)}
-.lesson.adopted{border-color:var(--ok);background:rgba(127,212,154,.07)}
-.lesson .m{font:10.5px var(--mono);color:var(--mute);margin-top:3px}
-.empty{color:var(--mute);font-size:13px}
-aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto;scrollbar-width:thin;grid-row:5;grid-column:2}
-.sec{padding:12px 16px;border-bottom:1px solid var(--line)}
-.sec h2{margin:0 0 2px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600}
-.sec .sub2{color:var(--dim);font:11px var(--mono);margin-bottom:8px}
-.trow{display:grid;grid-template-columns:28px minmax(0,1fr) 64px 46px;gap:8px;align-items:center;padding:5px 2px}
-.trow canvas{width:28px;height:28px}
-.trow b{display:block;font:600 12.5px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trow i{display:block;font-style:normal;font-size:11px;color:var(--mute)}
-.trow .num{font:600 15px var(--mono);text-align:right}
-.log{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
-.chg{padding:6px 0;border-bottom:1px solid #221f19;font-size:12px}
-.chg .h{display:flex;gap:6px;align-items:center;font:10.5px var(--mono);color:var(--mute)}
-.chg .d{margin-top:3px;color:#d6cfbf;word-break:break-word}
-.chg .r{font:10.5px var(--mono);color:var(--dim);margin-top:2px}
+.th .tsub{color:var(--mute);font-size:11px;white-space:nowrap}
+.chips{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip{font:600 10.5px var(--mono);padding:2px 7px;border-radius:5px;background:#2a2417;color:var(--amber);white-space:nowrap}
+.chip.dim{background:#211e18;color:var(--dim)}.chip.pin{background:#1d2a22;color:var(--ok)}
+#tSteps{list-style:none;margin:0;padding:0;overflow:auto;min-height:0;scrollbar-width:none}
+#tSteps li{display:grid;grid-template-columns:20px 1fr;gap:10px;padding:5px 7px;border-radius:7px;margin-bottom:2px;animation:in .35s ease}
+#tSteps li.ph{display:block;color:var(--mute);font-size:12.5px}
+#tSteps .n{font:600 10.5px var(--mono);color:var(--mute);width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#24201a;margin-top:1px}
+#tSteps li.bad .n{background:var(--bad);color:#0e0d0b}#tSteps li.heed .n{background:var(--ok);color:#0e0d0b}
+#tSteps .as{font-size:14px;line-height:1.35}
+#tSteps .do{font:11px var(--mono);color:var(--mute);margin-top:1px}
+#tSteps .was{font-size:11px;color:var(--dim);margin-top:2px}
+#tSteps .was s{text-decoration-color:var(--bad)}
+#tSteps li.cur{background:#1e1b15;box-shadow:inset 2px 0 0 var(--amber)}
+#tSteps li.bad{background:rgba(255,107,94,.1);box-shadow:inset 2px 0 0 var(--bad)}
+#tSteps li.bad .as{color:#ffb7ae}
+#tSteps li.heed{background:rgba(127,212,154,.09);box-shadow:inset 2px 0 0 var(--ok)}
+#tSteps li.heed .as{color:#c4f0d1}
+.tag{font:600 10px var(--mono);padding:1px 6px;border-radius:4px;margin-left:6px;color:#0e0d0b}
+.tag.bad{background:var(--bad)}.tag.ok{background:var(--ok)}
+code{font-family:var(--mono);font-size:.92em;color:#f0d9a8}
+.story .ln{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:7px 0;border-bottom:1px solid #221f19;animation:in .35s ease}
+.story .ln:last-of-type{border-bottom:0}
+.story .k{font:600 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding-top:3px}
+.story .v{font-size:14.5px;line-height:1.38}
+.story .k.bad{color:var(--bad)}.story .k.ok{color:var(--ok)}.story .k.les{color:var(--amber)}.story .k.dim{color:var(--mute)}
+.story .v.struck{text-decoration:line-through;text-decoration-color:var(--bad);color:var(--mute)}
+.story .v small{display:block;font:11px var(--mono);margin-top:3px}
+.why h3{margin:0 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:600}
+.cmp{border-left:3px solid;padding:4px 10px;margin:5px 0;border-radius:0 7px 7px 0;font-size:12.5px;line-height:1.35;animation:in .35s ease}
+.cmp span{display:block;font:10.5px var(--mono);color:var(--mute);margin-bottom:1px}
+.cmp.bad{border-color:var(--bad);background:rgba(255,107,94,.07)}
+.cmp.ok{border-color:var(--ok);background:rgba(127,212,154,.07)}
+.cmp.les{border-color:var(--amber);background:rgba(242,181,82,.07)}
+.cmp.struck .tx{text-decoration:line-through;text-decoration-color:var(--bad);color:var(--mute)}
+.why .m{font:11px var(--mono);color:var(--mute);margin-top:4px}
 .st-ok{color:var(--ok)}.st-bad{color:var(--bad)}.st-amb{color:var(--amber)}
-footer{grid-row:6;grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:9px 18px;border-top:1px solid var(--line)}
+.row{cursor:pointer}.row:hover{background:#1c1913}.row.pinned{background:#1d2a22;box-shadow:inset 0 0 0 1px #2f4a38}
+canvas#map{position:absolute;inset:0;width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s}
+.overlay.bottom{align-items:flex-end;padding-bottom:18px}
+.overlay.bottom .card{padding:16px 24px;max-width:640px}
+.overlay.bottom .card h1{font-size:22px}
+.compare.row4{grid-template-columns:repeat(4,auto);gap:4px 22px;margin-top:12px;justify-content:center;text-align:center}
+.card{background:rgba(21,19,15,.92);border:1px solid var(--line);border-radius:14px;padding:26px 30px;max-width:560px;text-align:center;backdrop-filter:blur(6px)}
+.card h1{margin:0 0 6px;font-size:30px;letter-spacing:.02em}
+.card p{margin:0;color:var(--mute)}
+.compare{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px 22px;margin-top:18px;text-align:left;font-family:var(--mono)}
+.compare .h{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.compare .up{color:var(--ok)}
+aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+.sec h2{margin:0 0 2px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600}
+.sec .sub{color:var(--dim);font:11px var(--mono);margin-bottom:10px}
+.board{position:relative;height:376px}
+.row{position:absolute;left:0;right:0;height:46px;display:grid;grid-template-columns:18px 34px minmax(0,1fr) 92px;align-items:center;gap:8px;padding:0 6px;border-radius:9px;will-change:transform}
+.row.out{opacity:.45}
+.row .rk{font:600 12px var(--mono);color:var(--dim);text-align:right}
+.row canvas{width:34px;height:34px}
+.row .nm{min-width:0}
+.row .nm b{display:block;font:600 13px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .nm i{display:block;font-style:normal;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .nm i.ok{color:var(--ok)}.row .nm i.bad{color:var(--bad)}.row .nm i.work{color:var(--amber)}
+.row .sc{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.row .num{font:600 15px var(--mono)}
+.row .bar{width:86px;height:4px;background:#2a261e;border-radius:3px;overflow:hidden}
+.row .bar span{display:block;height:100%;border-radius:3px}
+.row .d{position:absolute;right:100px;top:13px;font:600 11px var(--mono);padding:1px 6px;border-radius:5px;opacity:0;transition:opacity .25s}
+.row .d.up{color:#0e0d0b;background:var(--ok)}.row .d.dn{color:#0e0d0b;background:var(--bad)}
+.cut{position:absolute;left:0;right:0;border-top:1px dashed #4a4334;font:10px var(--mono);color:var(--dim);letter-spacing:.08em}
+.cut span{position:absolute;right:4px;top:-8px;background:var(--panel);padding:0 6px}
+.lesson{min-height:118px}
+.lesson .id{font:600 12px var(--mono);color:var(--amber)}
+.lesson .tx{margin:6px 0 8px;font-size:14px;line-height:1.45}
+.lesson .meta{font:11px var(--mono);color:var(--mute)}
+.lesson .st{margin-top:8px;font:600 12px var(--mono)}
+.gbar{height:4px;background:#2a261e;border-radius:3px;margin-top:6px;overflow:hidden}
+.gbar span{display:block;height:100%;background:var(--amber)}
+.log{flex:1;min-height:0;overflow:hidden}
+.log ul{list-style:none;margin:0;padding:0}
+.log li{display:grid;grid-template-columns:38px 8px 1fr;gap:8px;align-items:baseline;padding:4px 0;font-size:12.5px;color:#cfc8b8;animation:in .35s ease}
+.log li time{font:11px var(--mono);color:var(--dim)}
+.log li .dot{width:7px;height:7px;border-radius:50%;background:var(--mute);transform:translateY(-1px)}
+.log li.ok .dot{background:var(--ok)}.log li.bad .dot{background:var(--bad)}.log li.amber .dot{background:var(--amber)}.log li.info .dot{background:#7aa7ff}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}}
+.pipe{grid-column:1/-1;display:flex;align-items:center;gap:3px;padding:7px 18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;background:var(--panel)}
+.pipe .st{display:flex;align-items:center;gap:6px;padding:3px 10px 3px 4px;border-radius:99px;font-size:12px;color:var(--dim);white-space:nowrap;border:1px solid transparent;transition:color .25s,background .25s,border-color .25s;cursor:help}
+.pipe .st i{font:600 10px var(--mono);font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#211e18;color:var(--dim)}
+.pipe .st.done{color:var(--mute)}.pipe .st.done i{background:#1d2a22;color:var(--ok)}
+.pipe .st.on{color:var(--ink);border-color:var(--amber);background:#241e12}.pipe .st.on i{background:var(--amber);color:#0e0d0b}
+.pipe .ar{color:#3d372b;font-size:10px}
+.cut.hot{border-top-color:var(--amber);color:var(--amber)}.cut.hot span{color:var(--amber)}
+.paused{position:absolute;top:14px;left:16px;font:600 12px var(--mono);color:var(--amber);background:rgba(36,30,18,.92);border:1px solid #5a4724;padding:6px 12px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+#stepmode.on{border-color:var(--amber);color:var(--amber)}
+.modes{display:flex;gap:6px;margin-left:8px}
+.modes button{font-size:11px;padding:6px 10px}
+.modes button.on{border-color:var(--amber);color:var(--amber);background:#241e12}
+.banner{grid-column:1/-1;padding:7px 22px;background:#2a1512;border-bottom:1px solid #4a2420;color:#ffc9c2;font-size:13px}
+.banner b{color:var(--bad)}.banner:empty{display:none}
+.brand .sim{color:var(--amber)}.brand .real{color:var(--ok)}
+.err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--bad);font:13px var(--mono);padding:30px;text-align:center;z-index:5}
+footer{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-top:1px solid var(--line)}
 button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:600 12px var(--mono);cursor:pointer}
 button:hover{border-color:#4a4334}
-input[type=range]{flex:1;accent-color:#ece6d8}
-.clock{font:12px var(--mono);color:var(--mute);min-width:120px;text-align:right}
+.tl{flex:1;position:relative;height:28px;cursor:pointer}
+.tl .track{position:absolute;left:0;right:0;top:12px;height:4px;background:#2a261e;border-radius:3px}
+.tl .fill{position:absolute;left:0;top:12px;height:4px;background:var(--ink);border-radius:3px}
+.tl .mk{position:absolute;top:0;font:10px var(--mono);color:var(--dim);transform:translateX(2px)}
+.tl .tick{position:absolute;top:9px;width:1px;height:10px;background:#4a4334}
+.clock{font:12px var(--mono);color:var(--mute);min-width:84px;text-align:right}
 .keys{font:11px var(--mono);color:var(--dim)}
-code{font-family:var(--mono);font-size:.92em;color:#f0d9a8}
 @media (max-width:980px){
   .app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto auto;height:auto}
-  .stage{grid-template-rows:52vh auto}.trace{grid-template-columns:1fr}.why{border-left:0;border-top:1px solid var(--line)}
-  .strip,.banner,.subs,footer{grid-row:auto}.stage{grid-row:auto;grid-column:auto}aside{grid-row:auto;grid-column:auto;border-left:0;border-top:1px solid var(--line)}.keys{display:none}
+  .stage{grid-template-rows:52vh auto}
+  .trace{grid-template-columns:1fr}
+  .why{border-left:0;border-top:1px solid var(--line)}
+  aside{border-left:0;border-top:1px solid var(--line)}
+  header{flex-wrap:wrap;gap:12px 20px}
+  .keys{display:none}
 }
 </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <div class="brand"><b>COLONY</b><span>recorded swarm runs, replayed</span></div>
-    <div class="task"><div class="k" id="taskK">loading…</div><div class="v"><span id="taskV"></span><span id="simTag"></span></div></div>
+    <div class="brand"><b>COLONY</b><span id="dataTag">loading run data…</span></div>
+    <div class="round"><div class="k" id="roundK">Intro</div><div class="v"><span id="roundV"></span><span class="pill" id="phase">ready</span></div></div>
+    <div class="metric"><div class="k">Verified this subtask</div><div class="v" id="mVer">–</div></div>
+    <div class="metric"><div class="k">Lessons</div><div class="v" id="mLes">0 <small>adopted</small></div></div>
+    <div class="metric big"><div class="k">Held-out accuracy</div><div class="v" id="mHeld">–</div></div>
     <div class="modes"><button data-snap="fake">Full loop · simulated agents</button><button data-snap="real">Real agents · recorded run</button></div>
   </header>
-  <div class="strip" id="strip"></div>
   <div class="banner" id="banner"></div>
-  <nav class="subs" id="subs"></nav>
+  <nav class="pipe" id="pipe"></nav>
 
-  <div class="stage">
+  <div class="stage" id="stage">
     <div class="mapwrap" id="mapwrap">
-      <canvas id="map"></canvas>
-      <div class="hint">map = PCA of step embeddings · click a beetle to read its reasoning</div>
-      <div class="legend" id="legend"></div>
+    <canvas id="map"></canvas>
+    <div class="paused" id="paused">❚❚ paused · press space to continue</div>
+    <div class="overlay" id="intro"><div class="card"><h1 id="introH"></h1><p id="introP"></p><p style="margin-top:10px">Each beetle is one agent run. When a run fails, the pit marks where its reasoning left the swarm, and a flag marks the lesson written from it. Only lessons that pass the held-out gate are kept.</p></div></div>
+    <div class="overlay bottom" id="outro"><div class="card">
+      <h1 id="outroH"></h1>
+      <p id="outroP"></p>
+      <div class="compare row4" id="outroGrid"></div>
+    </div></div>
     </div>
     <div class="trace">
       <div class="tcol">
-        <div class="th"><canvas id="tIcon" width="48" height="48"></canvas><b id="tName">Reasoning trace</b><span class="tsub" id="tSub"></span></div>
-        <ol id="steps"></ol>
+        <div class="th"><canvas id="tIcon" width="48" height="48"></canvas><b id="tName">Reasoning trace</b><span class="tsub" id="tSub"></span><span class="chips" id="tChips"></span></div>
+        <ol id="tSteps"></ol>
       </div>
-      <div class="tcol why" id="why"></div>
+      <div class="tcol why" id="tWhy"></div>
     </div>
   </div>
 
   <aside>
-    <div class="sec"><div class="hero" id="hero"><div class="empty">loading…</div></div></div>
     <div class="sec">
-      <h2>Root causes</h2>
-      <div class="sub2">divergence points, highest SubQ P(root cause) first · click to open</div>
-      <div id="rcs"></div>
+      <h2>Trust leaderboard</h2>
+      <div class="sub">trust = (verified + 1) / (verified + failed + 2)</div>
+      <div class="board" id="board"></div>
     </div>
-    <div class="sec">
-      <h2>Trust</h2>
-      <div class="sub2">trust = (verified + 1) / (verified + failed + 2)</div>
-      <div id="trust"></div>
+    <div class="sec lesson" id="lesson">
+      <h2>Latest lesson</h2>
+      <div class="sub">written by the reflector, scored by SubQ</div>
+      <div id="lessonBody" class="meta">No falls yet.</div>
     </div>
-    <div class="sec">
-      <h2>Changelog</h2>
-      <div class="sub2">The gate keeps only what proves itself on held-out work.</div>
-      <div id="changes"></div>
-    </div>
+    <div class="sec log"><h2>Run log</h2><ul id="log"></ul></div>
   </aside>
 
   <footer>
-    <button id="prev">◀ prev</button>
-    <button id="play">▶ replay</button>
-    <button id="next">next ▶</button>
-    <input type="range" id="scrub" min="0" max="1000" value="0">
-    <div class="clock" id="clock"></div>
+    <button id="play">▶ play</button>
+    <div class="tl" id="tl"><div class="track"></div><div class="fill" id="fill"></div></div>
+    <div class="clock" id="clock">0:00 / 0:00</div>
     <button id="speed">1×</button>
-    <span class="keys">space play · ←/→ subtask · click a beetle to follow it</span>
+    <button id="stepmode" title="Pause automatically at the start of every pipeline step (S)">stop at each step: off</button>
+    <span class="keys">space play/pause · S stop at steps · ←/→ steps · 1-9 subtask · R restart</span>
   </footer>
 </div>
 
 <script>
-// Every number and sentence about the run comes from the server (/api/*). Nothing about the run is hardcoded.
-const W = 1000, H = 600, PAD = 70, REPLAY = 22; // replay length in seconds (presentation only)
-const $ = id => document.getElementById(id);
-const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const esc = x => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const pct = x => x == null || isNaN(x) ? '—' : Math.round(x * 100) + '%';
-const share = (k, n) => n ? `${k}/${n} (${Math.round(100 * k / n)}%)` : `${k}/0`;
-const short = (s, n = 160) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-const api = p => fetch(p, { cache: 'no-store' }).then(r => r.ok ? r.json() : Promise.reject(new Error(`${p}: HTTP ${r.status}`)));
+// ---------- run data: every agent, step, pit, lesson and number comes from /api/bundle ----------
+const W = 1000, H = 600;
+const INTRO = 5, RD = 40, OUTRO = 14;
+const P = { TESTS: 0, ROUTE: 1.5, WALK: 3, VERIFY: 23, TRUST: 24.5, DIVERGE: 27, REFLECT: 29, GATE: 31, GATE_DUR: 2.6, GATE_GAP: 3, END: 37 };
+const NEST = { x: 82, y: 300 }, FOOD = { x: 928, y: 300 };
+const SNAP = new URLSearchParams(location.search).get('snap') === 'real' ? 'real' : 'fake';
 
-// ---------- agent look (colour by agent_id) ----------
 function agentStyle(id) {
   const s = String(id).toLowerCase(), alt = /alt|lite/.test(s);
   if (/gemini|google/.test(s)) return { paint: 'gemini', trail: alt ? '#b39af5' : '#7d86f5', stripe: alt };
@@ -211,14 +229,295 @@ function agentStyle(id) {
   let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
   const col = `hsl(${h},55%,60%)`; return { paint: col, trail: col, stripe: alt };
 }
+function pstep(text) {
+  const o = { a: '', do: '' };
+  for (const p of String(text || '').split(' | ')) {
+    const m = p.match(/^(assumption|action|touches):\s*([\s\S]*)$/);
+    if (!m) o.a = (o.a ? o.a + ' ' : '') + p; else if (m[1] === 'assumption') o.a = m[2]; else if (m[1] === 'action') o.do = m[2] + (o.do ? ' · ' + o.do : ''); else if (m[2] && m[2] !== '-') o.do = (o.do ? o.do + ' · ' : '') + m[2];
+  }
+  return o;
+}
+const cutText = (x, n) => { x = String(x || ''); return x.length > n ? x.slice(0, n - 1) + '…' : x; };
+
+function adapt(B) {
+  const meta = B.meta || {};
+  const stepsByRun = {}; (B.steps || []).forEach(s => (stepsByRun[s.run_id] ||= []).push(s));
+  Object.values(stepsByRun).forEach(a => a.sort((x, y) => x.step_index - y.step_index));
+  const firstTs = id => (stepsByRun[id] || []).map(s => s.ts).filter(Boolean).sort()[0] || '';
+  const divBy = Object.fromEntries((B.divergences || []).map(d => [d.run_id, d]));
+  const sfa = meta.simulated ? {} : ((B.summary_files || {}).task_a || {});
+  const titleOf = id => { const h = [...(sfa.per_subtask || []), ...((sfa.metrics || {}).per_subtask || [])].find(p => p.subtask_id === id && p.title); return h ? h.title : null; };
+  const runs = (B.runs || []).filter(r => !String(r.subtask_id).startsWith('heldout-') && r.verdict);
+  const agentIds = []; runs.forEach(r => { if (!agentIds.includes(r.agent_id)) agentIds.push(r.agent_id); });
+  const prov = Object.fromEntries(runs.map(r => [r.agent_id, r.provider]));
+  const AGENTS = agentIds.map(id => ({ id, co: prov[id] || '', model: id, ...agentStyle(id) }));
+  const changesByRef = {}; (B.changes || []).filter(c => c.kind !== 'routing').forEach(c => (changesByRef[c.ref_id] ||= []).push(c));
+  // one round per attempt: a subtask's runs without injected lessons, then (if any) its retry with lessons
+  const bySub = {}; runs.forEach(r => (bySub[r.subtask_id] ||= []).push(r));
+  const attempts = [];
+  for (const [sid, rs] of Object.entries(bySub)) {
+    const a0 = rs.filter(r => !r.lessons_used.length), a1 = rs.filter(r => r.lessons_used.length);
+    for (const [k, grp] of [[0, a0], [1, a1]]) if (grp.length) attempts.push({ sid, retry: k === 1 && a0.length > 0, runs: grp, ts: grp.map(r => firstTs(r.id)).filter(Boolean).sort()[0] || '' });
+  }
+  attempts.sort((a, b) => a.ts.localeCompare(b.ts));
+  const SLOTS = [[395, 212], [575, 398], [742, 236], [480, 445], [650, 165], [300, 420], [820, 430], [560, 255], [700, 330], [430, 160]];
+  const PITS = {}, ROUNDS = [], lessonLabel = {}, pitOfLesson = {}, subNum = {};
+  let pitN = 0, ln = 0, sn = 0;
+  for (const at of attempts) {
+    if (!(at.sid in subNum)) subNum[at.sid] = ++sn;
+    const seen = new Set(), team = at.runs.filter(r => !seen.has(r.agent_id) && seen.add(r.agent_id)).sort((a, b) => agentIds.indexOf(a.agent_id) - agentIds.indexOf(b.agent_id));
+    const fails = team.filter(r => r.verdict === 'failed'), runsData = {}, fail = {};
+    for (const r of team) runsData[r.agent_id] = { run: r, div: divBy[r.id] || null, steps: (stepsByRun[r.id] || []).filter(s => Number.isInteger(+s.step_index)).map(s => ({ idx: +s.step_index, ...pstep(s.text) })) };
+    let pitKey = null;
+    if (fails.length) {
+      pitKey = String.fromCharCode(65 + pitN % 26) + (pitN >= 26 ? Math.floor(pitN / 26) : ''); const [x, y] = SLOTS[pitN % SLOTS.length]; pitN++;
+      const pP = d => (d.step_probabilities || {})['S' + d.step_index];
+      const top = fails.map(r => divBy[r.id]).filter(Boolean).sort((a, b) => (pP(b) ?? -1) - (pP(a) ?? -1))[0];
+      const w = top ? pstep(top.step_text) : null, c = top && (top.consensus_step_texts || [])[0] ? pstep(top.consensus_step_texts[0]) : null;
+      PITS[pitKey] = { x, y, short: w ? cutText(w.a, 48) : 'no root-cause step located', assume: w ? w.a : '', wrong: w || { a: '(no root-cause step recorded)', do: '' }, right: c, heed: '', p: top ? pP(top) : null, kind: top ? top.kind : null, step: top ? top.step_index : null, lesson: null };
+      for (const r of fails) {
+        const d = divBy[r.id], st = runsData[r.agent_id].steps;
+        let n = st.length; if (d) { const i = st.findIndex(s => s.idx >= d.step_index); n = i >= 0 ? i + 1 : st.length; }
+        n = Math.max(1, n); fail[r.agent_id] = n; runsData[r.agent_id].steps = st.slice(0, n); runsData[r.agent_id].divStep = d ? d.step_index : null;
+        if (!runsData[r.agent_id].steps.length) runsData[r.agent_id].steps = [{ idx: 0, a: '(no logged steps)', do: '' }];
+      }
+    }
+    const lessons = (B.lessons || []).filter(l => fails.some(r => r.id === (l.created_from || {}).run_id));
+    const L = lessons.map(l => {
+      const lab = lessonLabel[l.id] ||= 'L' + (++ln); if (pitKey) pitOfLesson[l.id] = pitKey;
+      const cf = l.created_from || {}, ch = (changesByRef[l.id] || []).find(c => (c.heldout_before || {}).accuracy != null && (c.heldout_after || {}).accuracy != null);
+      const gated = !!ch && (ch.status === 'adopted' || ch.status === 'rolled_back');
+      return { id: lab, lid: l.id, from: cf.agent_id, step: fail[cf.agent_id] || 1, conf: l.confidence, status: l.status,
+        gated, adopt: gated && ch.status === 'adopted', rolled: gated && ch.status === 'rolled_back',
+        before: ch ? Math.round(ch.heldout_before.accuracy * 100) : null, after: ch ? Math.round(ch.heldout_after.accuracy * 100) : null, text: l.text };
+    });
+    if (pitKey && L.length) { PITS[pitKey].heed = L[0].text; PITS[pitKey].lesson = L[0].id; }
+    const known = {}, tempt = {};
+    for (const r of team) { known[r.agent_id] = [...new Set(r.lessons_used.map(id => pitOfLesson[id]).filter(k => k && k !== pitKey))]; if (r.verdict === 'verified' && known[r.agent_id][0]) tempt[r.agent_id] = known[r.agent_id][0]; }
+    ROUNDS.push({ sub: 'S' + subNum[at.sid] + (at.retry ? ' retry' : ''), title: titleOf(at.sid) || 'subtask ' + at.sid.slice(0, 6), sid: at.sid, retry: at.retry,
+      pit: pitKey, fail, tempt, lessons: L, team: team.map(r => r.agent_id), runsData, known,
+      prompt: [...new Set(team.flatMap(r => r.lessons_used.map(id => lessonLabel[id]).filter(Boolean)))], promptN: new Set(team.flatMap(r => r.lessons_used)).size });
+  }
+  return { AGENTS, PITS, ROUNDS, META: meta };
+}
+
+(async function main() {
+document.querySelectorAll('.modes button').forEach(b => { b.classList.toggle('on', b.dataset.snap === SNAP); b.onclick = () => { if (b.dataset.snap !== SNAP) location.search = '?snap=' + b.dataset.snap; }; });
+let BUNDLE;
+try {
+  BUNDLE = await fetch('/api/bundle?snap=' + SNAP, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  if (BUNDLE.error) throw new Error(BUNDLE.error);
+} catch (e) {
+  document.getElementById('mapwrap').insertAdjacentHTML('beforeend', `<div class="err">Could not load run data (${String(e.message).replace(/</g, '&lt;')}).<br><br>Start the server:<br>USE_MEMORY_STORE=1 .venv/bin/uvicorn ui.server:app --port 8787<br>then open http://127.0.0.1:8787/colony</div>`);
+  return;
+}
+const { AGENTS, PITS, ROUNDS, META } = adapt(BUNDLE);
+if (!ROUNDS.length) { document.getElementById('mapwrap').insertAdjacentHTML('beforeend', '<div class="err">This snapshot has no judged runs to replay.</div>'); return; }
+const TOTAL = INTRO + RD * ROUNDS.length + OUTRO;
+
+// ---------- helpers ----------
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rnd = mulberry32(11);
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+const byId = Object.fromEntries(AGENTS.map((a, i) => [a.id, { ...a, i }]));
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const pct = x => Math.round(x * 100);
+
+// ---------- build the deterministic timeline ----------
+const counts = Object.fromEntries(AGENTS.map(a => [a.id, { v: 0, f: 0 }]));
+const scoreOf = id => (counts[id].v + 1) / (counts[id].v + counts[id].f + 2);
+const order = sc => AGENTS.map((a, i) => ({ id: a.id, i, s: sc[a.id] })).sort((x, y) => y.s - x.s || x.i - y.i).map(o => o.id);
+const SNAPS = [Object.fromEntries(AGENTS.map(a => [a.id, scoreOf(a.id)]))];
+const ORDERS = [order(SNAPS[0])];
+const EVENTS = [], LESSONS = [], PIT_REVEAL = {};
+const adopted = {}; // pit -> lesson id
+const R = [];
+
+function catmull(pts, n = 18) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    for (let j = 0; j < n; j++) {
+      const t = j / n, t2 = t * t, t3 = t2 * t;
+      out.push({
+        x: .5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: .5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      });
+    }
+  }
+  out.push({ ...pts[pts.length - 1] });
+  return out;
+}
+const RAD = 80;
+function repel(poly, pits, keepEnd) {
+  let push = {};
+  poly.forEach((p, i) => {
+    if (i === 0 || (keepEnd && i === poly.length - 1)) return;
+    for (const k of pits) {
+      const c = PITS[k], dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1;
+      if (d < RAD) { push[k] = Math.max(push[k] || 0, RAD - d); p.x = c.x + dx / d * RAD; p.y = c.y + dy / d * RAD; }
+    }
+  });
+  return push;
+}
+function smooth(poly, passes) {
+  for (let s = 0; s < passes; s++) {
+    const c = poly.map(p => ({ ...p }));
+    for (let i = 2; i < poly.length - 2; i++) {
+      poly[i].x = (c[i - 2].x + c[i - 1].x + c[i].x + c[i + 1].x + c[i + 2].x) / 5;
+      poly[i].y = (c[i - 2].y + c[i - 1].y + c[i].y + c[i + 1].y + c[i + 2].y) / 5;
+    }
+  }
+}
+
+function relax(pts, known, keepEnd) {
+  const poly = catmull(pts), push = repel(poly, known, keepEnd);
+  for (let it = 0; it < 8; it++) { smooth(poly, 3); repel(poly, known, keepEnd); }
+  smooth(poly, 1);
+  return { poly, push };
+}
+function lengths(poly) { const c = [0]; for (let i = 1; i < poly.length; i++) c.push(c[i - 1] + Math.hypot(poly[i].x - poly[i - 1].x, poly[i].y - poly[i - 1].y)); return c; }
+function consensusFor(rd) {
+  const ys = [292, 314, 288, 306];
+  return relax([{ x: NEST.x + 14, y: NEST.y }, ...[235, 400, 570, 740].map((x, i) => ({ x, y: ys[i] })), { x: FOOD.x - 30, y: FOOD.y }], Object.keys(adopted), false).poly;
+}
+function buildRun(id, k, rd, T0, cons) {
+  const mid = (rd.team.length - 1) / 2, lane = 300 + (k - mid) * 62 + (rnd() - .5) * 18;
+  const failStep = rd.fail[id], pit = PITS[rd.pit];
+  const S0 = { x: NEST.x + 20 + (k % 2) * 16, y: NEST.y + (k - mid) * 19 };
+  const pts = [S0];
+  const xs = [235, 400, 570, 740];
+  if (failStep) {
+    // Follow the consensus path to the divergence point, then leave it for the pit.
+    const fi = Object.keys(rd.fail).indexOf(id), off = (fi - 1) * 5, forkX = pit.x - 135;
+    const poly = cons.filter(q => q.x <= forkX).map(q => { const w = 1 - clamp((q.x - NEST.x - 14) / 120); return { x: lerp(q.x, S0.x, w), y: lerp(q.y + off, S0.y, w) }; });
+    const F = poly[poly.length - 1], end = { x: pit.x + (fi - 1) * 13, y: pit.y + ((fi % 2) - .5) * 12 }, ctl = { x: lerp(F.x, end.x, .55), y: F.y };
+    const forkIdx = poly.length - 1;
+    for (let j = 1; j <= 30; j++) { const u = j / 30; poly.push({ x: (1 - u) * (1 - u) * F.x + 2 * (1 - u) * u * ctl.x + u * u * end.x, y: (1 - u) * (1 - u) * F.y + 2 * (1 - u) * u * ctl.y + u * u * end.y }); }
+    const cum = lengths(poly), len = cum[cum.length - 1], forkFrac = cum[forkIdx] / len;
+    const t0 = T0 + P.WALK + k * .13 + rnd() * .25, dur = len / (50 + rnd() * 9);
+    const steps = rd.runsData[id].steps.map((x, i, arr) => ({ a: x.a, do: x.do, idx: x.idx, bad: i === arr.length - 1 }));
+    const pins = steps.map((_, i) => i < failStep - 1 ? (i + 1) / (failStep - 1) * forkFrac : 1);
+    return { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep, pit: rd.pit, steps, pins, nSteps: steps.length,
+      avoid: [], fork: F, forkIdx, forkT: t0 + forkFrac * dur, divStep: rd.runsData[id].divStep };
+  } else {
+    for (const x of xs) {
+      const tp = rd.tempt[id];
+      const y = tp && Math.abs(x - PITS[tp].x) < 60 ? PITS[tp].y + (rnd() - .5) * 8 : lane + (rnd() - .5) * 40;
+      pts.push({ x, y });
+    }
+    pts.push({ x: FOOD.x - 34 - (k % 2) * 8, y: FOOD.y + (k - mid) * 17 });
+  }
+  const poly = catmull(pts);
+  const known = [...new Set([...Object.keys(adopted), ...(rd.known[id] || [])])];
+  const push = repel(poly, known, !!failStep);
+  for (let it = 0; it < 8; it++) { smooth(poly, 3); repel(poly, known, !!failStep); }
+  smooth(poly, 1);
+  const cum = [0];
+  for (let i = 1; i < poly.length; i++) cum.push(cum[i - 1] + Math.hypot(poly[i].x - poly[i - 1].x, poly[i].y - poly[i - 1].y));
+  const len = cum[cum.length - 1];
+  const t0 = T0 + P.WALK + k * .13 + rnd() * .25;
+  const dur = 16 + rnd() * 2.6;
+  const run = { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep || 0, pit: rd.pit,
+    nSteps: failStep || 5 + Math.floor(rnd() * 3), avoid: [] };
+  for (const [pk, amt] of Object.entries(push)) {
+    if (amt < 14) continue;
+    let best = 0, bd = 1e9;
+    poly.forEach((p, i) => { const d = Math.hypot(p.x - PITS[pk].x, p.y - PITS[pk].y); if (d < bd) { bd = d; best = i; } });
+    run.avoid.push({ pit: pk, lesson: adopted[pk] || PITS[pk].lesson || 'lesson', t: t0 + cum[best] / len * dur });
+  }
+  const steps = (rd.runsData[id].steps.length ? rd.runsData[id].steps : [{ a: '(no logged steps)', do: '' }]).map(x => ({ a: x.a, do: x.do, idx: x.idx }));
+  for (const av of run.avoid) {
+    let si = clamp(Math.floor((av.t - t0) / dur * steps.length), 0, steps.length - 1);
+    if (steps[si].bad || steps[si].key) si = Math.max(0, si - 1);
+    steps[si] = { ...steps[si], heed: av.lesson, was: PITS[av.pit].wrong.a };
+    av.step = si + 1;
+  }
+  run.steps = steps; run.nSteps = steps.length; run.pins = steps.map((_, i) => (i + 1) / steps.length);
+  return run;
+}
+
+ROUNDS.forEach((rd, ri) => {
+  const T0 = INTRO + ri * RD;
+  const team = rd.team, bench = AGENTS.map(a => a.id).filter(id => !team.includes(id));
+  const prompt = rd.prompt;
+  const cons = consensusFor(rd);
+  const runs = team.map((id, k) => buildRun(id, k, rd, T0, cons));
+  const authorRun = runs.find(r => rd.lessons[0] && r.id === rd.lessons[0].from) || runs.find(r => r.fail) || runs[0];
+  const firstAvoid = runs.flatMap(r => r.avoid.map(a => ({ id: r.id, t: a.t }))).sort((a, b) => a.t - b.t)[0];
+  const focus = [{ t: T0, id: firstAvoid ? firstAvoid.id : authorRun.id }];
+  if (firstAvoid) focus.push({ t: Math.max(firstAvoid.t + 1.2, Math.min(firstAvoid.t + 2.6, authorRun.arrive - 1.4)), id: authorRun.id });
+  EVENTS.push({ t: T0 + .1, kind: 'info', text: `${rd.sub}: ${rd.title}${rd.retry ? ' (retry)' : ''}` });
+  EVENTS.push({ t: T0 + P.ROUTE, kind: 'info', text: `${team.length} agents sent${bench.length ? '; ' + bench.join(', ') + ' not sent' : ''}${rd.promptN ? ` · ${rd.promptN} lesson${rd.promptN > 1 ? 's' : ''} in the prompt` : ''}` });
+  for (const r of runs) {
+    if (r.fail) EVENTS.push({ t: r.arrive, kind: 'bad', text: `${r.id} fell into pit ${r.pit}` });
+    for (const a of r.avoid) EVENTS.push({ t: a.t, kind: 'ok', text: `${r.id} avoided pit ${a.pit} (${a.lesson})` });
+  }
+  const fallers = runs.filter(r => r.fail);
+  if (rd.pit && fallers.length) PIT_REVEAL[rd.pit] = Math.min(...fallers.map(r => r.arrive));
+  const verified = runs.filter(r => !r.fail);
+  EVENTS.push({ t: T0 + P.VERIFY, kind: 'info', text: `${verified.length} of ${runs.length} passed the hidden tests` });
+  if (fallers.length) EVENTS.push({ t: T0 + P.DIVERGE, kind: 'bad', text: `Divergence point found at step ${[...new Set(fallers.map(r => r.divStep ?? '?'))].join('/')} (${fallers.length} agent${fallers.length > 1 ? 's' : ''})` });
+  const winner = verified.slice().sort((a, b) => SNAPS[ri][b.id] - SNAPS[ri][a.id] || byId[a.id].i - byId[b.id].i)[0];
+  team.forEach(id => rd.fail[id] ? counts[id].f++ : counts[id].v++);
+  SNAPS.push(Object.fromEntries(AGENTS.map(a => [a.id, scoreOf(a.id)])));
+  ORDERS.push(order(SNAPS[ri + 1]));
+  EVENTS.push({ t: T0 + P.TRUST, kind: 'amber', text: `Trust updated: ${verified.length} up, ${fallers.length} down` });
+  EVENTS.push({ t: T0 + P.TRUST + .4, kind: winner ? 'ok' : 'bad', text: winner ? `Verified run from ${winner.id} committed` : 'No run verified: nothing committed' });
+  rd.lessons.forEach((L, j) => {
+    const rise = T0 + P.REFLECT + j * .9, g0 = L.gated ? T0 + P.GATE + j * P.GATE_GAP : Infinity, g1 = L.gated ? g0 + P.GATE_DUR : Infinity;
+    const lesson = { ...L, ri, pit: rd.pit, j, rise, g0, g1 };
+    LESSONS.push(lesson);
+    EVENTS.push({ t: rise, kind: 'amber', text: `Lesson ${L.id} written from ${L.from}'s mistake` });
+    if (L.gated) EVENTS.push({ t: g1, kind: L.adopt ? 'ok' : 'bad', text: `${L.id} ${L.adopt ? 'kept' : 'rolled back'}: held-out ${L.before}% → ${L.after}%` });
+    else EVENTS.push({ t: rise + .5, kind: 'amber', text: `${L.id} is provisional: not decided by the held-out gate` });
+    if (L.adopt && rd.pit) adopted[rd.pit] = L.id;
+  });
+  const fk = fallers.map(r => r.fork);
+  const fork = fk.length ? { x: fk.reduce((a, q) => a + q.x, 0) / fk.length, y: fk.reduce((a, q) => a + q.y, 0) / fk.length, t: Math.min(...fallers.map(r => r.forkT)) } : null;
+  R.push({ ...rd, T0, team, bench, runs, prompt, focus, cons, fork, winner: winner ? winner.id : null, verified: verified.length, updateT: T0 + P.TRUST });
+});
+EVENTS.sort((a, b) => a.t - b.t);
+const OUTRO_T = INTRO + RD * ROUNDS.length;
+const BEATS = [0, INTRO, ...R.flatMap(r => [r.T0, r.T0 + P.ROUTE, r.T0 + P.WALK, r.T0 + P.VERIFY, r.T0 + P.TRUST, r.T0 + P.DIVERGE, r.T0 + P.REFLECT, r.T0 + P.GATE, r.T0 + P.END]), OUTRO_T].sort((a, b) => a - b);
+
+// ---------- time queries ----------
+const stepsShown = (run, p) => p < 0 ? 0 : p >= 1 ? run.nSteps : Math.min(run.nSteps, 1 + run.pins.filter(x => p >= x - 1e-6).length);
+function roundAt(t) { return t < INTRO ? -1 : Math.min(ROUNDS.length, Math.floor((t - INTRO) / RD)); }
+function posAt(run, t) {
+  const p = clamp((t - run.t0) / run.dur), d = p * run.len, c = run.cum;
+  let lo = 0, hi = c.length - 1;
+  while (lo < hi - 1) { const m = (lo + hi) >> 1; if (c[m] <= d) lo = m; else hi = m; }
+  const a = run.poly[lo], b = run.poly[hi], f = (d - c[lo]) / ((c[hi] - c[lo]) || 1);
+  return { x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), ang: Math.atan2(b.y - a.y, b.x - a.x), p, idx: lo };
+}
+function trustAt(t) {
+  let k = 0; while (k < R.length && t >= R[k].updateT) k++;
+  if (k === 0) return { sc: SNAPS[0], from: ORDERS[0], to: ORDERS[0], e: 1, k };
+  const e = ease(clamp((t - R[k - 1].updateT) / 1.2));
+  const sc = Object.fromEntries(AGENTS.map(a => [a.id, lerp(SNAPS[k - 1][a.id], SNAPS[k][a.id], e)]));
+  return { sc, from: ORDERS[k - 1], to: ORDERS[k], e, k };
+}
+function heldAt(t) {
+  const g = LESSONS.filter(L => L.gated && L.before != null);
+  if (!g.length) return null;
+  let v = g[0].before;
+  for (const L of g) if (L.adopt && t >= L.g1) v = lerp(L.before, L.after, ease(clamp((t - L.g1) / .8)));
+  return v;
+}
+
+// ---------- beetle ----------
 function paintFor(c, a, flipped) {
   if (flipped) return '#bdb3a0';
   if (a.paint === 'gemini') { const g = c.createLinearGradient(-11, -6, 9, 6); g.addColorStop(0, '#4C8DF6'); g.addColorStop(1, '#A970F0'); return g; }
   return a.paint;
 }
 function drawBeetle(c, x, y, ang, a, o = {}) {
-  const s = o.scale || 1.5, ph = o.phase || 0, fl = !!o.flipped;
-  c.save(); c.translate(x, y); c.rotate(ang); c.scale(s, s); c.globalAlpha = o.alpha ?? 1; c.lineCap = 'round';
+  const s = o.scale || 1.55, ph = o.phase || 0, fl = !!o.flipped;
+  c.save(); c.translate(x, y); c.rotate(ang); c.scale(s, s); c.globalAlpha = o.alpha ?? 1;
+  c.lineCap = 'round';
   c.strokeStyle = fl ? '#2b261d' : '#060505'; c.lineWidth = 1.15;
   for (let i = 0; i < 3; i++) for (const sd of [-1, 1]) {
     const bx = -4 + i * 5, w = Math.sin(ph * (fl ? 2.2 : 1) + i * 2.1 + (sd > 0 ? Math.PI : 0)) * (fl ? 3.2 : 2.1);
@@ -226,10 +525,15 @@ function drawBeetle(c, x, y, ang, a, o = {}) {
   }
   c.lineWidth = .9;
   for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(12.5, sd * 1.4); c.quadraticCurveTo(15.5, sd * 2.2, 17, sd * 5); c.stroke(); }
-  c.fillStyle = paintFor(c, a, fl); c.beginPath(); c.ellipse(-2, 0, 9.2, 6.4, 0, 0, Math.PI * 2); c.fill();
-  c.fillStyle = fl ? '#a59a85' : (a.paint === 'gemini' ? '#3f63c9' : a.paint); c.beginPath(); c.ellipse(7.2, 0, 3.6, 4.7, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = paintFor(c, a, fl);
+  c.beginPath(); c.ellipse(-2, 0, 9.2, 6.4, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = fl ? '#a59a85' : (a.paint === 'gemini' ? '#3f63c9' : a.paint);
+  c.beginPath(); c.ellipse(7.2, 0, 3.6, 4.7, 0, 0, Math.PI * 2); c.fill();
   c.fillStyle = '#0b0a08'; c.beginPath(); c.ellipse(11.2, 0, 2.6, 2.9, 0, 0, Math.PI * 2); c.fill();
-  if (!fl) {
+  if (fl) {
+    c.strokeStyle = 'rgba(40,34,25,.6)'; c.lineWidth = .7;
+    for (let i = -6; i <= 3; i += 3) { c.beginPath(); c.moveTo(i, -5); c.quadraticCurveTo(i - 1.5, 0, i, 5); c.stroke(); }
+  } else {
     c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = .7; c.beginPath(); c.moveTo(4.4, 0); c.lineTo(-11, 0); c.stroke();
     if (a.stripe) { c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1.2; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(3, sd * 3.2); c.lineTo(-8.5, sd * 3.2); c.stroke(); } }
     c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.ellipse(.5, -2.7, 3.4, 1.2, -.15, 0, Math.PI * 2); c.fill();
@@ -239,405 +543,487 @@ function drawBeetle(c, x, y, ang, a, o = {}) {
   c.restore();
 }
 
-// ---------- PCA by power iteration (same method as index.html) ----------
-function topComponents(X, k, iters) {
-  const n = X.length, d = X[0].length, comps = [];
-  for (let c = 0; c < k; c++) {
-    let v = new Float64Array(d);
-    for (let j = 0; j < d; j++) v[j] = Math.sin(1.7 * (j + 1) * (c + 1)) + 0.01;
-    for (let it = 0; it < iters; it++) {
-      const xv = new Float64Array(n);
-      for (let i = 0; i < n; i++) { let s = 0; const r = X[i]; for (let j = 0; j < d; j++) s += r[j] * v[j]; xv[i] = s; }
-      const w = new Float64Array(d);
-      for (let i = 0; i < n; i++) { const r = X[i], s = xv[i]; for (let j = 0; j < d; j++) w[j] += r[j] * s; }
-      for (const u of comps) { let dot = 0; for (let j = 0; j < d; j++) dot += w[j] * u[j]; for (let j = 0; j < d; j++) w[j] -= dot * u[j]; }
-      let norm = 0; for (let j = 0; j < d; j++) norm += w[j] * w[j]; norm = Math.sqrt(norm);
-      if (norm < 1e-12) break;
-      for (let j = 0; j < d; j++) w[j] /= norm;
-      v = w;
-    }
-    let m = 0; for (let j = 1; j < d; j++) if (Math.abs(v[j]) > Math.abs(v[m])) m = j;
-    if (v[m] < 0) for (let j = 0; j < d; j++) v[j] = -v[j];
-    comps.push(v);
-  }
-  return comps;
-}
-
-// ---------- data model ----------
-const D = { runs: {}, subs: [], divByRun: {}, lessonsByRun: {}, regions: [], sel: 0, run: null };
-
-function parseStep(text) {
-  const o = {};
-  for (const p of String(text || '').split(' | ')) {
-    const m = p.match(/^(assumption|action|touches):\s*([\s\S]*)$/);
-    if (m) o[m[1]] = m[2]; else o.assumption = (o.assumption ? o.assumption + ' ' : '') + p;
-  }
-  return o;
-}
-function subtaskTitle(id, sfile) {
-  const all = [...(sfile.per_subtask || []), ...((sfile.metrics || {}).per_subtask || [])];
-  const hit = all.find(p => p.subtask_id === id && p.title);
-  if (hit) return hit.title;
-  if (String(id).startsWith('heldout-')) return id.slice(8).replace(/^mcp_/, '').replace(/_/g, ' ');
-  return null;
-}
-
-function build(B) {
-  const { steps, divergences: divs, lessons, changes, trust, regions, summary, meta } = B;
-  const sfile = meta.simulated ? {} : ((B.summary_files || {}).task_a || {});
-  D.runs = {}; D.divByRun = {}; D.lessonsByRun = {}; D.bundle = B; D.run = null; V = null;
-  const dims = {}; steps.forEach(s => { if (Array.isArray(s.embedding) && s.embedding.length) dims[s.embedding.length] = (dims[s.embedding.length] || 0) + 1; });
-  const dim = +Object.keys(dims).sort((a, b) => dims[b] - dims[a])[0] || 0;
-  const withE = steps.filter(s => Array.isArray(s.embedding) && s.embedding.length === dim);
-  let proj = () => null;
-  if (withE.length > 2) {
-    const mean = new Float64Array(dim); withE.forEach(s => { for (let j = 0; j < dim; j++) mean[j] += s.embedding[j] / withE.length; });
-    const X = withE.map(s => { const r = new Float64Array(dim); for (let j = 0; j < dim; j++) r[j] = s.embedding[j] - mean[j]; return r; });
-    const comps = topComponents(X, 2, 40);
-    proj = e => (Array.isArray(e) && e.length === dim) ? comps.map(u => { let s = 0; for (let j = 0; j < dim; j++) s += (e[j] - mean[j]) * u[j]; return s; }) : null;
-  }
-  // one beetle per run_id; path = steps sorted by step_index (fractional = interpolated message points)
-  for (const s of steps) {
-    const r = D.runs[s.run_id] ||= { id: s.run_id, sub: s.subtask_id, agent: s.agent_id, steps: [], failed: null, ts: null };
-    if (s.failed === true) r.failed = true; else if (s.failed === false && r.failed !== true) r.failed = false;
-    if (s.ts && (!r.ts || s.ts < r.ts)) r.ts = s.ts;
-    const p = proj(s.embedding); if (!p) continue;
-    r.steps.push({ idx: +s.step_index, text: s.text, p, msg: !Number.isInteger(+s.step_index) });
-  }
-  Object.values(D.runs).forEach(r => { r.steps.sort((a, b) => a.idx - b.idx); r.style = agentStyle(r.agent); });
-  for (const d of divs) D.divByRun[d.run_id] = d;
-  for (const l of lessons) { const rid = (l.created_from || {}).run_id; if (rid) (D.lessonsByRun[rid] ||= []).push(l); }
-  D.regions = regions.map(r => ({ ...r, p: proj(r.centroid) })).filter(r => r.p);
-  const bySub = {};
-  Object.values(D.runs).filter(r => r.steps.length).forEach(r => (bySub[r.sub] ||= []).push(r));
-  const pss = {}; (sfile.per_subtask || []).forEach(p => pss[p.subtask_id] = p);
-  D.subs = Object.entries(bySub).map(([id, runs]) => ({
-    id, runs, title: subtaskTitle(id, sfile), summary: pss[id] || null, heldout: id.startsWith('heldout-'),
-    ts: runs.map(r => r.ts).filter(Boolean).sort()[0] || '',
-    verified: runs.filter(r => r.failed === false).length, failed: runs.filter(r => r.failed === true).length,
-  })).sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
-  let n = 0; D.subs.forEach(s => { s.label = s.heldout ? 'held-out' : `subtask ${++n}`; });
-  renderHeader(summary, sfile, meta, changes, lessons, B);
-  renderRoots(divs);
-  renderTrust(trust);
-  renderChanges(changes);
-  renderSubs();
-  const first = D.subs.findIndex(s => s.summary && s.failed);
-  selectSub(first >= 0 ? first : 0);
-}
-
-// ---------- header, banner, sidebar ----------
-function renderHeader(summary, sfile, meta, changes, lessons, B) {
-  $('taskK').textContent = meta.simulated ? 'full loop · offline fake swarm' : (sfile.label || 'recorded run');
-  $('taskV').textContent = meta.simulated ? (meta.snapshot || '') : (sfile.task || meta.snapshot || '');
-  $('simTag').innerHTML = meta.simulated ? '<span class="tag sim">simulated agents</span>' : `<span class="tag real">real agents · ${esc(meta.snapshot || '')}</span>`;
-  const runs = B.runs || [], main = D.subs.filter(s => !s.heldout);
-  const n = (v, l, cls = '') => `<div class="n ${cls}"><b>${v}</b><span>${l}</span></div>`;
-  const ctxCh = changes.filter(c => c.kind !== 'routing').sort((a, b) => (a.decided_at || '').localeCompare(b.decided_at || ''));
-  const accs = ctxCh.filter(c => (c.heldout_before || {}).accuracy != null);
-  const firstAcc = accs.length ? accs[0].heldout_before.accuracy : summary.heldout_accuracy_first;
-  const adoptedCh = ctxCh.filter(c => c.status === 'adopted' && (c.heldout_after || {}).accuracy != null);
-  const lastAcc = adoptedCh.length ? adoptedCh[adoptedCh.length - 1].heldout_after.accuracy : summary.heldout_accuracy_last;
-  const ls = s => lessons.filter(l => l.status === s).length, rb = ctxCh.filter(c => c.status === 'rolled_back').length;
-  if (meta.simulated) {
-    const done = main.filter(s => s.verified > 0).length;
-    $('strip').innerHTML = n(`${done}<small>/${main.length}</small>`, 'subtasks with a verified run', 'ok') + n(ls('adopted'), 'lessons adopted by the gate', 'ok') +
-      n(`${pct(firstAcc)}<small> → </small>${pct(lastAcc)}`, 'held-out accuracy, first → last adopted', 'ok') + n(rb, 'lesson changes rolled back', rb ? 'bad' : '') +
-      n(runs.length, 'agent runs');
-  } else {
-    const subq = B.divergences.filter(d => (d.signals || []).includes('subq')).length;
-    const models = new Set(runs.map(r => r.agent_id)), fams = new Set(runs.map(r => r.provider));
-    const withVer = main.filter(s => s.verified > 0).length;
-    $('strip').innerHTML = n(runs.length, 'agent runs') + n(lessons.length, `lessons (${ls('candidate')} provisional · ${ls('adopted')} adopted)`) +
-      n(subq, 'SubQ root-cause decisions') + n(withVer, 'subtasks with a verified run', 'ok') + n(`${models.size}<small> models · </small>${fams.size}<small> families</small>`, [...fams].join(' · '));
-  }
-  const ctx = changes.filter(c => c.kind !== 'routing');
-  const ctxAdopted = ctx.filter(c => c.status === 'adopted').length, ctxRolled = ctx.filter(c => c.status === 'rolled_back').length;
-  const ba = ctx.map(c => [(c.heldout_before || {}).accuracy, (c.heldout_after || {}).accuracy]).filter(([a, b]) => a != null && b != null);
-  $('banner').innerHTML = '';
-  if (ctx.length && !ctxAdopted && !(summary.lessons_adopted > 0)) {
-    const sig = ba.length ? ` (held-out accuracy ${[...new Set(ba.map(([a, b]) => `${pct(a)} → ${pct(b)}`))].join(', ')})` : '';
-    $('banner').innerHTML = `<b>This run's held-out gate rolled every lesson back:</b> ${ctxRolled} of ${ctx.length} lesson changes rolled back${sig}. Every lesson shown is provisional, not proven.`;
-  }
-}
-function renderRoots(divs) {
-  const p = d => (d.step_probabilities || {})['S' + d.step_index];
-  const rows = [...divs].filter(d => p(d) != null).sort((a, b) => p(b) - p(a));
-  $('rcs').innerHTML = rows.map(d => {
-    const st = parseStep(d.step_text);
-    return `<div class="rc" data-run="${esc(d.run_id)}"><div class="top"><span class="p">${(p(d)).toFixed(2)}</span><span>SubQ P(root cause) · step ${esc(d.step_index)}</span>${d.kind ? `<span class="badge">${esc(d.kind)}</span>` : ''}<span class="badge ${d.confirmed ? 'ok' : 'dim'}">${d.confirmed ? 'replay-confirmed' : 'SubQ-located'}</span></div>
-      <div class="pb"><i style="width:${(p(d) * 100).toFixed(1)}%"></i></div><div class="tx">${esc(short(st.assumption || d.step_text, 180))}</div><div class="top" style="margin-top:3px">${esc(d.agent_id || '')}</div></div>`;
-  }).join('') || '<div class="empty">No SubQ root-cause decisions in this snapshot.</div>';
-  $('rcs').querySelectorAll('.rc').forEach(el => el.onclick = () => openRun(el.dataset.run));
-}
-function openRun(rid) {
-  const i = D.subs.findIndex(s => s.runs.some(r => r.id === rid)); if (i < 0) return;
-  selectSub(i); const o = V.runs.find(o => o.r.id === rid); if (o) { D.run = o; traceKey = ''; T = REPLAY; playing = false; }
-}
-// The rescue: a subtask where every agent failed, lessons were injected, and the retry verified. Real runs only.
-let realBundle = null;
-async function renderHero() {
-  try { realBundle ||= await api('/api/bundle?snap=real'); } catch (e) { $('hero').innerHTML = `<div class="empty">Real run not available: ${esc(e.message)}</div>`; return; }
-  const R = realBundle, rows = [], firstTs = {};
-  (R.steps || []).forEach(s => { if (s.ts && (!firstTs[s.subtask_id] || s.ts < firstTs[s.subtask_id])) firstTs[s.subtask_id] = s.ts; });
-  const bySub = {}; (R.runs || []).forEach(r => (bySub[r.subtask_id] ||= []).push(r));
-  for (const [sid, runs] of Object.entries(bySub)) {
-    const before = runs.filter(r => !r.lessons_used.length && r.verdict), after = runs.filter(r => r.lessons_used.length && r.verdict);
-    const bv = before.filter(r => r.verdict === 'verified').length, av = after.filter(r => r.verdict === 'verified').length;
-    if (before.length && !bv && av) {
-      const nl = new Set(after.flatMap(r => r.lessons_used)).size, t = firstTs[sid] ? new Date(firstTs[sid]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      rows.push({ t: `Task A · subtask started ${t}`, s: `${nl} provisional lesson${nl === 1 ? '' : 's'} from the failed attempt injected`, a: `${bv}/${before.length}`, b: `${av}/${after.length}` });
-    }
-  }
-  for (const [k, sf] of Object.entries(R.summary_files || {})) for (const p of sf.per_subtask || []) {
-    const fa = p.first_attempt; if (!fa || fa.verified !== 0 || !(p.verified > 0)) continue;
-    rows.push({ t: `${k === 'task_b_baseline' ? 'Task B baseline' : k} · ${p.title || p.subtask_id}`, s: `${(fa.lessons || []).length} provisional lesson${(fa.lessons || []).length === 1 ? '' : 's'} from the failed attempt injected`, a: `${fa.verified}/${fa.verified + fa.failed}`, b: `${p.verified}/${p.verified + p.failed}` });
-  }
-  $('hero').innerHTML = `<h3>all agents failed → lessons → retry → verified</h3><div class="lbl">real agents · recorded runs</div>` +
-    (rows.map(r => `<div class="rescue"><span class="t">${esc(r.t)}</span><span class="s">${esc(r.s)}</span><span class="f"><span class="a">${r.a}</span> → <span class="b">${r.b}</span></span></div>`).join('') || '<div class="empty">No rescued subtask in the recorded runs.</div>');
-}
-function renderTrust(trust) {
-  const rows = [...trust].sort((a, b) => b.score - a.score);
-  $('trust').innerHTML = rows.map(t => `<div class="trow"><canvas width="56" height="56" data-a="${esc(t.agent_id)}"></canvas><div><b>${esc(t.agent_id)}</b><i>${t.agreements} verified · ${t.disagreements} failed</i></div>${spark(t.history || [])}<span class="num">${pct(t.score)}</span></div>`).join('') || '<div class="empty">No trust records.</div>';
-  $('trust').querySelectorAll('canvas').forEach(cv => { const c = cv.getContext('2d'); c.scale(2, 2); drawBeetle(c, 14, 14, -Math.PI / 2, agentStyle(cv.dataset.a), { scale: .95 }); });
-}
-function spark(h) {
-  if (h.length < 2) return '<span></span>';
-  const pts = h.map((v, i) => `${(i / (h.length - 1) * 60).toFixed(1)},${(18 - v * 16).toFixed(1)}`).join(' ');
-  return `<svg width="64" height="20" viewBox="0 0 64 20"><polyline points="${pts}" fill="none" stroke="#9a917f" stroke-width="1.4"/></svg>`;
-}
-function renderChanges(changes) {
-  const rows = [...changes].sort((a, b) => (b.decided_at || '').localeCompare(a.decided_at || ''));
-  $('changes').innerHTML = rows.map(c => {
-    const cls = c.status === 'adopted' ? 'st-ok' : c.status === 'rolled_back' ? 'st-bad' : 'st-amb';
-    const hb = c.heldout_before || {}, ha = c.heldout_after || {};
-    const ho = hb.accuracy != null || ha.accuracy != null ? `<div class="r">held-out accuracy ${pct(hb.accuracy)} → ${pct(ha.accuracy)}${hb.repeat_mistake_rate != null || ha.repeat_mistake_rate != null ? ` · repeat mistakes ${pct(hb.repeat_mistake_rate)} → ${pct(ha.repeat_mistake_rate)}` : ''}</div>` : '';
-    return `<div class="chg${c.status === 'rolled_back' ? ' rb' : ''}${c.kind === 'routing' ? ' route' : ''}"><div class="h"><span>${esc(c.kind)}</span><span class="${cls}">${esc(String(c.status).replace('_', ' '))}</span>${c.decided_at ? `<span>${esc(c.decided_at.slice(11, 19))}</span>` : ''}</div><div class="d">${esc(short(c.description, 220))}</div>${ho}${c.reason ? `<div class="r${c.status === 'rolled_back' ? ' st-bad' : ''}">${esc(short(String(c.reason).split('\n')[0], 140))}</div>` : ''}</div>`;
-  }).join('') || '<div class="empty">No changes recorded.</div>';
-}
-function renderSubs() {
-  $('subs').innerHTML = D.subs.map((s, i) => {
-    const n = s.runs.length, unk = n - s.verified - s.failed, sm = s.summary;
-    const fa = sm && sm.first_attempt ? ` · 1st try ${share(sm.first_attempt.verified, sm.first_attempt.verified + sm.first_attempt.failed)}` : '';
-    return `<div class="sub" data-i="${i}" title="${esc(s.id)}"><span class="t">${esc(s.label)}${s.title ? ' · ' + esc(s.title) : ''}</span>
-      <span class="c">${unk === n ? `${n} runs · no verdict recorded` : `<span class="ok">${share(s.verified, n)} verified</span>${s.failed ? ` · <span class="bad">${s.failed} failed</span>` : ''}${unk ? ` · ${unk} no verdict` : ''}`}${sm && sm.retried ? ' · retried' : ''}${fa}</span>
-      <span class="bar"><i style="width:${n ? s.verified / n * 100 : 0}%;background:var(--ok)"></i><i style="width:${n ? s.failed / n * 100 : 0}%;background:var(--bad)"></i></span></div>`;
-  }).join('');
-  $('subs').querySelectorAll('.sub').forEach(el => el.onclick = () => selectSub(+el.dataset.i));
-}
-
-// ---------- per-subtask view ----------
-let V = null, T = 0, playing = true, speed = 1, last = performance.now();
-function selectSub(i) {
-  if (!D.subs.length) return;
-  D.sel = clamp(i, 0, D.subs.length - 1);
-  const s = D.subs[D.sel];
-  $('subs').querySelectorAll('.sub').forEach((el, k) => el.classList.toggle('on', k === D.sel));
-  $('subs').children[D.sel]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  const pts = s.runs.flatMap(r => r.steps.map(x => x.p));
-  const q = (a, f) => { const b = [...a].sort((u, v) => u - v); return b[Math.min(b.length - 1, Math.max(0, Math.floor(f * (b.length - 1))))]; };
-  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-  const x0 = q(xs, .03), x1 = q(xs, .97), y0 = q(ys, .03), y1 = q(ys, .97);
-  const sc = Math.min((W - 2 * PAD) / Math.max(x1 - x0, 1e-9), (H - 2 * PAD) / Math.max(y1 - y0, 1e-9)); // uniform: keeps PCA distances honest
-  const ox = (W - (x1 - x0) * sc) / 2, oy = (H - (y1 - y0) * sc) / 2;
-  const to = p => ({ x: clamp(ox + (p[0] - x0) * sc, 20, W - 20), y: clamp(H - (oy + (p[1] - y0) * sc), 20, H - 20) });
-  const runs = s.runs.map((r, k) => { const path = r.steps.map(x => ({ ...to(x.p), idx: x.idx, msg: x.msg })); return { r, k, path, cum: cumul(path) }; });
-  const avg = a => a.length ? { x: a.reduce((t, p) => t + p.x, 0) / a.length, y: a.reduce((t, p) => t + p.y, 0) / a.length } : null;
-  const ver = runs.filter(o => o.r.failed === false).map(o => o.path[o.path.length - 1]);
-  const pits = runs.map(o => {
-    const d = D.divByRun[o.r.id]; if (!d) return null;
-    let bi = 0, bd = 1e9; o.path.forEach((p, i) => { const dd = Math.abs(p.idx - d.step_index); if (dd < bd) { bd = dd; bi = i; } });
-    return { o, d, i: bi, at: o.path[bi], lessons: D.lessonsByRun[o.r.id] || [] };
-  }).filter(Boolean);
-  const regs = D.regions.map(g => ({ g, c: to(g.p), rad: Math.max(16, Math.min(g.radius * sc, 90)) })).filter(q => q.c.x > -60 && q.c.x < W + 60 && q.c.y > -60 && q.c.y < H + 60);
-  V = { s, runs, nest: avg(runs.map(o => o.path[0])), mound: avg(ver), pits, regs };
-  const pick = pits.find(p => p.o.r.failed) || pits[0];
-  D.run = pick ? pick.o : runs[0];
-  T = 0; playing = true; traceKey = ''; renderLegend();
-}
-function cumul(path) { const c = [0]; for (let i = 1; i < path.length; i++) c.push(c[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y)); return c; }
-function posAt(o, p) {
-  const c = o.cum, len = c[c.length - 1] || 0, d = p * len; let i = 0;
-  if (o.path.length < 2) return { x: o.path[0].x, y: o.path[0].y, ang: 0, i: 0 };
-  while (i < c.length - 2 && c[i + 1] < d) i++;
-  const a = o.path[i], b = o.path[i + 1], f = clamp((d - c[i]) / ((c[i + 1] - c[i]) || 1));
-  return { x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), ang: Math.atan2(b.y - a.y, b.x - a.x), i: p >= 1 ? o.path.length - 1 : i };
-}
-const progOf = o => clamp((T - o.k * .25) / (REPLAY * .72));
-function renderLegend() {
-  const agents = [...new Set(V.runs.map(o => o.r.agent))];
-  $('legend').innerHTML = agents.map(a => `<span><i style="background:${agentStyle(a).trail}"></i>${esc(a)}</span>`).join('') +
-    `<span><i style="background:var(--bad)"></i>flipped = failed run</span><span><i style="background:var(--ok)"></i>mound = verified runs</span><span><i style="background:var(--bad);border-radius:1px;transform:rotate(45deg)"></i>divergence point</span>`;
-}
-
-// ---------- trace panel ----------
-let traceKey = '';
-function renderTrace() {
-  const o = D.run; if (!o) return;
-  const r = o.r, d = D.divByRun[r.id], cur = posAt(o, progOf(o)).i;
-  const key = r.id + ':' + cur; if (key === traceKey) return; traceKey = key;
-  $('tName').textContent = r.agent;
-  const verdict = r.failed === true ? '<span class="st-bad">failed</span>' : r.failed === false ? '<span class="st-ok">verified</span>' : 'no verdict';
-  $('tSub').innerHTML = `run ${esc(r.id)} · ${verdict} · ${r.steps.filter(x => !x.msg).length} logged steps`;
-  const c = $('tIcon').getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, 48, 48); c.scale(2, 2); drawBeetle(c, 12, 12, -Math.PI / 2, r.style, { scale: .85 });
-  $('steps').innerHTML = r.steps.map((s, i) => {
-    const ps = parseStep(s.text), isDiv = d && s.idx === d.step_index;
-    const cls = (s.msg ? 'msg' : '') + (isDiv ? ' div' : '') + (i === cur ? ' cur' : '');
-    const act = ps.action && !s.msg ? `<div class="do">${esc(ps.action)}${ps.touches && ps.touches !== '-' ? ' · ' + esc(ps.touches) : ''}</div>` : '';
-    return `<li class="${cls}"><span class="n">${s.msg ? 'message' : 'step ' + s.idx}</span><div><div class="as">${esc(ps.assumption || '')}${isDiv ? '<span class="pill">divergence point</span>' : ''}</div>${act}</div></li>`;
-  }).join('') || '<li class="empty">No steps logged.</li>';
-  const curEl = $('steps').children[cur]; if (curEl) curEl.scrollIntoView({ block: 'nearest' });
-  $('why').innerHTML = divCard(r, d);
-}
-function fmtOutcome(o) {
-  if (!o) return '—';
-  if (o.timed_out) return 'timed out';
-  if (o.ok) return 'returned ' + short(typeof o.value === 'string' ? o.value : JSON.stringify(o.value), 120);
-  return 'raised ' + short(o.exception, 220);
-}
-function divCard(r, d) {
-  const ls = D.lessonsByRun[r.id] || [];
-  if (!d) return `<h3>No divergence recorded</h3><div class="empty">${r.failed === false ? 'This run passed every hidden test.' : 'No root-cause step was located for this run.'}</div>`;
-  const probs = Object.entries(d.step_probabilities || {}).map(([k, v]) => [k, +v]).sort((a, b) => +a[0].slice(1) - +b[0].slice(1));
-  const hl = 'S' + d.step_index;
-  const bars = probs.length ? `<div class="kv" style="margin-bottom:0"><span class="k">SubQ P(root cause)</span><span class="v"></span></div><div class="probs">${probs.map(([k, v]) => `<span class="${k === hl ? 'hl' : ''}">${k}</span><span class="b${k === hl ? ' hl' : ''}"><i style="width:${(v * 100).toFixed(1)}%"></i></span><span class="${k === hl ? 'hl' : ''}">${pct(v)}</span>`).join('')}</div>` : '<div class="empty">No SubQ probabilities recorded (path signal only).</div>';
-  const bc = d.breaking_case || {};
-  const lessonHtml = ls.map(l => {
-    const st = l.status === 'candidate' ? 'provisional' : String(l.status).replace('_', ' ');
-    return `<div class="lesson ${esc(l.status)}">${esc(l.text)}<div class="m">${st} · confidence ${pct(l.confidence)} · hits ${l.hit_count ?? 0}</div></div>`;
-  }).join('');
-  return `<h3>Divergence point · step ${esc(d.step_index)}
-      ${d.kind ? `<span class="badge">${esc(d.kind)}${d.kind_confidence != null ? ' ' + pct(d.kind_confidence) : ''}</span>` : ''}
-      <span class="badge ${d.confirmed ? 'ok' : 'dim'}">${d.confirmed ? 'replay-confirmed' : 'not replay-confirmed'}</span></h3>
-    ${bars}
-    <div class="kv">
-      <span class="k">generalizes</span><span class="v">${pct(d.generalizes)}<div class="meter"><i style="width:${clamp(d.generalizes || 0) * 100}%"></i></div></span>
-      <span class="k">breaking case</span><span class="v"><code>${esc(short(bc.function || (bc.args || [])[0] || '—', 140))}</code></span>
-      <span class="k">expected</span><span class="v ok">${esc(fmtOutcome(d.majority_outcome))}</span>
-      <span class="k">actual</span><span class="v bad">${esc(fmtOutcome(d.failed_outcome))}</span>
-    </div>
-    ${lessonHtml ? `<h3>Lesson${ls.length > 1 ? 's' : ''} from this fall</h3>${lessonHtml}` : ''}`;
-}
-
 // ---------- canvas ----------
-const wrap = $('mapwrap'), cv = $('map'), ctx = cv.getContext('2d');
+const stage = document.getElementById('mapwrap'), cv = document.getElementById('map'), ctx = cv.getContext('2d');
 let view = { s: 1, ox: 0, oy: 0, dpr: 1 }, bg = null;
 function resize() {
-  const r = wrap.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr);
   const s = Math.min(r.width / W, r.height / H);
   view = { s, ox: (r.width - W * s) / 2, oy: (r.height - H * s) / 2, dpr };
   bg = document.createElement('canvas'); bg.width = cv.width; bg.height = cv.height;
-  const b = bg.getContext('2d'); b.fillStyle = '#0e0d0b'; b.fillRect(0, 0, bg.width, bg.height);
+  const b = bg.getContext('2d');
+  b.fillStyle = '#0e0d0b'; b.fillRect(0, 0, bg.width, bg.height);
   b.setTransform(dpr * s, 0, 0, dpr * s, dpr * view.ox, dpr * view.oy);
-  for (let y = -120; y < H + 120; y += 9) for (let x = -200; x < W + 200; x += 9) {
-    const h = .5 + .22 * Math.sin(x * .011 + Math.sin(y * .007) * 2) + .16 * Math.sin(y * .017 + x * .004);
-    b.fillStyle = `rgba(${150 + h * 40},${128 + h * 30},${96 + h * 20},${.12 + h * .14})`;
-    b.beginPath(); b.arc(x, y, .35 + 1.7 * clamp(h * .8), 0, Math.PI * 2); b.fill();
+  const ext = 140;
+  for (let y = -ext; y < H + ext; y += 8) for (let x = -ext; x < W + ext; x += 8) {
+    const ox = (Math.floor(y / 8) % 2) * 4;
+    const h = .5 + .22 * Math.sin((x + ox) * .011 + Math.sin(y * .007) * 2) + .16 * Math.sin(y * .017 + x * .004) + .1 * Math.sin((x + y) * .023);
+    const path = Math.exp(-Math.pow((y - 300) / 230, 2));
+    const r = .35 + 2.1 * clamp(h * .75 + path * .2);
+    b.fillStyle = `rgba(${150 + h * 40},${128 + h * 30},${96 + h * 20},${.16 + h * .18})`;
+    b.beginPath(); b.arc(x + ox, y, r, 0, Math.PI * 2); b.fill();
   }
 }
 window.addEventListener('resize', resize);
-const label = (t, x, y, col = '#9a917f', al = 'center', sz = 10.5) => { ctx.font = `600 ${sz}px ui-monospace,SFMono-Regular,Menlo,monospace`; ctx.textAlign = al; ctx.fillStyle = col; ctx.fillText(t, x, y); };
+
+function trailPath(run, upto) {
+  ctx.beginPath(); ctx.moveTo(run.poly[0].x, run.poly[0].y);
+  for (let i = 1; i <= upto; i++) ctx.lineTo(run.poly[i].x, run.poly[i].y);
+}
+function label(text, x, y, color = '#9a917f', align = 'center', size = 10.5) {
+  ctx.font = `600 ${size}px ui-monospace,SFMono-Regular,Menlo,monospace`; ctx.textAlign = align; ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function drawNestFood(t, ri) {
+  ctx.save();
+  const g = ctx.createRadialGradient(NEST.x + 14, NEST.y, 4, NEST.x + 14, NEST.y, 85);
+  g.addColorStop(0, 'rgba(242,181,82,.28)'); g.addColorStop(1, 'rgba(242,181,82,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 85, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(242,181,82,.5)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 62, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  label('NEST', NEST.x + 14, NEST.y + 80);
+  const r = R[clamp(ri, 0, R.length - 1)], lt = t - r.T0;
+  const glow = ri >= 0 && ri < R.length && lt >= P.VERIFY && lt < P.VERIFY + 2 ? 1 - (lt - P.VERIFY) / 2 : 0;
+  const fg = ctx.createRadialGradient(FOOD.x, FOOD.y, 4, FOOD.x, FOOD.y, 70 + glow * 30);
+  fg.addColorStop(0, `rgba(127,212,154,${.3 + glow * .4})`); fg.addColorStop(1, 'rgba(127,212,154,0)');
+  ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(FOOD.x, FOOD.y, 100, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(127,212,154,.7)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(FOOD.x, FOOD.y, 22, 0, Math.PI * 2); ctx.stroke();
+  if (glow) { ctx.strokeStyle = `rgba(127,212,154,${glow})`; ctx.beginPath(); ctx.arc(FOOD.x, FOOD.y, 22 + (1 - glow) * 90, 0, Math.PI * 2); ctx.stroke(); }
+  label(r.sub, FOOD.x, FOOD.y + 4, '#7fd49a', 'center', 12);
+  label(r.title, 992, FOOD.y - 78, '#cfc8b8', 'right', 11);
+  if (ri >= 0 && ri < R.length) {
+    const writing = lt < P.ROUTE;
+    label(writing ? 'writing hidden tests…' : 'hidden tests', 995, FOOD.y + 44, writing ? '#f2b552' : '#9a917f', 'right');
+    if (lt >= P.TRUST) label(r.winner ? `✓ verified: ${r.winner}` : '✗ no run verified', 995, FOOD.y + 60, r.winner ? '#7fd49a' : '#ff6b5e', 'right');
+  } else label('hidden tests', FOOD.x, FOOD.y + 44);
+  ctx.restore();
+}
+function drawPits(t) {
+  for (const [k, c] of Object.entries(PITS)) {
+    const t0 = PIT_REVEAL[k]; if (t0 === undefined || t < t0) continue;
+    const e = ease(clamp((t - t0) / .6));
+    const g = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, 34 * e);
+    g.addColorStop(0, 'rgba(3,2,1,1)'); g.addColorStop(.6, 'rgba(8,6,4,.85)'); g.addColorStop(1, 'rgba(8,6,4,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, 34 * e, 0, Math.PI * 2); ctx.fill();
+    const safe = Object.values(LESSONS).some(L => L.pit === k && L.adopt && t >= L.g1);
+    ctx.strokeStyle = safe ? 'rgba(127,212,154,.55)' : 'rgba(255,107,94,.45)'; ctx.lineWidth = 1.2; ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.arc(c.x, c.y, 24 * e, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    if (safe) { ctx.strokeStyle = 'rgba(127,212,154,.14)'; ctx.beginPath(); ctx.arc(c.x, c.y, RAD, 0, Math.PI * 2); ctx.stroke(); }
+    label(`pit ${k}`, c.x, c.y + 40 * e, '#8a8070');
+  }
+}
+function drawFlags(t) {
+  for (const L of LESSONS) {
+    if (t < L.rise) continue;
+    const c = PITS[L.pit], fx = c.x + 18 + L.j * 22, fy = c.y - 14;
+    const e = ease(clamp((t - L.rise) / .6)), h = 30 * e;
+    const gone = L.rolled && t >= L.g1, ga = gone ? clamp((t - L.g1) / 1.6) : 0;
+    let col = '#f2b552'; if (t >= L.g1) col = L.adopt ? '#7fd49a' : '#ff6b5e';
+    ctx.save(); ctx.globalAlpha = 1 - ga;
+    if (gone) { ctx.translate(fx, fy); ctx.rotate(ga * 1.1); ctx.translate(-fx, -fy + ga * 10); }
+    ctx.strokeStyle = '#d8d0bf'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - h); ctx.stroke();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(fx, fy - h); ctx.lineTo(fx + 20 * e, fy - h + 6); ctx.lineTo(fx, fy - h + 12); ctx.fill();
+    ctx.restore();
+    if (gone) {
+      ctx.fillStyle = `rgba(255,107,94,${1 - ga})`;
+      for (let i = 0; i < 9; i++) { const a = i * 2.3, sp = 6 + (i % 4) * 5; ctx.fillRect(fx + Math.cos(a) * sp * ga * 2, fy - 14 + Math.sin(a) * sp * ga + ga * ga * 30, 2, 2); }
+    }
+    if (!gone || ga < 1) label(L.id + (L.gated ? '' : ' · provisional'), fx + 4, fy - h - 4, col, 'left', 10);
+    if (t >= L.g0 && t < L.g1 + .3) {
+      const p = clamp((t - L.g0) / P.GATE_DUR);
+      ctx.strokeStyle = '#f2b552'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx + 6, fy - h + 6, 18, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke();
+      label(`held-out ${Math.round(lerp(L.before, L.after, ease(p)))}%`, fx + 30, fy - h + 10, '#f2b552', 'left', 10);
+    }
+  }
+}
+let focusId = null;
+function drawConsensus(r, t, alpha) {
+  const rev = r.T0 + P.DIVERGE; if (t < rev || !r.fork) return;
+  const e = ease(clamp((t - rev) / .8)) * alpha;
+  ctx.globalAlpha = .7 * e; ctx.strokeStyle = '#7fd49a'; ctx.lineWidth = 1.6; ctx.setLineDash([2, 6]);
+  ctx.beginPath(); r.cons.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke(); ctx.setLineDash([]);
+  const q = r.cons[Math.floor(r.cons.length * .8)];
+  label('swarm consensus path', q.x, q.y + 20, `rgba(127,212,154,${.85 * e})`, 'center', 10);
+  ctx.globalAlpha = 1;
+}
+function drawDivergence(r, t, alpha, ghost = false) {
+  const rev = r.T0 + P.DIVERGE; if (t < rev || !r.fork || !r.pit) return;
+  const pit = PITS[r.pit], fallers = r.runs.filter(x => x.fail);
+  const e = (ghost ? 1 : ease(clamp((t - rev) / .6))) * alpha, pulse = ghost ? 1 : 1 + Math.sin(t * 5) * .15;
+  const diamond = (x, y, s) => { ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y); ctx.closePath(); };
+  ctx.globalAlpha = e;
+  for (const f of fallers) {
+    ctx.fillStyle = '#ff6b5e'; ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1.2;
+    diamond(f.fork.x, f.fork.y, ghost ? 4.5 : 6.5); ctx.fill(); ctx.stroke();
+  }
+  const F = r.fork;
+  if (ghost) { label(`${r.sub} divergence`, F.x, F.y + (pit.y < F.y ? 18 : -12), 'rgba(255,107,94,.85)', 'center', 9.5); ctx.globalAlpha = 1; return; }
+  ctx.strokeStyle = 'rgba(255,107,94,.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(F.x, F.y, 17 * pulse, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = e * .35; ctx.beginPath(); ctx.arc(F.x, F.y, 27 * pulse, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = e;
+  const steps = [...new Set(fallers.map(x => x.divStep).filter(x => x != null))].join(' / ') || '?', n = fallers.length;
+  const below = pit.y < F.y, w = 380, h = 52, bx = F.x - 30, by = below ? F.y + 34 : F.y - 34 - h;
+  ctx.fillStyle = 'rgba(30,12,10,.94)'; ctx.strokeStyle = '#ff6b5e'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.roundRect(bx, by, w, h, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ff6b5e'; ctx.fillRect(bx, by, 4, h);
+  ctx.beginPath(); ctx.moveTo(F.x, below ? F.y + 17 : F.y - 17); ctx.lineTo(F.x, below ? by : by + h); ctx.stroke();
+  label(`DIVERGENCE POINT · step ${steps}`, bx + 14, by + 16, '#ff6b5e', 'left', 11.5);
+  label(`${n} agent${n > 1 ? 's' : ''} failed${pit.p != null ? ` · SubQ P(root cause) ${Math.round(pit.p * 100)}%` : ''}${pit.kind ? ' · ' + pit.kind : ''}`, bx + 14, by + 31, '#e8dccb', 'left', 10);
+  label(`blamed step: ${pit.short}`, bx + 14, by + 45, '#bba99a', 'left', 10);
+  ctx.globalAlpha = 1;
+}
+function drawRound(r, t, alpha) {
+  const lt = t - r.T0, ghost = r.T0 + RD <= t;
+  if (!ghost) drawConsensus(r, t, alpha);
+  for (const run of r.runs) {
+    const a = byId[run.id];
+    if (ghost) { ctx.globalAlpha = .1; ctx.strokeStyle = a.trail; ctx.lineWidth = 1; trailPath(run, run.poly.length - 1); ctx.stroke(); ctx.globalAlpha = 1; continue; }
+    if (t < run.t0) { drawBeetle(ctx, run.poly[0].x - 6, run.poly[0].y, 0, a, { alpha: clamp((t - r.T0) / .8) * alpha }); continue; }
+    const pos = posAt(run, t);
+    const shown = run.fail && t >= r.T0 + P.DIVERGE;
+    ctx.globalAlpha = .1 + .5 * alpha; ctx.strokeStyle = a.trail; ctx.lineWidth = 1.8;
+    if (shown) {
+      trailPath(run, run.forkIdx); ctx.stroke();
+      ctx.globalAlpha = .95 * alpha; ctx.strokeStyle = '#ff6b5e'; ctx.lineWidth = 2.4; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); for (let i = run.forkIdx; i <= pos.idx; i++) i === run.forkIdx ? ctx.moveTo(run.poly[i].x, run.poly[i].y) : ctx.lineTo(run.poly[i].x, run.poly[i].y);
+      ctx.lineTo(pos.x, pos.y); ctx.stroke(); ctx.setLineDash([]);
+    } else { trailPath(run, pos.idx); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }
+    for (let s = 1; s <= run.nSteps; s++) {
+      const f = run.pins[s - 1]; if (pos.p < f - 1e-6) break;
+      const pp = posAt({ ...run, t0: 0, dur: 1 }, f), bad = run.fail && s === run.nSteps;
+      ctx.fillStyle = bad ? '#ff6b5e' : a.trail; ctx.globalAlpha = alpha;
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, bad ? 3.4 : 2.4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    const fell = run.fail && pos.p >= 1, moving = pos.p < 1;
+    const sink = fell ? clamp((t - run.arrive) / .5) : 0;
+    drawBeetle(ctx, pos.x, pos.y, pos.ang + (fell ? sink * .6 : 0), a, { phase: moving ? (t - run.t0) * 10 : (fell ? t * 9 : 0), flipped: fell && sink > .5, alpha, scale: 1.55 * (1 - sink * .15) });
+    if (run.id === focusId && alpha > .3) {
+      ctx.globalAlpha = alpha; ctx.strokeStyle = a.trail; ctx.lineWidth = 1.3; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, 22 + Math.sin(t * 4) * 1.5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      label(run.id, pos.x, pos.y + 36, a.trail, 'center', 10); ctx.globalAlpha = 1;
+    }
+    for (const av of run.avoid) {
+      const d = t - av.t; if (d < -.6 || d > 2.6) continue;
+      label(`↺ ${av.lesson}`, pos.x, pos.y - 20, `rgba(127,212,154,${alpha * clamp(1 - Math.abs(d - 1) / 1.6)})`, 'center', 10.5);
+    }
+    if (lt >= P.VERIFY) {
+      const e = ease(clamp((lt - P.VERIFY - run.k * .08) / .35)); if (e <= 0) continue;
+      const ok = !run.fail, bx = pos.x + 10, by = pos.y - 16;
+      ctx.globalAlpha = alpha; ctx.fillStyle = ok ? '#7fd49a' : '#ff6b5e';
+      ctx.beginPath(); ctx.arc(bx, by, 7 * e, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1.8; ctx.beginPath();
+      if (ok) { ctx.moveTo(bx - 3, by); ctx.lineTo(bx - .8, by + 2.4); ctx.lineTo(bx + 3.2, by - 2.6); }
+      else { ctx.moveTo(bx - 2.6, by - 2.6); ctx.lineTo(bx + 2.6, by + 2.6); ctx.moveTo(bx + 2.6, by - 2.6); ctx.lineTo(bx - 2.6, by + 2.6); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
+}
+function drawOutro(t) {
+  const e = ease(clamp((t - OUTRO_T) / 1.2));
+  const first = R[0], last = R[R.length - 1];
+  for (const run of first.runs) { ctx.globalAlpha = .55 * e; ctx.strokeStyle = '#c4574c'; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); trailPath(run, run.poly.length - 1); ctx.stroke(); }
+  ctx.setLineDash([]);
+  for (const run of last.runs) {
+    const a = byId[run.id];
+    ctx.globalAlpha = .9 * e; ctx.strokeStyle = a.trail; ctx.lineWidth = 2.2; trailPath(run, run.poly.length - 1); ctx.stroke();
+    const end = run.poly[run.poly.length - 1], prev = run.poly[run.poly.length - 3];
+    ctx.globalAlpha = 1; drawBeetle(ctx, end.x, end.y, Math.atan2(end.y - prev.y, end.x - prev.x), a, { flipped: !!run.fail, alpha: e, phase: run.fail ? t * 9 : 0 });
+  }
+  ctx.globalAlpha = 1;
+  label(`- - -  ${first.sub} trails`, 24, 30, `rgba(196,87,76,${e})`, 'left', 11);
+  label(`———  ${last.sub} trails`, 24, 48, `rgba(236,230,216,${e})`, 'left', 11);
+}
+
+// ---------- side panel ----------
+const board = document.getElementById('board');
+const ROW_H = 49;
+const rows = {};
+for (const a of AGENTS) {
+  const el = document.createElement('div'); el.className = 'row';
+  el.innerHTML = `<span class="rk"></span><canvas width="68" height="68"></canvas><div class="nm"><b>${a.id}</b><i></i></div><div class="sc"><span class="num"></span><div class="bar"><span style="background:${a.trail}"></span></div></div><span class="d"></span>`;
+  el.onclick = () => { pinned = pinned === a.id ? null : a.id; };
+  board.appendChild(el);
+  const ic = el.querySelector('canvas').getContext('2d'); ic.scale(2, 2); drawBeetle(ic, 17, 17, -Math.PI / 2, a, { scale: 1.15 });
+  rows[a.id] = { el, rk: el.querySelector('.rk'), st: el.querySelector('i'), num: el.querySelector('.num'), bar: el.querySelector('.bar span'), d: el.querySelector('.d'), cache: {} };
+}
+const NT = Math.max(...ROUNDS.map(r => r.team.length));
+const cut = document.createElement('div'); cut.className = 'cut'; cut.innerHTML = '<span>top by trust ↑ · not sent ↓</span>';
+board.appendChild(cut);
+cut.style.top = (NT * ROW_H + 2) + 'px'; cut.style.display = NT < AGENTS.length ? '' : 'none';
+board.style.height = (AGENTS.length * ROW_H + 24) + 'px';
+
+function set(o, key, el, prop, val) { if (o.cache[key] !== val) { o.cache[key] = val; if (prop === 'text') el.textContent = val; else if (prop === 'class') el.className = val; else el.style[prop] = val; } }
+
+function statusOf(id, t) {
+  const ri = roundAt(t);
+  if (ri < 0) return ['ready', ''];
+  if (ri >= R.length) { const c = counts[id]; return [`${c.v} verified · ${c.f} failed`, '']; }
+  const r = R[ri], lt = t - r.T0, run = r.runs.find(x => x.id === id);
+  if (!run) return ['not sent on ' + r.sub, ''];
+  if (t < run.t0) return ['leaving the nest', ''];
+  if (t < run.arrive) { const p = (t - run.t0) / run.dur; return [`working · step ${stepsShown(run, p)}`, 'work']; }
+  if (lt < P.VERIFY) return run.fail ? [`fell into pit ${run.pit} · step ${run.divStep ?? run.fail}`, 'bad'] : ['done · awaiting tests', ''];
+  return run.fail ? ['failed hidden tests', 'bad'] : ['verified ✓', 'ok'];
+}
+
+function updatePanel(t) {
+  const tr = trustAt(t), ri = roundAt(t);
+  const posFrom = Object.fromEntries(tr.from.map((id, i) => [id, i])), posTo = Object.fromEntries(tr.to.map((id, i) => [id, i]));
+  for (const a of AGENTS) {
+    const o = rows[a.id], y = lerp(posFrom[a.id], posTo[a.id], tr.e) * ROW_H, sc = tr.sc[a.id];
+    set(o, 'y', o.el, 'transform', `translateY(${y.toFixed(1)}px)`);
+    set(o, 'rk', o.rk, 'text', String(posTo[a.id] + 1));
+    set(o, 'num', o.num, 'text', String(pct(sc)));
+    set(o, 'bar', o.bar, 'width', `${(sc * 100).toFixed(1)}%`);
+    const [txt, cls] = statusOf(a.id, t);
+    set(o, 'st', o.st, 'text', txt); set(o, 'stc', o.st, 'class', cls);
+    const inRound = ri >= 0 && ri < R.length && R[ri].team.includes(a.id);
+    set(o, 'out', o.el, 'class', 'row' + (ri >= 0 && ri < R.length && !inRound ? ' out' : '') + (pinned === a.id ? ' pinned' : ''));
+    let dtxt = '', dcls = 'd';
+    if (tr.k > 0 && t - R[tr.k - 1].updateT < 5 && R[tr.k - 1].team.includes(a.id)) {
+      const dv = pct(SNAPS[tr.k][a.id]) - pct(SNAPS[tr.k - 1][a.id]);
+      dtxt = (dv > 0 ? '+' : '−') + Math.abs(dv); dcls = 'd ' + (dv > 0 ? 'up' : 'dn');
+    }
+    set(o, 'dt', o.d, 'text', dtxt); set(o, 'dc', o.d, 'class', dcls); set(o, 'do', o.d, 'opacity', dtxt ? '1' : '0');
+  }
+}
+
+let pinned = null;
+function focusAt(t) {
+  const ri = roundAt(t); if (ri < 0 || ri >= R.length) return null;
+  const r = R[ri];
+  if (pinned) return { r, ri, id: pinned, run: r.runs.find(x => x.id === pinned) || null, pinned: true };
+  let id = r.focus[0].id; for (const f of r.focus) if (t >= f.t) id = f.id;
+  return { r, ri, id, run: r.runs.find(x => x.id === id) };
+}
+const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const md = x => esc(x).replace(/`([^`]+)`/g, '<code>$1</code>');
+const gateStatus = (L, t) => !L.gated ? ['provisional · not decided by the held-out gate', 'st-amb'] : t < L.g0 ? ['waiting for the held-out gate', 'st-amb'] : t < L.g1 ? ['held-out gate running…', 'st-amb'] : L.adopt ? [`adopted · held-out ${L.before}% → ${L.after}%`, 'st-ok'] : [`rolled back · held-out ${L.before}% → ${L.after}%`, 'st-bad'];
+const traceCache = { head: '', left: '', right: '', icon: '' };
+function traceFor(t) {
+  const ri = roundAt(t);
+  const ln = (cls, k, v, extra = '') => `<div class="ln"><span class="k ${cls}">${k}</span><span class="v${extra}">${v}</span></div>`;
+  const story = (h, lines, foot = '') => `<h3>${h}</h3><div class="story">${lines.join('')}</div>${foot ? `<div class="m">${foot}</div>` : ''}`;
+  if (ri < 0) return { icon: null, name: 'Reasoning trace', sub: 'what each agent thinks before it acts', chips: '',
+    left: '<li class="ph">Before every edit or test run, an agent must write down what it believes and what it is about to do. That is its reasoning trace.</li>',
+    right: story('How to read this', [ln('dim', 'left side', 'What the followed agent thinks, one step at a time'), ln('bad', 'red step', 'Where its thinking left the swarm: the divergence point'), ln('ok', 'green step', 'Where a lesson kept it on track')]) };
+  if (ri >= R.length) {
+    const avoided = R.flatMap(r => r.runs.flatMap(x => x.avoid)).length, f0 = R[0], fl = R[R.length - 1];
+    const stOf = L => L.adopt ? '<span class="st-ok">kept</span>' : L.rolled ? '<span class="st-bad">rolled back</span>' : '<span class="st-amb">provisional</span>';
+    const rescues = R.filter(r => r.retry && r.verified > 0).map(r => { const prev = R.find(x => x.sid === r.sid && !x.retry); return ln('ok', r.sub, `${prev ? prev.verified + '/' + prev.runs.length : '?'} → ${r.verified}/${r.runs.length} verified after ${r.promptN} lesson${r.promptN === 1 ? '' : 's'} were injected`); });
+    return { icon: null, name: 'Every lesson', sub: 'from a failed step to a rule', chips: '',
+      left: LESSONS.map(L => `<li class="${L.adopt ? 'heed' : L.rolled ? 'bad' : ''}"><span class="n">${L.id.slice(1)}</span><div><div class="as">${md(L.text)}</div><div class="do">${stOf(L)}${L.gated ? ` · held-out ${L.before}% → ${L.after}%` : ''}</div></div></li>`).join('') || '<li class="ph">No lessons in this snapshot.</li>',
+      right: story('Before vs after', [ln('dim', f0.sub, `${f0.verified}/${f0.runs.length} verified`), ln('dim', fl.sub, `${fl.verified}/${fl.runs.length} verified`), ...rescues], avoided ? `${avoided} time${avoided > 1 ? 's' : ''} an agent with a lesson in its prompt steered around a known pit.` : '') };
+  }
+  const f = focusAt(t), { r, id, run } = f, lt = t - r.T0;
+  const chips = (r.prompt.length ? r.prompt.map(l => `<span class="chip">${l} in prompt</span>`).join('') : '<span class="chip dim">no lessons yet</span>') + (f.pinned ? '<span class="chip pin">following · click row to release</span>' : '');
+  const base = { icon: id, name: id, sub: `${r.sub} · ${byId[id].co}`, chips };
+  if (!run) return { ...base, left: `<li class="ph">Not sent on ${r.sub}.</li>`, right: story('Not sent', [ln('dim', 'why', 'This agent has no run on this attempt.')]) };
+  const n = run.steps.length, p = t < run.t0 ? -1 : clamp((t - run.t0) / run.dur);
+  const vis = stepsShown(run, p), fell = run.fail && t >= run.arrive, diverged = fell && lt >= P.DIVERGE;
+  const left = run.steps.slice(0, vis).map((st, i) => {
+    const last = i === vis - 1;
+    let cls = st.heed ? 'heed' : ''; if (st.bad && fell) cls = 'bad'; if (last && p < 1 && !st.heed) cls += ' cur';
+    const tag = st.heed ? ` <b class="tag ok">used ${st.heed}</b>` : (st.bad && fell ? ` <b class="tag bad">${diverged ? 'divergence point' : 'fell here'}</b>` : '');
+    const act = last || st.bad || st.heed ? `<div class="do">${md(st.do)}${tag}</div>` : '';
+    return `<li class="${cls}"><span class="n">${st.idx ?? i}</span><div><div class="as">${md(st.a)}</div>${act}</div></li>`;
+  }).join('') || '<li class="ph">Waiting at the nest…</li>';
+  let right;
+  if (run.fail && fell) {
+    const pit = PITS[run.pit], fixed = LESSONS.find(L => L.pit === run.pit && L.adopt && t >= L.g1);
+    const lines = [ln('bad', 'it thought', md(pit.wrong.a), fixed ? ' struck' : '')];
+    let foot = lt < P.VERIFY ? `Fell into pit ${run.pit}. Waiting for the hidden tests.` : `Failed the hidden tests. Finding where its thinking went wrong…`;
+    if (diverged) { lines.push(pit.right ? ln('ok', 'swarm thought', md(pit.right.a)) : ln('dim', 'swarm thought', 'no consensus step recorded')); foot = `Divergence point: step ${run.divStep ?? '?'}${pit.p != null ? ` · SubQ P(root cause) ${Math.round(pit.p * 100)}%` : ''}${pit.kind ? ' · ' + pit.kind : ''}.`; }
+    const L = LESSONS.find(x => x.from === id && x.ri === f.ri);
+    if (L && t >= L.rise) { const [st, cl] = gateStatus(L, t); lines.push(ln('les', `lesson ${L.id}`, `${md(L.text)}<small class="${cl}">${st}</small>`)); }
+    right = story(diverged ? 'What went wrong' : `Fell at step ${run.divStep ?? run.fail}`, lines, foot);
+  } else if (run.avoid.length && t >= run.avoid[0].t - .6) {
+    const av = run.avoid[0], L0 = LESSONS.find(L => L.pit === av.pit) || { id: av.lesson, ri: 0, from: '?', gated: false };
+    right = story('What the lesson changed', [ln('bad', `before · ${R[L0.ri].sub}`, `${md(PITS[av.pit].wrong.a)}<small>${L0.from} failed here</small>`, ''), ln('les', L0.id, `${md(PITS[av.pit].heed)}<small>${L0.gated ? (L0.adopt ? 'kept by the gate' : 'rolled back by the gate') : 'provisional'}</small>`), ln('ok', `now · ${r.sub}`, `${id} passed`)], `${L0.id} was in its prompt and it passed this attempt.`);
+  } else if (!run.fail && lt >= P.VERIFY) {
+    right = story('Verified', [ln('ok', 'last step', md(run.steps[run.steps.length - 1].a))], 'Passed every hidden test.');
+  } else if (r.prompt.length) {
+    right = story('Lessons in its prompt', r.prompt.map(lid => { const L0 = LESSONS.find(x => x.id === lid); return L0 ? ln('les', lid, `${md(L0.text)}<small>learned from ${L0.from} in ${R[L0.ri].sub} · ${L0.gated ? (L0.adopt ? 'kept' : 'rolled back') : 'provisional'}</small>`) : ''; }));
+  } else right = story(`Following ${id}`, [ln('dim', 'lessons', 'None yet. The colony does not know where the pits are.')]);
+  return { ...base, left, right };
+}
+function updateTrace(t) {
+  const tr = traceFor(t), head = tr.name + tr.sub + tr.chips;
+  if (head !== traceCache.head) { traceCache.head = head; $('tName').textContent = tr.name; $('tSub').textContent = tr.sub; $('tChips').innerHTML = tr.chips; }
+  if (tr.icon !== traceCache.icon) {
+    traceCache.icon = tr.icon; const c = $('tIcon').getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, 48, 48);
+    if (tr.icon) { c.scale(2, 2); drawBeetle(c, 12, 12, -Math.PI / 2, byId[tr.icon], { scale: .85 }); }
+  }
+  if (tr.left !== traceCache.left) { traceCache.left = tr.left; const ol = $('tSteps'); ol.innerHTML = tr.left; ol.scrollTop = ol.scrollHeight; }
+  if (tr.right !== traceCache.right) { traceCache.right = tr.right; $('tWhy').innerHTML = tr.right; }
+}
+
+const lessonBody = document.getElementById('lessonBody');
+let lessonKey = '';
+function updateLesson(t) {
+  const L = [...LESSONS].reverse().find(l => t >= l.rise);
+  let key = 'none', html = 'No falls yet.';
+  if (L) {
+    let st, bar = '';
+    if (!L.gated) st = '<span style="color:var(--amber)">provisional · not decided by the held-out gate</span>';
+    else if (t < L.g0) st = '<span style="color:var(--amber)">waiting for the held-out gate</span>';
+    else if (t < L.g1) { const p = clamp((t - L.g0) / P.GATE_DUR); st = `<span style="color:var(--amber)">held-out gate running · ${Math.round(lerp(L.before, L.after, ease(p)))}%</span>`; bar = `<div class="gbar"><span style="width:${(p * 100).toFixed(0)}%"></span></div>`; }
+    else st = L.adopt ? `<span style="color:var(--ok)">adopted · held-out ${L.before}% → ${L.after}%</span>` : `<span style="color:var(--bad)">rolled back · held-out ${L.before}% → ${L.after}%</span>`;
+    key = L.id + st + bar;
+    html = `<div class="id">${L.id} · pit ${L.pit}</div><div class="tx">${esc(L.text)}</div><div class="meta">from ${L.from} · pit ${L.pit} · confidence ${L.conf != null ? L.conf.toFixed(2) : '—'}</div><div class="st">${st}</div>${bar}`;
+  }
+  if (key !== lessonKey) { lessonKey = key; lessonBody.innerHTML = html; lessonBody.className = L ? '' : 'meta'; }
+}
+
+const logEl = document.getElementById('log');
+let logCount = -1;
+function updateLog(t) {
+  const n = EVENTS.filter(e => e.t <= t).length;
+  if (n === logCount) return;
+  logCount = n;
+  logEl.innerHTML = EVENTS.slice(Math.max(0, n - 12), n).reverse().map(e => `<li class="${e.kind}"><time>${fmt(e.t)}</time><span class="dot"></span><span>${e.text}</span></li>`).join('');
+}
+
+const $ = id => document.getElementById(id);
+const PIPE = [
+  ['Decompose', 'core/decompose: split the task into subtasks with pinned interfaces'],
+  ['Hidden tests', 'core/harness/spec_tests.py: Gemini writes hidden tests from the spec alone, never from code'],
+  ['Route by trust', 'core/swarm/router.py: send the top agents by trust'],
+  ['Swarm codes', 'core/swarm/runner.py: each agent in its own sandbox, log_step before every action'],
+  ['Verify', 'core/harness/crosstest.py: hidden tests decide verified or failed'],
+  ['Commit + trust', 'orchestrator + core/changes/trust.py: commit the highest-trust verified run, update every trust score'],
+  ['Find divergence', 'core/paths + SubQ: the step where each failed path left the swarm consensus'],
+  ['Write lesson', 'core/reflect: the reflector writes a lesson for that step, SubQ scores it'],
+  ['Held-out gate', 'eval/heldout_runner.py: keep the lesson only if held-out subtasks improve, else roll back'],
+  ['Next subtask ↻', 'adopted lessons go into the next agents\' prompts'],
+];
+const PIPE_T = [P.TESTS, P.ROUTE, P.WALK, P.VERIFY, P.TRUST, P.DIVERGE, P.REFLECT, P.GATE, P.END];
+function stageAt(t) {
+  if (t < INTRO) return 0;
+  const ri = roundAt(t); if (ri >= R.length) return PIPE.length;
+  const lt = t - R[ri].T0; let st = 1;
+  PIPE_T.forEach((x, i) => { if (lt >= x) st = i + 1; });
+  return st;
+}
+const pipeEls = PIPE.map(([name, tip], i) => {
+  const el = document.createElement('span'); el.className = 'st'; el.title = tip; el.innerHTML = `<i>${i + 1}</i>${name}`;
+  el.onclick = () => { const ri = Math.max(0, roundAt(T)); if (i === 0) seek(0); else if (ri < R.length) seek(R[ri].T0 + PIPE_T[i - 1]); };
+  $('pipe').appendChild(el);
+  if (i < PIPE.length - 1) { const a = document.createElement('span'); a.className = 'ar'; a.textContent = '›'; $('pipe').appendChild(a); }
+  return el;
+});
+let pipeStage = -1;
+function updatePipe(t) {
+  const st = stageAt(t); if (st === pipeStage) return; pipeStage = st;
+  pipeEls.forEach((el, i) => el.className = 'st' + (i < st ? ' done' : i === st ? ' on' : ''));
+  cut.className = 'cut' + (st === 2 ? ' hot' : '');
+}
+const PHASES = [[P.WALK, 'routing', '#7aa7ff'], [P.VERIFY, 'agents working', '#f2b552'], [P.REFLECT, 'hidden tests', '#7fd49a'], [P.GATE, 'reflecting', '#f2b552'], [P.END, 'held-out gate', '#f2b552'], [RD, 'next subtask', '#9a917f']];
+function updateHeader(t) {
+  const ri = roundAt(t);
+  let k = 'Intro', v = INTRO_V, ph = ['decompose', '#f2b552'], ver = '–';
+  if (ri >= R.length) { k = 'Result'; v = 'What the run shows'; ph = ['done', '#7fd49a']; ver = `${R[R.length - 1].verified}/${R[R.length - 1].runs.length}`; }
+  else if (ri >= 0) {
+    const r = R[ri], lt = t - r.T0;
+    k = `Attempt ${ri + 1} of ${R.length}`; v = `${r.sub} · ${r.title}`;
+    ph = [PIPE[stageAt(t)][0].replace(' ↻', '').toLowerCase(), '#f2b552'];
+    ver = lt >= P.VERIFY ? `${r.verified}/${r.runs.length}` : '…';
+  }
+  $('roundK').textContent = k; $('roundV').textContent = v;
+  const pe = $('phase'); if (pe.textContent !== ph[0]) { pe.textContent = ph[0]; pe.style.color = ph[1]; }
+  $('mVer').textContent = ver;
+  const ad = LESSONS.filter(L => L.adopt && t >= L.g1).length, rb = LESSONS.filter(L => L.rolled && t >= L.g1).length, pv = LESSONS.filter(L => !L.gated && t >= L.rise).length;
+  $('mLes').innerHTML = `${ad} <small>adopted</small>${rb ? ` · ${rb} <small>rolled back</small>` : ''}${pv ? ` · ${pv} <small>provisional</small>` : ''}`;
+  const hv = heldAt(t); $('mHeld').textContent = hv == null ? '—' : Math.round(hv) + '%';
+}
+
+// ---------- labels from the data ----------
+const esc2 = x => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const nSubs = new Set(R.map(r => r.sid)).size, nRetry = R.filter(r => r.retry).length;
+const INTRO_V = `${AGENTS.length} agents · ${nSubs} subtasks · ${R.length} attempts`;
+const taskName = META.simulated ? 'offline full-loop run' : ((BUNDLE.summary_files || {}).task_a || {}).task || 'recorded run';
+$('dataTag').innerHTML = META.simulated ? `<span class="sim">simulated agents</span> · ${esc2(META.snapshot)}` : `<span class="real">real agents</span> · ${esc2(META.snapshot)}`;
+$('introH').textContent = META.simulated ? 'Full loop · simulated agents' : 'Recorded run · real agents';
+$('introP').innerHTML = `${esc2(taskName)}: ${nSubs} subtasks replayed as ${R.length} attempts${nRetry ? ` (${nRetry} retr${nRetry > 1 ? 'ies' : 'y'} with lessons injected)` : ''}, ${AGENTS.length} agents: ${AGENTS.map(a => esc2(a.id)).join(', ')}.`;
+{
+  const f0 = R[0], fl = R[R.length - 1], g = LESSONS.filter(L => L.gated && L.before != null);
+  const ad = LESSONS.filter(L => L.adopt).length, rb = LESSONS.filter(L => L.rolled).length, pv = LESSONS.filter(L => !L.gated).length;
+  $('outroH').textContent = `${f0.sub} → ${fl.sub}`;
+  $('outroP').textContent = META.simulated ? 'Simulated agents. The numbers below come from this snapshot.' : 'Real agents. The numbers below come from the recorded run.';
+  const held = g.length ? `${g[0].before}% → <b class="up">${Math.round(heldAt(Infinity))}%</b>` : '—';
+  $('outroGrid').innerHTML = `<span class="h">verified</span><span class="h">attempts</span><span class="h">held-out accuracy</span><span class="h">lessons</span>
+    <span>${f0.verified}/${f0.runs.length} → <b class="up">${fl.verified}/${fl.runs.length}</b></span><span>${R.length}</span><span>${held}</span><span>${ad} adopted · ${rb} rolled back · ${pv} provisional</span>`;
+  const ctx2 = (BUNDLE.changes || []).filter(c => c.kind !== 'routing');
+  if (ctx2.length && !ctx2.some(c => c.status === 'adopted')) {
+    const rolled = ctx2.filter(c => c.status === 'rolled_back').length;
+    $('banner').innerHTML = `<b>This run's held-out gate rolled every lesson back:</b> ${rolled} of ${ctx2.length} lesson changes rolled back. Every lesson shown is provisional, not proven.`;
+  }
+}
+
+// ---------- main loop + controls ----------
+const params = new URLSearchParams(location.search);
+let T = clamp(parseFloat(params.get('t')) || 0, 0, TOTAL), playing = !params.has('paused') && !params.has('t'), speed = 1, stepMode = false, last = performance.now();
 
 function render() {
   const { s, ox, oy, dpr } = view;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); if (bg) ctx.drawImage(bg, 0, 0);
-  if (!V) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (bg) ctx.drawImage(bg, 0, 0); else ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
-  const done = T >= REPLAY * .78;
-  for (const q of V.regs) {
-    ctx.strokeStyle = 'rgba(255,107,94,.55)'; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.arc(q.c.x, q.c.y, q.rad, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-    label('failure region', q.c.x, q.c.y - q.rad - 5, 'rgba(255,107,94,.8)', 'center', 9.5);
+  const ri = roundAt(T);
+  focusId = focusAt(T)?.id ?? null;
+  drawNestFood(T, ri);
+  if (T >= OUTRO_T) { drawPits(T); drawFlags(T); drawOutro(T); R.forEach(r => drawDivergence(r, T, .8, true)); }
+  else {
+    for (let i = 0; i < Math.min(ri, R.length); i++) { drawRound(R[i], T, 1); drawDivergence(R[i], T, .55, true); }
+    drawPits(T); drawFlags(T);
+    if (ri >= 0) { const lt = T - R[ri].T0, al = lt > P.END ? 1 - clamp((lt - P.END) / (RD - P.END)) : 1; drawRound(R[ri], T, al); drawDivergence(R[ri], T, al); }
   }
-  if (V.nest) { ctx.strokeStyle = 'rgba(242,181,82,.45)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(V.nest.x, V.nest.y, 26, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); label('start', V.nest.x, V.nest.y + 40, '#b39a6a'); }
-  if (V.mound && done) {
-    const g = ctx.createRadialGradient(V.mound.x, V.mound.y, 3, V.mound.x, V.mound.y, 46); g.addColorStop(0, 'rgba(127,212,154,.45)'); g.addColorStop(1, 'rgba(127,212,154,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(V.mound.x, V.mound.y, 46, 0, Math.PI * 2); ctx.fill();
-    label(`mound · ${share(V.s.verified, V.s.runs.length)} verified`, V.mound.x, V.mound.y + 58, '#7fd49a');
-  }
-  for (const pt of V.pits) {
-    const g = ctx.createRadialGradient(pt.at.x, pt.at.y, 2, pt.at.x, pt.at.y, 22); g.addColorStop(0, 'rgba(3,2,1,1)'); g.addColorStop(1, 'rgba(8,6,4,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pt.at.x, pt.at.y, 22, 0, Math.PI * 2); ctx.fill();
-  }
-  for (const o of V.runs) {
-    const st = o.r.style, p = progOf(o), pos = posAt(o, p), sel = D.run === o, lenNow = p * (o.cum[o.cum.length - 1] || 0);
-    ctx.globalAlpha = sel ? .9 : .42; ctx.strokeStyle = st.trail; ctx.lineWidth = sel ? 2.4 : 1.5;
-    ctx.beginPath(); ctx.moveTo(o.path[0].x, o.path[0].y);
-    for (let i = 1; i < o.path.length && o.cum[i] <= lenNow; i++) ctx.lineTo(o.path[i].x, o.path[i].y);
-    ctx.lineTo(pos.x, pos.y); ctx.stroke();
-    for (let i = 0; i < o.path.length && o.cum[i] <= lenNow; i++) {
-      const q = o.path[i]; ctx.fillStyle = st.trail; ctx.globalAlpha = q.msg ? .3 : .9;
-      ctx.beginPath(); ctx.arc(q.x, q.y, q.msg ? 1.3 : 2.4, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    const fell = o.r.failed === true && p >= 1, sink = fell ? clamp((T - (o.k * .25 + REPLAY * .72)) / .5) : 0;
-    drawBeetle(ctx, pos.x, pos.y, pos.ang, st, { phase: p < 1 ? T * 10 : fell ? T * 9 : 0, flipped: fell && sink > .5, scale: sel ? 1.7 : 1.35 });
-    if (sel) { ctx.strokeStyle = st.trail; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(pos.x, pos.y, 22, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); label(o.r.agent, pos.x, pos.y + 36, st.trail, 'center', 10); }
-    if (done && o.r.failed != null) {
-      const ok = o.r.failed === false, bx = pos.x + 11, by = pos.y - 15;
-      ctx.fillStyle = ok ? '#7fd49a' : '#ff6b5e'; ctx.beginPath(); ctx.arc(bx, by, 6.5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1.7; ctx.beginPath();
-      if (ok) { ctx.moveTo(bx - 3, by); ctx.lineTo(bx - .8, by + 2.3); ctx.lineTo(bx + 3, by - 2.5); } else { ctx.moveTo(bx - 2.5, by - 2.5); ctx.lineTo(bx + 2.5, by + 2.5); ctx.moveTo(bx + 2.5, by - 2.5); ctx.lineTo(bx - 2.5, by + 2.5); }
-      ctx.stroke();
-    }
-  }
-  // divergence points (red diamonds) once the beetle has passed them; lesson flags after the replay
-  for (const pt of V.pits) {
-    const o = pt.o; if (progOf(o) * (o.cum[o.cum.length - 1] || 0) < o.cum[pt.i] - 1e-6) continue;
-    const { x, y } = pt.at;
-    ctx.fillStyle = '#ff6b5e'; ctx.strokeStyle = '#0e0d0b'; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(x, y - 6.5); ctx.lineTo(x + 6.5, y); ctx.lineTo(x, y + 6.5); ctx.lineTo(x - 6.5, y); ctx.closePath(); ctx.fill(); ctx.stroke();
-    if (!done) continue;
-    const L = pt.lessons[0], col = !L ? '#9a917f' : L.status === 'adopted' ? '#7fd49a' : L.status === 'rolled_back' ? '#ff6b5e' : '#f2b552';
-    ctx.strokeStyle = '#d8d0bf'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x + 8, y - 4); ctx.lineTo(x + 8, y - 30); ctx.stroke();
-    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x + 8, y - 30); ctx.lineTo(x + 24, y - 25); ctx.lineTo(x + 8, y - 20); ctx.fill();
-    const tag = L ? (L.status === 'candidate' ? 'provisional' : String(L.status).replace('_', ' ')) : 'no lesson';
-    label(`step ${pt.d.step_index} · ${tag}`, x + 27, y - 22, col, 'left', 9.5);
-  }
+  $('intro').style.opacity = T < INTRO ? String(1 - clamp((T - INTRO + .8) / .8)) : '0';
+  $('outro').style.opacity = String(ease(clamp((T - OUTRO_T - 1.5) / 1)));
+  updateHeader(T); updatePanel(T); updateLesson(T); updateLog(T); updateTrace(T); updatePipe(T);
+  $('fill').style.width = (T / TOTAL * 100) + '%';
+  $('clock').textContent = `${fmt(T)} / ${fmt(TOTAL)}`;
+  $('play').textContent = playing ? '❚❚ pause' : '▶ play';
+  $('paused').style.opacity = !playing && T > 0 && T < TOTAL ? '1' : '0';
 }
-
-// ---------- loop, controls ----------
 function frame(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
-  if (playing && V) { T += dt * speed; if (T >= REPLAY) { T = REPLAY; playing = false; } }
-  render(); if (V) renderTrace();
-  $('scrub').value = Math.round(T / REPLAY * 1000);
-  $('clock').textContent = V ? `${V.s.label} · ${Math.round(T / REPLAY * 100)}%` : '';
-  $('play').textContent = playing ? '❚❚ pause' : '▶ replay';
-  requestAnimationFrame(frame);
+  if (playing) {
+    const prev = T; T += dt * speed;
+    if (stepMode) { const b = BEATS.find(x => x > prev + 1e-3 && x <= T); if (b !== undefined) { T = b; playing = false; } }
+    if (T >= TOTAL) { T = TOTAL; playing = false; }
+  }
+  render(); requestAnimationFrame(frame);
 }
-$('play').onclick = () => { if (T >= REPLAY) T = 0; playing = !playing; };
-$('prev').onclick = () => selectSub(D.sel - 1);
-$('next').onclick = () => selectSub(D.sel + 1);
-$('scrub').oninput = e => { T = e.target.value / 1000 * REPLAY; playing = false; };
+function seek(t) { T = clamp(t, 0, TOTAL); logCount = -1; }
+
+const tl = $('tl');
+[...R.map(r => [r.sub, r.T0]), ['result', OUTRO_T]].forEach(([n, t]) => {
+  const tk = document.createElement('div'); tk.className = 'tick'; tk.style.left = (t / TOTAL * 100) + '%'; tl.appendChild(tk);
+  const mk = document.createElement('div'); mk.className = 'mk'; mk.textContent = n; mk.style.left = (t / TOTAL * 100) + '%'; tl.appendChild(mk);
+});
+let drag = false;
+const tlSeek = e => { const r = tl.getBoundingClientRect(); seek((e.clientX - r.left) / r.width * TOTAL); };
+tl.addEventListener('pointerdown', e => { drag = true; tl.setPointerCapture(e.pointerId); tlSeek(e); });
+tl.addEventListener('pointermove', e => drag && tlSeek(e));
+tl.addEventListener('pointerup', () => drag = false);
+$('play').onclick = () => { if (T >= TOTAL) seek(0); playing = !playing; };
+$('stepmode').onclick = () => { stepMode = !stepMode; $('stepmode').textContent = 'stop at each step: ' + (stepMode ? 'on' : 'off'); $('stepmode').classList.toggle('on', stepMode); };
 $('speed').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? .5 : 1; $('speed').textContent = speed + '×'; };
 window.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
-  else if (e.key === 'ArrowRight') $('next').click();
-  else if (e.key === 'ArrowLeft') $('prev').click();
-});
-cv.addEventListener('click', e => {
-  if (!V) return;
-  const r = cv.getBoundingClientRect(), wx = (e.clientX - r.left - view.ox) / view.s, wy = (e.clientY - r.top - view.oy) / view.s;
-  let best = null, bd = 30;
-  for (const o of V.runs) { const p = posAt(o, progOf(o)), d = Math.hypot(p.x - wx, p.y - wy); if (d < bd) { bd = d; best = o; } }
-  if (best) { D.run = best; traceKey = ''; }
+  else if (e.key === 'ArrowRight') seek(BEATS.find(b => b > T + .05) ?? TOTAL);
+  else if (e.key === 'ArrowLeft') seek([...BEATS].reverse().find(b => b < T - .3) ?? 0);
+  else if (e.key >= '1' && e.key <= '9' && R[+e.key - 1]) seek(R[+e.key - 1].T0);
+  else if (e.key === 's' || e.key === 'S') $('stepmode').click();
+  else if (e.key === 'r' || e.key === 'R') { seek(0); playing = true; }
+  else if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
 });
 
-const q = new URLSearchParams(location.search);
-resize(); requestAnimationFrame(frame);
-let mode = q.get('snap') === 'real' ? 'real' : 'fake';
-function load(m) {
-  mode = m; document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.snap === m));
-  wrap.querySelector('.err')?.remove();
-  return api('/api/bundle?snap=' + m).then(B => {
-    if (B.error) throw new Error(B.error);
-    build(B); if (q.has('sub')) selectSub(+q.get('sub')); if (q.has('t')) { T = clamp(+q.get('t')) * REPLAY; playing = false; }
-  }).catch(err => { wrap.insertAdjacentHTML('beforeend', `<div class="err">Could not load run data: ${esc(err.message)}<br><br>Serve it with:<br>USE_MEMORY_STORE=1 uvicorn ui.server:app --port 8787<br>then open http://127.0.0.1:8787/colony</div>`); });
-}
-document.querySelectorAll('.modes button').forEach(b => b.onclick = () => { if (b.dataset.snap !== mode) load(b.dataset.snap); });
-load(mode); renderHero();
+resize();
+requestAnimationFrame(frame);
+})();
 </script>
 </body>
 </html>
