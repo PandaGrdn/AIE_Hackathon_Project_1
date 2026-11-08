@@ -38,6 +38,8 @@
   .hud-stats div { display: flex; flex-direction: column; } .hud-stats b { font-size: 20px; font-weight: 600; } .hud-stats span { color: var(--mute); }
   .hud-lesson { border-left: 3px solid var(--sage); padding: 4px 10px; color: var(--ink); min-height: 2.6em; }
   .hud-lesson small { display: block; color: var(--mute); }
+  .hud-gate { color: var(--mute); font-size: 12px; border-left: 3px solid var(--bark); padding: 2px 10px; } .hud-gate:empty { display: none; }
+  .sim-tag { color: var(--salt); background: var(--bark); padding: 1px 6px; margin-left: 8px; font-size: 11px; }
   .hud-log { list-style: none; margin: 0; padding: 0; color: var(--mute); display: flex; flex-direction: column; gap: 3px; max-height: 9.5em; overflow: hidden; }
   .hud-log li b { color: var(--ink); font-weight: 600; }
   #upload { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; background: rgba(34,35,26,.78); }
@@ -82,13 +84,14 @@
   <canvas id="labels" aria-hidden="true"></canvas>
   <button id="recenter" hidden>re-centre on the swarm</button>
   <aside id="hud" hidden>
-    <div class="hud-row"><span id="hud-round">Subtask 1 of 4</span><span class="pill" id="hud-phase">ready</span></div>
+    <div class="hud-row"><span id="hud-round">—</span><span class="pill" id="hud-phase">ready</span></div>
     <div class="hud-stats">
       <div><b id="st-verified">0</b><span>verified</span></div>
       <div><b id="st-falls">0</b><span>fell into a pit</span></div>
       <div><b id="st-steered">0</b><span>steered around one</span></div>
-      <div><b id="st-heldout">50%</b><span>held-out pass rate</span></div>
+      <div><b id="st-heldout">—</b><span>held-out pass rate (first → last)</span></div>
     </div>
+    <div class="hud-gate" id="hud-gate"></div>
     <div class="hud-lesson" id="hud-lesson">No falls yet.</div>
     <ul class="hud-log" id="hud-log"></ul>
   </aside>
@@ -444,7 +447,18 @@ function drawBeetle(ctx, b, t, flipped) {
 
 // ---------- simulation ----------
 const now = () => performance.now() / 1000;
-const HELDOUT = [50, 64, 71, 79, 83, 86, 88];  // hardcoded held-out pass rate per completed subtask; tie to the gate later
+const pctOf = (x) => (x == null ? "—" : `${(100 * x).toFixed(1)}%`);
+const share = (n, d) => `${n}/${d}${d ? ` (${Math.round((100 * n) / d)}%)` : ""}`;
+function heldoutText() { const s = world.data.summary || {}; return `${pctOf(s.heldout_accuracy_first)} → ${pctOf(s.heldout_accuracy_last)}`; }
+function gateNote() {
+  const s = world.data.summary || {}, ctx = (world.data.changes || []).filter((c) => c.kind !== "routing");
+  if (!ctx.length) return "Gate: no lesson reached the held-out gate on this run.";
+  const allBack = ctx.every((c) => c.status === "rolled_back") && !s.lessons_adopted;
+  const b = ctx.map((c) => (c.heldout_before || {}).accuracy).filter((x) => x != null), a = ctx.map((c) => (c.heldout_after || {}).accuracy).filter((x) => x != null);
+  const span = b.length && a.length ? ` (held-out ${Math.min(...b).toFixed(1)} → ${Math.max(...a).toFixed(1)})` : "";
+  return allBack ? `Gate: every lesson rolled back on this run${span}. Lessons shown are provisional.` : `Gate: ${ctx.filter((c) => c.status === "adopted").length}/${ctx.length} lesson changes adopted${span}.`;
+}
+const lessonTag = (L) => (L.status === "candidate" ? "provisional" : L.status === "rolled_back" ? "rolled back" : L.status || "");
 const sim = { active: false, stage: 0, phase: "ready", phaseT: 0, verified: 0, falls: 0, steered: 0, log: [], lesson: null };
 function logLine(html) { sim.log.unshift(html); sim.log = sim.log.slice(0, 7); $("hud-log").innerHTML = sim.log.map((l) => `<li>${l}</li>`).join(""); }
 function setPhase(ph) {
@@ -454,12 +468,12 @@ function setPhase(ph) {
 }
 function hudStats() {
   $("st-verified").textContent = sim.verified; $("st-falls").textContent = sim.falls; $("st-steered").textContent = sim.steered;
-  $("st-heldout").textContent = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage)] + "%";
+  $("st-heldout").textContent = heldoutText();
 }
 function startSim() {
   sim.active = true; sim.stage = 0; sim.verified = 0; sim.falls = 0; sim.steered = 0; sim.log = []; sim.lesson = null; sim.fallsThisStage = 0;
   world.beetles = []; world.corpses = []; world.knownPits = []; clearTracks();
-  $("hud").hidden = false; $("hud-log").innerHTML = ""; $("hud-lesson").textContent = "No falls yet."; hudStats();
+  $("hud").hidden = false; $("hud-log").innerHTML = ""; $("hud-lesson").textContent = "No falls yet."; $("hud-gate").textContent = gateNote(); hudStats();
   setPhase("decompose"); logLine(`task received: <b>${esc($("up-task").value)}</b>`);
 }
 const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -470,7 +484,7 @@ function simTick(dt) {
   const runsHere = sub ? [...world.byRun.keys()].filter((rid) => world.byRun.get(rid)[0].subtask_id === sub) : [];
   switch (sim.phase) {
     case "decompose": if (sim.phaseT > 2.2) { logLine(`decomposed into <b>${world.subtaskOrder.length} subtasks</b>`); setPhase("hidden tests"); } break;
-    case "hidden tests": if (sim.phaseT > 2) { logLine(`verifier wrote hidden tests for subtask ${sim.stage + 1} from the spec alone`); world.beetles = makeBeetles((r) => r.steps[0].subtask_id === sub); setPhase("swarm"); logLine(`<b>${world.beetles.length} agents</b> deployed`); } break;
+    case "hidden tests": if (sim.phaseT > 2) { logLine(`Gemini wrote hidden tests for subtask ${sim.stage + 1} from the spec alone`); world.beetles = makeBeetles((r) => r.steps[0].subtask_id === sub); setPhase("swarm"); logLine(`<b>${world.beetles.length} agents</b> deployed`); } break;
     case "swarm":
       if (world.beetles.length && world.beetles.every((b) => b.done || (b.flipped && now() - b.flippedAt > 2.5))) setPhase("verdict");
       break;
@@ -479,19 +493,19 @@ function simTick(dt) {
         sim.counted = true;
         const failed = runsHere.filter((rid) => world.byRun.get(rid)[0].failed === true || world.roots[rid]);
         sim.verified += runsHere.length - failed.length; hudStats();
-        logLine(`hidden tests: <b>${runsHere.length - failed.length} verified</b>, ${failed.length} failed`);
+        logLine(`hidden tests: <b>${share(runsHere.length - failed.length, runsHere.length)} verified</b>, ${share(failed.length, runsHere.length)} failed`);
       }
       if (sim.phaseT > 2.2) { sim.counted = false; setPhase((sim.fallsThisStage || 0) > 0 ? "reflect" : "gate"); sim.fallsThisStage = 0; }
       break;
     case "reflect":
       if (sim.phaseT > 0.1 && !sim.counted) {
         sim.counted = true;
-        const L = (world.data.lessons || []).find((l) => (l.created_from || {}).subtask_id === sub) || (world.data.lessons || [])[0];
+        const L = (world.data.lessons || []).find((l) => (l.created_from || {}).subtask_id === sub);
         const dv = Object.values(world.roots).find((d) => runsHere.includes(d.run_id));
         const where = dv && world.byRun.get(dv.run_id).find((st) => st.step_index === dv.step_index);
         if (where) world.knownPits.push({ x: where.x, y: where.y, rad: 7, lesson: `L${world.knownPits.length + 1}` });
         sim.lesson = L; const tag = `L${world.knownPits.length}`;
-        $("hud-lesson").innerHTML = L ? `<b>${tag}</b> ${esc(L.text)}<small>from ${esc(dv ? dv.agent_id || "" : "")} at step S${dv ? dv.step_index : "?"}${dv && dv.step_probabilities ? `, SubQ P ${(100 * (dv.step_probabilities["S" + dv.step_index] || 0)).toFixed(2)}%` : ""}, confidence ${Math.round(100 * (L.confidence || 0))}%</small>` : "reflector found no lesson";
+        $("hud-lesson").innerHTML = L ? `<b>${tag}</b> <i>${esc(lessonTag(L))}</i> ${esc(L.text)}<small>from ${esc(dv ? dv.agent_id || "" : "")} at step S${dv ? dv.step_index : "?"}${dv && dv.step_probabilities ? `, SubQ P(root cause) ${(100 * (dv.step_probabilities["S" + dv.step_index] || 0)).toFixed(1)}%` : ""}, confidence ${Math.round(100 * (L.confidence || 0))}%</small>` : "no lesson was recorded for this subtask";
         logLine(`flag planted: <b>${tag}</b> at the step SubQ blamed`);
       }
       if (sim.phaseT > 3) { sim.counted = false; setPhase("gate"); }
@@ -499,10 +513,13 @@ function simTick(dt) {
     case "gate":
       if (sim.phaseT > 0.1 && !sim.counted) {
         sim.counted = true;
-        const before = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage)], after = HELDOUT[Math.min(HELDOUT.length - 1, sim.stage + 1)];
-        logLine(after > before ? `gate: <b>adopted</b>, held-out ${before}% to ${after}%` : `gate: <b>rolled back</b>, no held-out improvement`);
+        const lids = new Set((world.data.lessons || []).filter((l) => (l.created_from || {}).subtask_id === sub).map((l) => l.id));
+        const chs = (world.data.changes || []).filter((c) => c.kind !== "routing" && lids.has(c.ref_id));
+        if (!chs.length) logLine(`gate: no lesson change for this subtask`);
+        for (const c of chs) { const b = (c.heldout_before || {}).accuracy, a = (c.heldout_after || {}).accuracy;
+          logLine(`gate: <b>${esc(String(c.status).replace("_", " "))}</b>${b != null && a != null ? `, held-out ${b.toFixed(1)} → ${a.toFixed(1)}` : ""}`); }
       }
-      if (sim.phaseT > 2.2) { sim.counted = false; sim.stage++; hudStats(); if (sim.stage >= world.subtaskOrder.length) { setPhase("done"); logLine(`<b>all subtasks completed</b>, hidden tests green`); sim.active = false; } else setPhase("hidden tests"); }
+      if (sim.phaseT > 2.2) { sim.counted = false; sim.stage++; hudStats(); if (sim.stage >= world.subtaskOrder.length) { setPhase("done"); logLine(`<b>replay finished</b>: ${sim.verified} runs verified, ${sim.falls} falls`); sim.active = false; } else setPhase("hidden tests"); }
       break;
   }
 }
@@ -525,7 +542,7 @@ function stepSim(dt, t) {
     if (!b.lastStamp || Math.hypot(b.x - b.lastStamp[0], b.y - b.lastStamp[1]) > 0.3) { stampTrack(b.x, b.y, b.color, b.heading); b.lastStamp = [b.x, b.y]; }
     if (b.t >= 1) {
       if (z.root) { b.flipped = true; b.flippedAt = now(); world.corpses.push({ x: z.x, y: z.y, color: b.color, skin: b.skin, agent: b.agent, heading: b.heading, label: rootLabel(z.root), at: now() });
-        if (sim.active) { sim.falls++; sim.fallsThisStage = (sim.fallsThisStage || 0) + 1; hudStats(); logLine(`<b>${esc(b.agent)}</b> fell at S${z.root.step_index}`); $("hud-lesson").innerHTML = `<b>${esc(b.agent)}</b> fell at step S${z.root.step_index}<small>SubQ ${rootLabel(z.root).trim()}. Reflecting after the verdict.</small>`; } }
+        if (sim.active) { sim.falls++; sim.fallsThisStage = (sim.fallsThisStage || 0) + 1; hudStats(); logLine(`<b>${esc(b.agent)}</b> fell at S${z.root.step_index}`); $("hud-lesson").innerHTML = `<b>${esc(b.agent)}</b> fell at step S${z.root.step_index}<small>${rootLabel(z.root).trim()}. Reflecting after the verdict.</small>`; } }
       else {
         if (z.steer && !b.steered) { b.steered = true; b.steerLabel = z.steer; b.steerUntil = t + 2.5; if (sim.active) { sim.steered++; hudStats(); logLine(`<b>${esc(b.agent)}</b> steered around the pit with ${z.steer}`); } }
         b.i++; b.t = 0;
@@ -535,7 +552,7 @@ function stepSim(dt, t) {
   if (mode === "live") simTick(dt);
   else if (world.beetles.length && world.beetles.every((b) => (b.done && now() - b.doneAt > 5) || (b.flipped && now() - b.flippedAt > 5))) { world.cycle++; world.beetles = makeBeetles(); world.corpses = []; }
 }
-function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  P ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
+function rootLabel(dv) { const p = (dv.step_probabilities || {})["S" + dv.step_index]; return `S${dv.step_index}${p != null ? `  SubQ P(root cause) ${(100 * p).toFixed(p > 0.995 ? 2 : 0)}%` : "  path signal"}`; }
 
 // ---------- compose: the ground goes through the halftone, beetles sit on a pixel layer above ----------
 const scene = $("scene"), sctx = scene.getContext("2d"), dots = $("dots"), sprites = $("sprites"), pctx = sprites.getContext("2d"), labels = $("labels"), lctx = labels.getContext("2d");
@@ -655,15 +672,17 @@ $("up-cancel").onclick = () => setMode("recorded");
 let lastStepCount = -1;
 async function load() {
   try {
-    const [steps, divs, regions, trust, lessons] = await Promise.all(["/api/steps", "/api/divergences", "/api/regions", "/api/trust", "/api/lessons"].map(getJSON));
-    world.data = { steps, divs, regions, trust, lessons };
+    const [steps, divs, regions, trust, lessons, changes, summary] = await Promise.all(["/api/steps", "/api/divergences", "/api/regions", "/api/trust", "/api/lessons", "/api/changes", "/api/summary"].map(getJSON));
+    let meta = null; try { meta = await getJSON("/api/meta"); } catch (_) { meta = null; }
+    world.data = { steps, divs, regions, trust, lessons, changes, summary, meta };
     if (!layout()) { $("caption").textContent = "no reasoning steps with embeddings yet"; return; }
     world.beetles = makeBeetles(); world.corpses = []; clearTracks();
     const doomed = world.beetles.find((b) => b.wps.some((w) => w.root)); if (doomed) world.follow = doomed.agent;
     cam.tx = world.beetles.reduce((s, b) => s + b.wps[1].x, 0) / world.beetles.length; cam.ty = world.beetles.reduce((s, b) => s + b.wps[1].y, 0) / world.beetles.length;
     if (reduced) world.beetles.forEach((b) => { const l = b.wps[b.wps.length - 2]; b.x = l.x; b.y = l.y; b.wps.forEach((w, i) => { if (i) stampTrack(w.x, w.y, b.color, Math.atan2(w.y - b.wps[i - 1].y, w.x - b.wps[i - 1].x)); }); });
     const flipped = Object.keys(world.roots).filter((rid) => [...world.byAgent.values()].some((rs) => rs.some((r) => r.rid === rid))).length;
-    $("caption").textContent = `${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${flipped} flipped`;
+    const prov = lessons.filter((l) => l.status === "candidate").length;
+    $("caption").innerHTML = esc(`${world.runCount} runs across ${world.subtasks} subtasks, ${world.beetles.length} beetles, ${share(flipped, world.runCount)} runs flipped at a SubQ-located step · ${lessons.length} lessons (${prov} provisional) · ${gateNote()}`) + (meta && meta.simulated ? '<span class="sim-tag">simulated agents</span>' : "");
     renderLegend();
   } catch (e) { $("caption").textContent = `could not load the swarm: ${e.message}`; }
 }
