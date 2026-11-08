@@ -1,0 +1,165 @@
+{
+ "label": "real agents on the MCP Python SDK at 77001c9",
+ "counts": {
+  "agent_runs": 62,
+  "verified_runs": 12,
+  "failed_runs": 33,
+  "lessons": 18,
+  "lessons_adopted": 0,
+  "lessons_rolled_back": 4,
+  "subq_root_causes": 18,
+  "subq_confirmed_p_ge_0_7": 3,
+  "regression_tests_per_verified_commit": 2389,
+  "models": [
+   "claude-sonnet-5-5",
+   "gemini-3.5-flash-lite",
+   "gemini-3.8-flash",
+   "muse-spark-1.3"
+  ]
+ },
+ "top_root_causes": [
+  {
+   "run_id": "16b3ed1b526e",
+   "agent_id": "meta-spark-t5",
+   "step_index": 0,
+   "p": 0.83,
+   "kind": "bug",
+   "kind_confidence": 0.9672216176986694,
+   "generalizes": 0.4381500482559204,
+   "step_text": "assumption: read_file truncates; need full content via test output | action: Dump source files via pytest output | touches: -",
+   "breaking_case": "test_limit_enforcer.py::test_enforcer_explicit_now_bypasses_clock"
+  },
+  {
+   "run_id": "beea2a4f56f6",
+   "agent_id": "gemini-t2",
+   "step_index": 0,
+   "p": 0.82,
+   "kind": "bug",
+   "kind_confidence": 0.9051820337772369,
+   "generalizes": 0.29033634066581726,
+   "step_text": "assumption: Some spec tests might already fail or need implementation | action: Run spec tests to inspect initial baseline | touches: -",
+   "breaking_case": "test_session_limits.py::test_forget_scope_unknown_key_is_noop"
+  },
+  {
+   "run_id": "c20b96505c9d",
+   "agent_id": "claude-t2",
+   "step_index": 3,
+   "p": 0.76,
+   "kind": "bug",
+   "kind_confidence": 0.8945897221565247,
+   "generalizes": 0.22980163991451263,
+   "step_text": "assumption: Connection has exit_stack (AsyncExitStack) and state dict; session._connection exists | action: Register forget_scope callback on connection exit_stack in ToolManager.call_tool | touches: src/mcp/server/mcpserver/tools/tool_mana",
+   "breaking_case": "test_limits_s5_session_scope.py::test_budget_dropped_when_the_client_disconnects[asyncio]"
+  },
+  {
+   "run_id": "b1fc52b87e7f",
+   "agent_id": "meta-spark-t5",
+   "step_index": 1,
+   "p": 0.69,
+   "kind": "bug",
+   "kind_confidence": 0.9679223895072937,
+   "generalizes": 0.6480299234390259,
+   "step_text": "assumption: read_file output elided; need to inspect via runtime introspection | action: Probe Connection and MCPServer internals via test script | touches: tests/test_session_scope.py",
+   "breaking_case": "test_session_limits.py::test_forget_scope_unknown_key_is_noop"
+  },
+  {
+   "run_id": "d1eb69a01ef5",
+   "agent_id": "gemini-lite-t9-alt",
+   "step_index": 6,
+   "p": 0.63,
+   "kind": "bug",
+   "kind_confidence": 0.9785554707050323,
+   "generalizes": 0.14182040095329285,
+   "step_text": "assumption: All requirements are met and tests will pass. | action: Run spec tests for Enforcement on call | touches: tests/test_enforcement_on_call.py",
+   "breaking_case": "test_tool_limits.py::test_rate_limit_denial_raises_tool_error_with_exact_retry_after"
+  },
+  {
+   "run_id": "1df8c45f078a",
+   "agent_id": "meta-spark-t5",
+   "step_index": 0,
+   "p": 0.63,
+   "kind": "bug",
+   "kind_confidence": 0.9631772935390472,
+   "generalizes": 0.27163246273994446,
+   "step_text": "assumption: limits.py contains LimitPolicy/State/Decision needing inspection | action: Inspect limits module via test output | touches: tests/test_inspect_tmp.py",
+   "breaking_case": "test_limit_enforcer.py::test_enforcer_explicit_now_bypasses_clock"
+  }
+ ],
+ "rescues": [
+  {
+   "phase": "task_b_baseline",
+   "subtask": "Tool deprecation flags and call warnings",
+   "first": "0/4",
+   "after_retry": "2/4",
+   "lessons_injected": 4
+  }
+ ],
+ "per_phase": {
+  "task_a": {
+   "subtasks_done": 2,
+   "per_subtask": [
+    {
+     "title": "Enforcement on call",
+     "verified": 1,
+     "failed": 3,
+     "committed": true,
+     "lessons": 3
+    },
+    {
+     "title": "Client-visible limit metadata and context helpers",
+     "verified": 4,
+     "failed": 0,
+     "committed": true,
+     "lessons": 0
+    },
+    {
+     "title": "Session scope",
+     "verified": 0,
+     "failed": 4,
+     "committed": false,
+     "lessons": 8,
+     "first_attempt": {
+      "verified": 0,
+      "failed": 4
+     }
+    }
+   ],
+   "wall_s": 2013.4
+  },
+  "task_b_baseline": {
+   "subtasks_done": 2,
+   "per_subtask": [
+    {
+     "title": "Per-tool call timeout",
+     "verified": 1,
+     "failed": 3,
+     "committed": true,
+     "lessons": 3
+    },
+    {
+     "title": "Tool deprecation flags and call warnings",
+     "verified": 2,
+     "failed": 2,
+     "committed": true,
+     "lessons": 6,
+     "first_attempt": {
+      "verified": 0,
+      "failed": 4
+     }
+    },
+    {
+     "title": "Resource size cap",
+     "verified": 0,
+     "failed": 4,
+     "committed": false,
+     "lessons": 7,
+     "first_attempt": {
+      "verified": 0,
+      "failed": 4
+     }
+    }
+   ],
+   "wall_s": 1268.9
+  }
+ }
+}
