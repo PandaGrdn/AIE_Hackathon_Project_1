@@ -11,7 +11,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
-.app{display:grid;grid-template-rows:auto auto auto 1fr auto;grid-template-columns:minmax(0,1fr) 384px;height:100vh}
+.app{display:grid;grid-template-rows:auto auto auto auto 1fr auto;grid-template-columns:minmax(0,1fr) 384px;height:100vh}
 header{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:12px 22px;border-bottom:1px solid var(--line);min-width:0}
 .brand{display:flex;flex-direction:column;min-width:140px}
 .brand b{letter-spacing:.32em;font-size:13px}
@@ -25,10 +25,35 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:12px 22
 .metric .k{color:var(--mute);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
 .metric .v{font:600 20px/1.15 var(--mono)}
 .metric .v small{font-size:11.5px;color:var(--mute);font-weight:500}
-.banner{grid-column:1/-1;padding:8px 22px;background:#2a1512;border-bottom:1px solid #4a2420;color:#ffc9c2;font-size:13px}
+.modes{display:flex;gap:6px}
+.modes button{font-size:11.5px;padding:6px 11px}
+.modes button.on{border-color:var(--amber);color:var(--amber);background:#241e12}
+.strip{grid-row:2;grid-column:1/-1;display:flex;gap:34px;align-items:flex-end;padding:12px 22px 14px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.strip .n{display:flex;flex-direction:column;min-width:0}
+.strip .n b{font:700 38px/1 var(--mono);letter-spacing:-.02em;white-space:nowrap}
+.strip .n b small{font-size:18px;color:var(--mute);font-weight:600}
+.strip .n span{margin-top:5px;font-size:12px;color:var(--mute);white-space:nowrap}
+.strip .n.ok b{color:var(--ok)}.strip .n.bad b{color:var(--bad)}
+.hero{border:1px solid #3a4a3e;background:linear-gradient(180deg,#17211b,#15130f);border-radius:12px;padding:12px 14px}
+.hero h3{margin:0 0 2px;font-size:14px}
+.hero .lbl{font:10.5px var(--mono);color:var(--ok);margin-bottom:8px}
+.rescue{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 0;border-top:1px solid #26302a}
+.rescue .t{font-size:12.5px;font-weight:600}
+.rescue .s{font:11px var(--mono);color:var(--mute);grid-column:1}
+.rescue .f{grid-row:1/3;grid-column:2;align-self:center;font:700 18px var(--mono);white-space:nowrap}
+.rescue .f .a{color:var(--bad)}.rescue .f .b{color:var(--ok)}
+.rc{padding:8px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;background:var(--panel2)}
+.rc:hover{border-color:#4a4334}
+.rc .top{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--mute)}
+.rc .top .p{font:700 15px var(--mono);color:var(--bad)}
+.rc .pb{height:5px;background:#2a261e;border-radius:3px;overflow:hidden;margin:5px 0}
+.rc .pb i{display:block;height:100%;background:var(--bad)}
+.rc .tx{font-size:12.5px;line-height:1.35}
+.chg.rb .d{color:#ffb7ae}.chg.route{opacity:.6}
+.banner{grid-row:3;grid-column:1/-1;padding:8px 22px;background:#2a1512;border-bottom:1px solid #4a2420;color:#ffc9c2;font-size:13px}
 .banner b{color:var(--bad)}
 .banner:empty{display:none}
-.subs{grid-column:1/-1;display:flex;gap:6px;padding:8px 18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;background:var(--panel)}
+.subs{grid-row:4;grid-column:1/-1;display:flex;gap:6px;padding:8px 18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;background:var(--panel)}
 .sub{flex:none;display:flex;flex-direction:column;gap:2px;padding:6px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;min-width:150px;max-width:250px}
 .sub:hover{border-color:#4a4334}
 .sub.on{border-color:var(--amber);background:#241e12}
@@ -37,7 +62,7 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:12px 22
 .sub .c .ok{color:var(--ok)}.sub .c .bad{color:var(--bad)}
 .sub .bar{display:flex;height:4px;border-radius:3px;overflow:hidden;background:#2a261e;margin-top:2px}
 .sub .bar i{display:block;height:100%}
-.stage{grid-row:4;grid-column:1;display:grid;grid-template-rows:minmax(0,1fr) 268px;min-height:0;min-width:0}
+.stage{grid-row:5;grid-column:1;display:grid;grid-template-rows:minmax(0,1fr) 268px;min-height:0;min-width:0}
 .mapwrap{position:relative;min-height:0}
 canvas#map{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
 .legend{position:absolute;left:14px;bottom:10px;font:11px var(--mono);color:var(--mute);display:flex;gap:14px;flex-wrap:wrap;pointer-events:none}
@@ -79,7 +104,7 @@ ol#steps{list-style:none;margin:0;padding:0;overflow:auto;min-height:0;scrollbar
 .lesson.adopted{border-color:var(--ok);background:rgba(127,212,154,.07)}
 .lesson .m{font:10.5px var(--mono);color:var(--mute);margin-top:3px}
 .empty{color:var(--mute);font-size:13px}
-aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:hidden;grid-row:4;grid-column:2}
+aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto;scrollbar-width:thin;grid-row:5;grid-column:2}
 .sec{padding:12px 16px;border-bottom:1px solid var(--line)}
 .sec h2{margin:0 0 2px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600}
 .sec .sub2{color:var(--dim);font:11px var(--mono);margin-bottom:8px}
@@ -94,7 +119,7 @@ aside{border-left:1px solid var(--line);background:var(--panel);display:flex;fle
 .chg .d{margin-top:3px;color:#d6cfbf;word-break:break-word}
 .chg .r{font:10.5px var(--mono);color:var(--dim);margin-top:2px}
 .st-ok{color:var(--ok)}.st-bad{color:var(--bad)}.st-amb{color:var(--amber)}
-footer{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:9px 18px;border-top:1px solid var(--line)}
+footer{grid-row:6;grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:9px 18px;border-top:1px solid var(--line)}
 button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:600 12px var(--mono);cursor:pointer}
 button:hover{border-color:#4a4334}
 input[type=range]{flex:1;accent-color:#ece6d8}
@@ -104,7 +129,7 @@ code{font-family:var(--mono);font-size:.92em;color:#f0d9a8}
 @media (max-width:980px){
   .app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto auto;height:auto}
   .stage{grid-template-rows:52vh auto}.trace{grid-template-columns:1fr}.why{border-left:0;border-top:1px solid var(--line)}
-  .stage{grid-row:auto;grid-column:auto}aside{grid-row:auto;grid-column:auto;border-left:0;border-top:1px solid var(--line)}.keys{display:none}
+  .strip,.banner,.subs,footer{grid-row:auto}.stage{grid-row:auto;grid-column:auto}aside{grid-row:auto;grid-column:auto;border-left:0;border-top:1px solid var(--line)}.keys{display:none}
 }
 </style>
 </head>
@@ -113,11 +138,9 @@ code{font-family:var(--mono);font-size:.92em;color:#f0d9a8}
   <header>
     <div class="brand"><b>COLONY</b><span>recorded swarm runs, replayed</span></div>
     <div class="task"><div class="k" id="taskK">loading…</div><div class="v"><span id="taskV"></span><span id="simTag"></span></div></div>
-    <div class="metric"><div class="k">Runs verified</div><div class="v" id="mVer">–</div></div>
-    <div class="metric"><div class="k">Lessons</div><div class="v" id="mLes">–</div></div>
-    <div class="metric"><div class="k">Changes</div><div class="v" id="mChg">–</div></div>
-    <div class="metric"><div class="k">Held-out accuracy</div><div class="v" id="mHeld">–</div></div>
+    <div class="modes"><button data-snap="fake">Full loop · simulated agents</button><button data-snap="real">Real agents · recorded run</button></div>
   </header>
+  <div class="strip" id="strip"></div>
   <div class="banner" id="banner"></div>
   <nav class="subs" id="subs"></nav>
 
@@ -137,14 +160,20 @@ code{font-family:var(--mono);font-size:.92em;color:#f0d9a8}
   </div>
 
   <aside>
+    <div class="sec"><div class="hero" id="hero"><div class="empty">loading…</div></div></div>
+    <div class="sec">
+      <h2>Root causes</h2>
+      <div class="sub2">divergence points, highest SubQ P(root cause) first · click to open</div>
+      <div id="rcs"></div>
+    </div>
     <div class="sec">
       <h2>Trust</h2>
       <div class="sub2">trust = (verified + 1) / (verified + failed + 2)</div>
       <div id="trust"></div>
     </div>
-    <div class="sec log">
+    <div class="sec">
       <h2>Changelog</h2>
-      <div class="sub2">every proposed change and the gate's decision</div>
+      <div class="sub2">The gate keeps only what proves itself on held-out work.</div>
       <div id="changes"></div>
     </div>
   </aside>
@@ -253,7 +282,10 @@ function subtaskTitle(id, sfile) {
   return null;
 }
 
-function build([steps, divs, lessons, changes, trust, regions, summary, sfile, meta]) {
+function build(B) {
+  const { steps, divergences: divs, lessons, changes, trust, regions, summary, meta } = B;
+  const sfile = meta.simulated ? {} : ((B.summary_files || {}).task_a || {});
+  D.runs = {}; D.divByRun = {}; D.lessonsByRun = {}; D.bundle = B; D.run = null; V = null;
   const dims = {}; steps.forEach(s => { if (Array.isArray(s.embedding) && s.embedding.length) dims[s.embedding.length] = (dims[s.embedding.length] || 0) + 1; });
   const dim = +Object.keys(dims).sort((a, b) => dims[b] - dims[a])[0] || 0;
   const withE = steps.filter(s => Array.isArray(s.embedding) && s.embedding.length === dim);
@@ -285,7 +317,8 @@ function build([steps, divs, lessons, changes, trust, regions, summary, sfile, m
     verified: runs.filter(r => r.failed === false).length, failed: runs.filter(r => r.failed === true).length,
   })).sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
   let n = 0; D.subs.forEach(s => { s.label = s.heldout ? 'held-out' : `subtask ${++n}`; });
-  renderHeader(summary, sfile, meta, changes, lessons);
+  renderHeader(summary, sfile, meta, changes, lessons, B);
+  renderRoots(divs);
   renderTrust(trust);
   renderChanges(changes);
   renderSubs();
@@ -294,23 +327,74 @@ function build([steps, divs, lessons, changes, trust, regions, summary, sfile, m
 }
 
 // ---------- header, banner, sidebar ----------
-function renderHeader(summary, sfile, meta, changes, lessons) {
-  $('taskK').textContent = sfile.label || 'recorded run';
-  $('taskV').textContent = sfile.task || meta.snapshot || '';
-  $('simTag').innerHTML = meta.simulated ? '<span class="tag sim">simulated agents</span>' : (meta.snapshot ? `<span class="tag real">real agents · ${esc(meta.snapshot)}</span>` : '');
-  const runs = Object.values(D.runs), v = runs.filter(r => r.failed === false).length, f = runs.filter(r => r.failed === true).length;
-  $('mVer').innerHTML = `${share(v, v + f)}<small> judged</small>`;
-  const st = s => lessons.filter(l => l.status === s).length;
-  $('mLes').innerHTML = `${lessons.length} <small>${st('adopted')} adopted · ${st('candidate')} provisional · ${st('rolled_back')} rolled back</small>`;
-  $('mChg').innerHTML = `${summary.changes_adopted ?? '–'} <small>adopted ·</small> ${summary.changes_rolled_back ?? '–'} <small>rolled back</small>`;
-  $('mHeld').innerHTML = `${pct(summary.heldout_accuracy_first)} <small>→</small> ${pct(summary.heldout_accuracy_last)}`;
+function renderHeader(summary, sfile, meta, changes, lessons, B) {
+  $('taskK').textContent = meta.simulated ? 'full loop · offline fake swarm' : (sfile.label || 'recorded run');
+  $('taskV').textContent = meta.simulated ? (meta.snapshot || '') : (sfile.task || meta.snapshot || '');
+  $('simTag').innerHTML = meta.simulated ? '<span class="tag sim">simulated agents</span>' : `<span class="tag real">real agents · ${esc(meta.snapshot || '')}</span>`;
+  const runs = B.runs || [], main = D.subs.filter(s => !s.heldout);
+  const n = (v, l, cls = '') => `<div class="n ${cls}"><b>${v}</b><span>${l}</span></div>`;
+  const ctxCh = changes.filter(c => c.kind !== 'routing').sort((a, b) => (a.decided_at || '').localeCompare(b.decided_at || ''));
+  const accs = ctxCh.filter(c => (c.heldout_before || {}).accuracy != null);
+  const firstAcc = accs.length ? accs[0].heldout_before.accuracy : summary.heldout_accuracy_first;
+  const adoptedCh = ctxCh.filter(c => c.status === 'adopted' && (c.heldout_after || {}).accuracy != null);
+  const lastAcc = adoptedCh.length ? adoptedCh[adoptedCh.length - 1].heldout_after.accuracy : summary.heldout_accuracy_last;
+  const ls = s => lessons.filter(l => l.status === s).length, rb = ctxCh.filter(c => c.status === 'rolled_back').length;
+  if (meta.simulated) {
+    const done = main.filter(s => s.verified > 0).length;
+    $('strip').innerHTML = n(`${done}<small>/${main.length}</small>`, 'subtasks with a verified run', 'ok') + n(ls('adopted'), 'lessons adopted by the gate', 'ok') +
+      n(`${pct(firstAcc)}<small> → </small>${pct(lastAcc)}`, 'held-out accuracy, first → last adopted', 'ok') + n(rb, 'lesson changes rolled back', rb ? 'bad' : '') +
+      n(runs.length, 'agent runs');
+  } else {
+    const subq = B.divergences.filter(d => (d.signals || []).includes('subq')).length;
+    const models = new Set(runs.map(r => r.agent_id)), fams = new Set(runs.map(r => r.provider));
+    const withVer = main.filter(s => s.verified > 0).length;
+    $('strip').innerHTML = n(runs.length, 'agent runs') + n(lessons.length, `lessons (${ls('candidate')} provisional · ${ls('adopted')} adopted)`) +
+      n(subq, 'SubQ root-cause decisions') + n(withVer, 'subtasks with a verified run', 'ok') + n(`${models.size}<small> models · </small>${fams.size}<small> families</small>`, [...fams].join(' · '));
+  }
   const ctx = changes.filter(c => c.kind !== 'routing');
   const ctxAdopted = ctx.filter(c => c.status === 'adopted').length, ctxRolled = ctx.filter(c => c.status === 'rolled_back').length;
   const ba = ctx.map(c => [(c.heldout_before || {}).accuracy, (c.heldout_after || {}).accuracy]).filter(([a, b]) => a != null && b != null);
+  $('banner').innerHTML = '';
   if (ctx.length && !ctxAdopted && !(summary.lessons_adopted > 0)) {
     const sig = ba.length ? ` (held-out accuracy ${[...new Set(ba.map(([a, b]) => `${pct(a)} → ${pct(b)}`))].join(', ')})` : '';
     $('banner').innerHTML = `<b>This run's held-out gate rolled every lesson back:</b> ${ctxRolled} of ${ctx.length} lesson changes rolled back${sig}. Every lesson shown is provisional, not proven.`;
   }
+}
+function renderRoots(divs) {
+  const p = d => (d.step_probabilities || {})['S' + d.step_index];
+  const rows = [...divs].filter(d => p(d) != null).sort((a, b) => p(b) - p(a));
+  $('rcs').innerHTML = rows.map(d => {
+    const st = parseStep(d.step_text);
+    return `<div class="rc" data-run="${esc(d.run_id)}"><div class="top"><span class="p">${(p(d)).toFixed(2)}</span><span>SubQ P(root cause) · step ${esc(d.step_index)}</span>${d.kind ? `<span class="badge">${esc(d.kind)}</span>` : ''}<span class="badge ${d.confirmed ? 'ok' : 'dim'}">${d.confirmed ? 'replay-confirmed' : 'SubQ-located'}</span></div>
+      <div class="pb"><i style="width:${(p(d) * 100).toFixed(1)}%"></i></div><div class="tx">${esc(short(st.assumption || d.step_text, 180))}</div><div class="top" style="margin-top:3px">${esc(d.agent_id || '')}</div></div>`;
+  }).join('') || '<div class="empty">No SubQ root-cause decisions in this snapshot.</div>';
+  $('rcs').querySelectorAll('.rc').forEach(el => el.onclick = () => openRun(el.dataset.run));
+}
+function openRun(rid) {
+  const i = D.subs.findIndex(s => s.runs.some(r => r.id === rid)); if (i < 0) return;
+  selectSub(i); const o = V.runs.find(o => o.r.id === rid); if (o) { D.run = o; traceKey = ''; T = REPLAY; playing = false; }
+}
+// The rescue: a subtask where every agent failed, lessons were injected, and the retry verified. Real runs only.
+let realBundle = null;
+async function renderHero() {
+  try { realBundle ||= await api('/api/bundle?snap=real'); } catch (e) { $('hero').innerHTML = `<div class="empty">Real run not available: ${esc(e.message)}</div>`; return; }
+  const R = realBundle, rows = [], firstTs = {};
+  (R.steps || []).forEach(s => { if (s.ts && (!firstTs[s.subtask_id] || s.ts < firstTs[s.subtask_id])) firstTs[s.subtask_id] = s.ts; });
+  const bySub = {}; (R.runs || []).forEach(r => (bySub[r.subtask_id] ||= []).push(r));
+  for (const [sid, runs] of Object.entries(bySub)) {
+    const before = runs.filter(r => !r.lessons_used.length && r.verdict), after = runs.filter(r => r.lessons_used.length && r.verdict);
+    const bv = before.filter(r => r.verdict === 'verified').length, av = after.filter(r => r.verdict === 'verified').length;
+    if (before.length && !bv && av) {
+      const nl = new Set(after.flatMap(r => r.lessons_used)).size, t = firstTs[sid] ? new Date(firstTs[sid]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      rows.push({ t: `Task A · subtask started ${t}`, s: `${nl} provisional lesson${nl === 1 ? '' : 's'} from the failed attempt injected`, a: `${bv}/${before.length}`, b: `${av}/${after.length}` });
+    }
+  }
+  for (const [k, sf] of Object.entries(R.summary_files || {})) for (const p of sf.per_subtask || []) {
+    const fa = p.first_attempt; if (!fa || fa.verified !== 0 || !(p.verified > 0)) continue;
+    rows.push({ t: `${k === 'task_b_baseline' ? 'Task B baseline' : k} · ${p.title || p.subtask_id}`, s: `${(fa.lessons || []).length} provisional lesson${(fa.lessons || []).length === 1 ? '' : 's'} from the failed attempt injected`, a: `${fa.verified}/${fa.verified + fa.failed}`, b: `${p.verified}/${p.verified + p.failed}` });
+  }
+  $('hero').innerHTML = `<h3>all agents failed → lessons → retry → verified</h3><div class="lbl">real agents · recorded runs</div>` +
+    (rows.map(r => `<div class="rescue"><span class="t">${esc(r.t)}</span><span class="s">${esc(r.s)}</span><span class="f"><span class="a">${r.a}</span> → <span class="b">${r.b}</span></span></div>`).join('') || '<div class="empty">No rescued subtask in the recorded runs.</div>');
 }
 function renderTrust(trust) {
   const rows = [...trust].sort((a, b) => b.score - a.score);
@@ -328,7 +412,7 @@ function renderChanges(changes) {
     const cls = c.status === 'adopted' ? 'st-ok' : c.status === 'rolled_back' ? 'st-bad' : 'st-amb';
     const hb = c.heldout_before || {}, ha = c.heldout_after || {};
     const ho = hb.accuracy != null || ha.accuracy != null ? `<div class="r">held-out accuracy ${pct(hb.accuracy)} → ${pct(ha.accuracy)}${hb.repeat_mistake_rate != null || ha.repeat_mistake_rate != null ? ` · repeat mistakes ${pct(hb.repeat_mistake_rate)} → ${pct(ha.repeat_mistake_rate)}` : ''}</div>` : '';
-    return `<div class="chg"><div class="h"><span>${esc(c.kind)}</span><span class="${cls}">${esc(String(c.status).replace('_', ' '))}</span>${c.decided_at ? `<span>${esc(c.decided_at.slice(11, 19))}</span>` : ''}</div><div class="d">${esc(short(c.description, 220))}</div>${ho}${c.reason ? `<div class="r">${esc(short(c.reason, 140))}</div>` : ''}</div>`;
+    return `<div class="chg${c.status === 'rolled_back' ? ' rb' : ''}${c.kind === 'routing' ? ' route' : ''}"><div class="h"><span>${esc(c.kind)}</span><span class="${cls}">${esc(String(c.status).replace('_', ' '))}</span>${c.decided_at ? `<span>${esc(c.decided_at.slice(11, 19))}</span>` : ''}</div><div class="d">${esc(short(c.description, 220))}</div>${ho}${c.reason ? `<div class="r${c.status === 'rolled_back' ? ' st-bad' : ''}">${esc(short(String(c.reason).split('\n')[0], 140))}</div>` : ''}</div>`;
   }).join('') || '<div class="empty">No changes recorded.</div>';
 }
 function renderSubs() {
@@ -543,10 +627,17 @@ cv.addEventListener('click', e => {
 
 const q = new URLSearchParams(location.search);
 resize(); requestAnimationFrame(frame);
-Promise.all(['/api/steps', '/api/divergences', '/api/lessons', '/api/changes', '/api/trust', '/api/regions', '/api/summary'].map(api)
-  .concat([api('/api/summary_file').catch(() => ({})), api('/api/meta').catch(() => ({}))]))
-  .then(d => { build(d); if (q.has('sub')) selectSub(+q.get('sub')); if (q.has('t')) { T = clamp(+q.get('t')) * REPLAY; playing = false; } })
-  .catch(err => { wrap.insertAdjacentHTML('beforeend', `<div class="err">Could not load run data: ${esc(err.message)}<br><br>Serve it with:<br>SWARM_SNAPSHOT=demo/mcp_snapshot.dense.json USE_MEMORY_STORE=1 uvicorn ui.server:app --port 8787<br>then open http://127.0.0.1:8787/colony</div>`); });
+let mode = q.get('snap') === 'real' ? 'real' : 'fake';
+function load(m) {
+  mode = m; document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.snap === m));
+  wrap.querySelector('.err')?.remove();
+  return api('/api/bundle?snap=' + m).then(B => {
+    if (B.error) throw new Error(B.error);
+    build(B); if (q.has('sub')) selectSub(+q.get('sub')); if (q.has('t')) { T = clamp(+q.get('t')) * REPLAY; playing = false; }
+  }).catch(err => { wrap.insertAdjacentHTML('beforeend', `<div class="err">Could not load run data: ${esc(err.message)}<br><br>Serve it with:<br>USE_MEMORY_STORE=1 uvicorn ui.server:app --port 8787<br>then open http://127.0.0.1:8787/colony</div>`); });
+}
+document.querySelectorAll('.modes button').forEach(b => b.onclick = () => { if (b.dataset.snap !== mode) load(b.dataset.snap); });
+load(mode); renderHero();
 </script>
 </body>
 </html>

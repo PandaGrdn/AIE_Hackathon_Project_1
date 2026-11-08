@@ -47,6 +47,14 @@ LIVE_HTML = HERE / "live.html"
 COLONY_HTML = HERE / "colony.html"
 DEFAULT_SUMMARY = HERE.parent / "demo" / "task_a_summary.json"
 _SIMULATED_MARKERS = ("fake", "pricing_snapshot")
+BUNDLE_SNAPSHOTS = {
+    "fake": HERE.parent / "demo" / "mcp_fake_snapshot.json",  # full loop, simulated agents
+    "real": HERE.parent / "demo" / "mcp_snapshot.dense.json",  # recorded run, real agents
+}
+SUMMARY_FILES = {
+    "task_a": HERE.parent / "demo" / "task_a_summary.json",
+    "task_b_baseline": HERE.parent / "demo" / "task_b_baseline_summary.json",
+}
 
 
 def snapshot_meta() -> dict:
@@ -359,19 +367,16 @@ def make_app(store=None) -> FastAPI:
     def meta():
         return snapshot_meta()
 
-    @app.get("/api/changes")
-    def changes():
-        cs = sorted(_list_changes(get()), key=lambda c: _ts(c.decided_at), reverse=True)
+    def v_changes(st):
+        cs = sorted(_list_changes(st), key=lambda c: _ts(c.decided_at), reverse=True)
         return [c.model_dump(mode="json") for c in cs]
 
-    @app.get("/api/lessons")
-    def lessons():
-        ls = sorted(get().list_lessons(), key=lambda l: (-l.hit_count, -l.confidence))
+    def v_lessons(st):
+        ls = sorted(st.list_lessons(), key=lambda l: (-l.hit_count, -l.confidence))
         return [l.model_dump(mode="json") for l in ls]
 
-    @app.get("/api/trust")
-    def trust():
-        ts = sorted(_list_trust(get()), key=lambda t: -t.score)
+    def v_trust(st):
+        ts = sorted(_list_trust(st), key=lambda t: -t.score)
         return [
             {
                 "agent_id": t.agent_id,
@@ -383,12 +388,10 @@ def make_app(store=None) -> FastAPI:
             for t in ts
         ]
 
-    @app.get("/api/steps")
-    def steps():
-        s = get()
-        failed, verified = _run_verdicts(s)
+    def v_steps(st):
+        failed, verified = _run_verdicts(st)
         out = []
-        for d in _list_steps(s):
+        for d in _list_steps(st):
             rid = d.get("run_id")
             if "failed" in d:
                 f = d["failed"]
@@ -410,22 +413,77 @@ def make_app(store=None) -> FastAPI:
             })
         return jsonable_encoder(out)
 
+    def v_regions(st):
+        return [r.model_dump(mode="json") for r in _list_regions(st)]
+
+    def v_summary(st):
+        try:
+            from eval.metrics import summarize
+
+            return jsonable_encoder(summarize(_SafeChanges(st)))
+        except Exception as e:  # missing/broken metrics must not break the page
+            return {"error": f"{type(e).__name__}: {e}"}
+
+    def v_runs(st):
+        failed, verified = _run_verdicts(st)
+        return [
+            {
+                "id": r.id,
+                "subtask_id": r.subtask_id,
+                "agent_id": r.agent.id,
+                "provider": r.agent.provider,
+                "lessons_used": list(r.lessons_used),
+                "verdict": "verified" if r.id in verified else "failed" if r.id in failed else None,
+            }
+            for r in _list_runs(st)
+        ]
+
+    @app.get("/api/changes")
+    def changes():
+        return v_changes(get())
+
+    @app.get("/api/lessons")
+    def lessons():
+        return v_lessons(get())
+
+    @app.get("/api/trust")
+    def trust():
+        return v_trust(get())
+
+    @app.get("/api/steps")
+    def steps():
+        return v_steps(get())
+
     @app.get("/api/divergences")
     def divergences():
         return divergence_view(get())
 
     @app.get("/api/regions")
     def regions():
-        return [r.model_dump(mode="json") for r in _list_regions(get())]
+        return v_regions(get())
 
     @app.get("/api/summary")
     def summary():
-        try:
-            from eval.metrics import summarize
+        return v_summary(get())
 
-            return jsonable_encoder(summarize(_SafeChanges(get())))
-        except Exception as e:  # missing/broken metrics must not break the page
-            return {"error": f"{type(e).__name__}: {e}"}
+    @app.get("/api/bundle")
+    def bundle(snap: str = "fake"):
+        """Everything one page needs for one of the named demo snapshots (BUNDLE_SNAPSHOTS)."""
+        path = BUNDLE_SNAPSHOTS.get(snap)
+        if path is None:
+            return {"error": f"unknown snapshot {snap!r}; choose one of {sorted(BUNDLE_SNAPSHOTS)}"}
+        mtime = path.stat().st_mtime if path.exists() else None
+        key = (str(path), mtime)
+        if state.get(("bundle", snap), (None,))[0] != key:
+            st = load_snapshot(path)
+            state[("bundle", snap)] = (key, {
+                "meta": {"snapshot": path.name, "simulated": any(m in path.name for m in _SIMULATED_MARKERS)},
+                "steps": v_steps(st), "divergences": divergence_view(st), "lessons": v_lessons(st),
+                "changes": v_changes(st), "trust": v_trust(st), "regions": v_regions(st),
+                "summary": v_summary(st), "runs": v_runs(st),
+                "summary_files": {k: read_summary_file(f) for k, f in SUMMARY_FILES.items()},
+            })
+        return state[("bundle", snap)][1]
 
     return app
 
