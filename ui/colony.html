@@ -167,7 +167,7 @@ button:hover{border-color:#4a4334}
     <div class="metric"><div class="k">Verified this subtask</div><div class="v" id="mVer">–</div></div>
     <div class="metric"><div class="k">Lessons</div><div class="v" id="mLes">0 <small>adopted</small></div></div>
     <div class="metric big"><div class="k">Held-out accuracy</div><div class="v" id="mHeld">–</div></div>
-    <div class="modes"><button data-snap="fake" class="on">Example demo run</button></div>
+    <div class="modes"><button data-snap="fake" class="on">Real simulation</button></div>
   </header>
   <div class="banner" id="banner"></div>
   <nav class="pipe" id="pipe"></nav>
@@ -984,15 +984,15 @@ function updateHeader(t) {
 const esc2 = x => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const nSubs = new Set(R.map(r => r.sid)).size, nRetry = R.filter(r => r.retry).length;
 const INTRO_V = `${AGENTS.length} agents · ${nSubs} subtasks · ${R.length} attempts`;
-const taskName = 'Full loop example';
-$('dataTag').innerHTML = '<span class="sim">example demo run</span>';
-$('introH').textContent = 'Example demo run';
+const taskName = 'Full loop simulation';
+$('dataTag').innerHTML = '<span class="sim">real simulation</span>';
+$('introH').textContent = 'Real simulation';
 $('introP').innerHTML = `${esc2(taskName)}: ${nSubs} subtasks replayed as ${R.length} attempts${nRetry ? ` (${nRetry} retr${nRetry > 1 ? 'ies' : 'y'} with lessons injected)` : ''}, ${AGENTS.length} agents: ${AGENTS.map(a => esc2(a.id)).join(', ')}.`;
 {
   const f0 = R[0], fl = R[R.length - 1], g = LESSONS.filter(L => L.gated && L.before != null);
   const ad = LESSONS.filter(L => L.adopt).length, rb = LESSONS.filter(L => L.rolled).length, pv = LESSONS.filter(L => !L.gated).length;
   $('outroH').textContent = fl.stall ? `Stalled at ${fl.sub}` : `${f0.sub} → ${fl.sub}`;
-  $('outroP').textContent = (fl.stall ? `${fl.retry ? 'The retry with lessons also failed' : 'No run verified'}, so ${fl.title} was not advanced and the run stopped there. ` : '') + 'Numbers from the example run.';
+  $('outroP').textContent = (fl.stall ? `${fl.retry ? 'The retry with lessons also failed' : 'No run verified'}, so ${fl.title} was not advanced and the run stopped there. ` : '') + 'Numbers from the simulation run.';
   const held = g.length ? `${g[0].before}% → <b class="up">${Math.round(heldAt(Infinity))}%</b>` : '—';
   $('outroGrid').innerHTML = `<span class="h">verified</span><span class="h">attempts</span><span class="h">held-out accuracy</span><span class="h">lessons</span>
     <span>${f0.verified}/${f0.runs.length} → <b class="up">${fl.verified}/${fl.runs.length}</b></span><span>${R.length}</span><span>${held}</span><span>${ad} adopted · ${rb} rolled back · ${pv} provisional</span>`;
