@@ -222,3 +222,5 @@ confidence), the trust leaderboard, the changelog, and the reasoning map (2-D pr
 
 `demo/pricing_real_3of4.json` is a completed real run (six Gemini agents, 3 of 4 subtasks verified, 3 lessons, 2 adopted,
 1 rolled back, held-out 0.67 → 0.71) to serve when no live run is available.
+
+`demo/pricing_real.json` is run 6, the headline real run: 4 of 4 subtasks verified by six live Gemini agents (5/6, 6/6, 6/6, 5/6), 2 lessons, 1 adopted (held-out 0.875 -> 0.917), 1 rolled back.
