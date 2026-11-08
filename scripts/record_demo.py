@@ -83,6 +83,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--regression", default="tests/server tests/shared", help="repo-relative regression suite dirs (default 'tests/server tests/shared')")
     ap.add_argument("--base-commit", default=None, help=f"base commit to reset the clone to (default demo_task/mcp/base_commit, else {DEFAULT_BASE})")
     ap.add_argument("--lessons-snapshot", default=None, help="store loaded for b1 (default <out>/mcp_snapshot.json, Task A's snapshot)")
+    ap.add_argument("--b1-candidates", action="store_true", help="b1: inject Task A's PROVISIONAL (not gate-adopted) lessons too; recorded as a caveat in the summary")
     ap.add_argument("--b1-no-trust", action="store_true", help="b1: drop the carried trust scores so only lessons and failure regions differ from b0")
     ap.add_argument("--redo", action="store_true", help="with --phase all: rerun phases whose summary already exists")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and check preconditions; no API calls, no repo changes")
@@ -444,7 +445,9 @@ def run_phase(phase: str, args, con) -> dict:
             store = load_snapshot(src)
             if args.b1_no_trust:
                 store.trust = {}
-            store_start = {"snapshot": str(src), "trust_carried": not args.b1_no_trust}
+            if args.b1_candidates:
+                store.include_candidate_lessons = True
+            store_start = {"snapshot": str(src), "trust_carried": not args.b1_no_trust, "provisional_lessons_injected": bool(args.b1_candidates)}
         else:
             store = MemoryStore()
             store_start = {"snapshot": None, "trust_carried": False}
