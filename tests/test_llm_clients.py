@@ -222,8 +222,9 @@ def test_is_retryable_recognises_sdk_errors():
 
 def test_roster_shape():
     roster = swarm_identities()
-    assert len(roster) == 8
-    assert len({i.id for i in roster}) == 8
+    assert len(roster) == 12  # 7 gemini (incl. the deliberately weak lite agent), 2 anthropic, 1 openai, 2 meta
+    assert len({i.id for i in roster}) == 12
+    assert sum(i.provider == "gemini" for i in roster) == 7
     assert sum(i.provider == "openai" for i in roster) == 1
     providers = {i.provider for i in roster}
     assert "subq" not in providers

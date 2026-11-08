@@ -167,12 +167,34 @@ def repo_test_files(repo: Path | None) -> list[str]:
     tests/ tree has parts that only run under its own CI setup."""
     if repo is None:
         return []
+    tracked = _tracked_at_base(repo)
     out: set[str] = set()
     for d in settings.regression_test_paths:
         base = repo / d
         if base.is_dir():
             out |= {str(p.relative_to(repo)) for p in base.rglob("test_*.py")}
+    if tracked is not None:
+        # agents' tests (copied into the repo by the orchestrator's commit of a verified run) are never
+        # part of the verdict: keep only files that existed at the base commit
+        out &= tracked
     return sorted(out)
+
+
+def _tracked_at_base(repo: Path) -> set[str] | None:
+    """Repo-relative paths tracked at the task's base commit (`<repo>/../base_commit`, else HEAD).
+    None when the repo is not inside a git work tree (then the on-disk listing stands)."""
+    rev = "HEAD"
+    bc = repo.parent / "base_commit"
+    if bc.is_file() and bc.read_text().strip():
+        rev = bc.read_text().strip()
+    try:
+        r = subprocess.run(["git", "-C", str(repo), "ls-tree", "-r", "--name-only", rev, "--", "."],
+                           capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    return {line.strip() for line in r.stdout.splitlines() if line.strip()}
 
 
 def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], timeout: float = PYTEST_TIMEOUT_S, base_repo: Path | None = None) -> dict[str, tuple[bool, str]]:
@@ -197,9 +219,11 @@ def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], tim
         from core.swarm.sandbox import pytest_env, pytest_prefix  # lazy: core.swarm imports this module
 
         prefix, _ = pytest_prefix(sb, base_repo)
+        if prefix[-2:] == ["-o", "pythonpath=."]:
+            prefix = prefix[:-2]  # pinned below to the absolute sandbox path; a relative "." resolves against the wrong rootdir
         cmd = [
-            *prefix, "-q", "-p", "no:cacheprovider", "--continue-on-collection-errors",
-            "-o", "addopts=", "-o", "pythonpath=.", f"--junitxml={xml}", *paths,
+            *prefix, f"--rootdir={sb}", "-o", f"pythonpath={sb}", "-q", "-p", "no:cacheprovider", "--continue-on-collection-errors",
+            "-o", "addopts=", f"--junitxml={xml}", *paths,
         ]
         try:
             subprocess.run(cmd, cwd=sb, capture_output=True, text=True, timeout=timeout, check=False, env=pytest_env())
@@ -434,8 +458,20 @@ def cross_test(
                     fuzz_dis[r.id].append(c.id)
                 if o.ok and c.source in ("spec", "seed", "fuzz"):
                     for p in props_by_fn.get(c.function, []):
-                        if not check_property(p, c.args, o.value):
+                        if check_property(p, c.args, o.value) is False:
                             prop_viol[r.id].append([c.id, p.name])
+        # a property every run violates is the author's problem (a wrong or unevaluable predicate), not six
+        # independent agents' problem: flag it once and charge nobody — the same two-oracle rule as for cases
+        if len(runs) >= 2:
+            unanimous: set[tuple[str, str]] = set()
+            for cid, pname in prop_viol[runs[0].id]:
+                if all([cid, pname] in prop_viol[r.id] for r in runs[1:]):
+                    unanimous.add((cid, pname))
+            for pname in sorted({pn for _, pn in unanimous}):
+                flags.append(AmbiguityFlag(case_id="", function=f"property:{pname}", args=[], expected="property holds for every input",
+                                           majority=Outcome(ok=False, exception="violated by every run"), agreement=1.0, resolution="majority"))
+            for r in runs:
+                prop_viol[r.id] = [v for v in prop_viol[r.id] if (v[0], v[1]) not in unanimous]
         failed = sorted(r.id for r in runs if spec_misses[r.id] or regression[r.id] or prop_viol[r.id])
     elif runs and regression_ids:
         # no spec tests but a repo suite: regressions still fail a run; fuzz majority decides the rest

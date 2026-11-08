@@ -248,10 +248,15 @@ _PREDICATE_BUILTINS = {
 }
 
 
-def check_property(prop: SpecProperty, args: list, result: object) -> bool:
-    """Evaluate a property predicate. Predicates are model-written: run them only on values, never on code."""
+def check_property(prop: SpecProperty, args: list, result: object) -> bool | None:
+    """Evaluate a property predicate. Predicates are model-written: run them only on values, never on code.
+    None when the predicate source itself does not evaluate (the author's fault, never the agent's);
+    False when calling it raises or returns falsy."""
     try:
         fn = eval(prop.predicate_src, {"__builtins__": _PREDICATE_BUILTINS})
+    except Exception:
+        return None
+    try:
         return bool(fn(args, result))
     except Exception:
         return False

@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm Live</title>
+<style>
+  :root {
+    --bg: #0b0e14; --bg2: #10151d; --panel: #141a24; --line: #232c3a; --line2: #2e394a;
+    --text: #eef2f7; --muted: #94a0b2; --dim: #5d6a7c;
+    --green: #35d07f; --red: #ff5c5c; --amber: #ffb547; --blue: #6fb6ff; --violet: #b48bff; --grey: #7b8798;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--blue); text-decoration: none; }
+  .wrap { max-width: 1680px; margin: 0 auto; padding: 22px 32px 80px; }
+
+  /* top bar */
+  .top { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .top h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; font-weight: 700; }
+  .top .sub { color: var(--muted); font-size: 15px; }
+  .top .right { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); display: inline-block; margin-right: 8px; vertical-align: middle; }
+  .dot.live { background: var(--green); box-shadow: 0 0 0 0 rgba(53,208,127,.6); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(53,208,127,.55);} 70% { box-shadow: 0 0 0 10px rgba(53,208,127,0);} 100% { box-shadow: 0 0 0 0 rgba(53,208,127,0);} }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; border: 1px solid transparent; }
+  .pill.adopted { color: var(--green); border-color: rgba(53,208,127,.5); background: rgba(53,208,127,.12); }
+  .pill.rolled_back { color: var(--red); border-color: rgba(255,92,92,.5); background: rgba(255,92,92,.12); }
+  .pill.candidate { color: var(--grey); border-color: rgba(123,135,152,.5); background: rgba(123,135,152,.12); }
+  .pill.kind { color: var(--muted); border-color: var(--line2); }
+  .pill.sig { color: var(--amber); border-color: rgba(255,181,71,.5); background: rgba(255,181,71,.1); }
+  .pill.sig.blue { color: var(--blue); border-color: rgba(111,182,255,.5); background: rgba(111,182,255,.1); }
+
+  /* numbers strip */
+  .strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 20px 0 8px; }
+  .stat { background: linear-gradient(180deg, var(--panel), var(--bg2)); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px 12px; min-height: 96px; }
+  .stat .k { color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .stat .v { font-size: 38px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 4px; letter-spacing: -0.01em; }
+  .stat .v small { font-size: 18px; color: var(--muted); font-weight: 500; margin-left: 6px; }
+  .stat .d { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+  .up { color: var(--green); } .down { color: var(--red); } .same { color: var(--muted); }
+
+  /* layout */
+  .grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; margin-top: 18px; }
+  @media (max-width: 1180px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 18px; min-width: 0; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; display: flex; align-items: baseline; gap: 10px; }
+  .card h2 .n { font-weight: 500; color: var(--dim); letter-spacing: 0; text-transform: none; font-size: 14px; }
+  .card.span { grid-column: 1 / -1; }
+  .empty { color: var(--dim); padding: 18px 4px; font-size: 15px; }
+  .mono { font-family: var(--mono); font-size: 14px; }
+  .muted { color: var(--muted); }
+
+  /* swarm timeline */
+  .sub { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 14px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
+  .sub:first-child { border-top: none; padding-top: 2px; }
+  .sub .name { font-weight: 700; font-size: 15px; }
+  .sub .name .id { display: block; color: var(--dim); font-size: 12px; font-family: var(--mono); font-weight: 400; margin-top: 2px; }
+  .sub .name .state { display: block; font-size: 12.5px; margin-top: 6px; }
+  .agents { display: flex; flex-wrap: wrap; gap: 8px; }
+  .agent { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line2); background: var(--bg2); font-size: 13px; font-family: var(--mono); }
+  .agent .sq { width: 10px; height: 10px; border-radius: 3px; background: var(--grey); flex: none; }
+  .agent.ok .sq { background: var(--green); } .agent.bad .sq { background: var(--red); } .agent.err .sq { background: var(--amber); } .agent.run .sq { background: var(--blue); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .agent .steps { color: var(--dim); }
+  .sub .lessons { font-size: 14px; }
+  .sub .lessons .l { padding: 6px 10px; border-left: 3px solid var(--amber); background: var(--bg2); border-radius: 0 8px 8px 0; margin-bottom: 6px; }
+  .sub .lessons .l.adopted { border-left-color: var(--green); } .sub .lessons .l.rolled_back { border-left-color: var(--red); }
+  .sub .lessons .l .who { color: var(--dim); font-family: var(--mono); font-size: 12px; margin-bottom: 2px; }
+
+  /* gate chart */
+  .gate { width: 100%; height: 230px; display: block; }
+  .legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin-top: 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+  /* root cause */
+  .rc .head { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .rc .head .who { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+  .bars { display: grid; grid-template-columns: 44px 1fr 52px; gap: 6px 10px; align-items: center; margin: 10px 0; }
+  .bars .lab { font-family: var(--mono); font-size: 12.5px; color: var(--muted); text-align: right; }
+  .bars .lab.pick { color: var(--blue); font-weight: 700; }
+  .bars .trk { height: 12px; background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .bars .trk i { display: block; height: 100%; background: var(--line2); }
+  .bars .trk.pick i { background: var(--blue); }
+  .bars .pct { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .rc .step { background: var(--bg2); border: 1px solid var(--blue); border-radius: 10px; padding: 10px 12px; font-size: 14.5px; margin: 10px 0; }
+  .rc .step b { color: var(--blue); font-family: var(--mono); font-size: 13px; margin-right: 8px; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: 14px; margin-top: 8px; }
+  .kv .k { color: var(--dim); text-transform: uppercase; letter-spacing: .06em; font-size: 11.5px; padding-top: 3px; }
+  .kv .mono { word-break: break-word; }
+  .rc .lesson { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(255,181,71,.08); border: 1px solid rgba(255,181,71,.35); font-size: 15.5px; }
+  .rc .lesson .t { color: var(--amber); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 4px; }
+  .rc nav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .rc nav button { background: var(--bg2); color: var(--muted); border: 1px solid var(--line2); border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .rc nav button.on { color: var(--text); border-color: var(--blue); }
+
+  /* trust */
+  .trust .row { display: grid; grid-template-columns: 170px 1fr 70px 90px; gap: 12px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .trust .row:first-child { border-top: none; }
+  .trust .id { font-family: var(--mono); font-size: 13.5px; }
+  .trust .trk { height: 10px; background: var(--bg2); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .trust .trk i { display: block; height: 100%; background: var(--violet); }
+  .trust .sc { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .trust .rec { color: var(--dim); font-family: var(--mono); font-size: 12.5px; text-align: right; }
+
+  /* changelog */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; border-top: none; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+  td .desc { display: block; max-width: 720px; }
+  td .why { color: var(--dim); font-size: 12.5px; }
+
+  /* map */
+  #map { width: 100%; height: 420px; display: block; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); }
+  #tip { position: absolute; pointer-events: none; background: #0a0d12; border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; font-size: 13px; max-width: 460px; display: none; z-index: 5; }
+  .maprel { position: relative; }
+  footer { color: var(--dim); font-size: 12.5px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Self-Improving Coding Swarm</h1>
+    <span class="sub">finds where the reasoning broke, writes the fix, keeps it only if held-out work proves it</span>
+    <div class="right">
+      <span><span class="dot" id="dot"></span><span id="livetxt">connecting</span></span>
+      <span id="updated" class="mono"></span>
+      <a href="/">classic</a>
+      <a href="/concept">map</a>
+    </div>
+  </div>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="grid">
+    <div class="card span">
+      <h2>Swarm run, subtask by subtask <span class="n" id="swarm-n"></span></h2>
+      <div id="swarm"><div class="empty">Waiting for the first subtask…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Held-out gate: accuracy with vs without each change <span class="n" id="gate-n"></span></h2>
+      <svg class="gate" id="gate" viewBox="0 0 800 230" preserveAspectRatio="none"></svg>
+      <div class="legend"><span><i style="background:var(--green)"></i>adopted</span><span><i style="background:var(--red)"></i>rolled back</span><span><i style="background:var(--grey)"></i>before</span><span class="muted">each pair: held-out accuracy before → after the change</span></div>
+    </div>
+
+    <div class="card rc">
+      <h2>Root cause (SubQ Snap, decisions API) <span class="n" id="rc-n"></span></h2>
+      <div id="rootcause"><div class="empty">No failed run reflected yet.</div></div>
+    </div>
+
+    <div class="card trust">
+      <h2>Trust leaderboard <span class="n" id="trust-n"></span></h2>
+      <div id="trust"><div class="empty">No verdicts yet.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Changelog, newest first <span class="n" id="changes-n"></span></h2>
+      <div style="overflow:auto; max-height: 420px"><table id="changes"><thead><tr><th>status</th><th>kind</th><th>change</th><th>held-out</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card span">
+      <h2>Reasoning map <span class="n" id="map-n"></span></h2>
+      <div class="maprel"><canvas id="map"></canvas><div id="tip"></div></div>
+      <div class="legend"><span><i style="background:var(--grey)"></i>step of a verified run</span><span><i style="background:var(--red)"></i>step of a failed run</span><span><i style="background:var(--amber)"></i>divergence step (the blamed assumption)</span><span class="muted">2-D projection of step embeddings; hover a point</span></div>
+    </div>
+  </div>
+  <footer>Verdicts come from hidden tests an independent author wrote from the spec alone. SubQ Snap judges: who is right when author and swarm disagree, which step caused a failure, whether a lesson would have prevented it. Every change is adopted only if held-out accuracy improves; otherwise rolled back.</footer>
+</div>
+
+<script>
+const REFRESH_MS = 2000;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = (x, d = 0) => (x == null || Number.isNaN(x)) ? "–" : (100 * x).toFixed(d) + "%";
+const short = (s, n) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+const prev = {};
+function changed(key, text) { if (prev[key] === text) return false; prev[key] = text; return true; }
+
+async function getJSON(path) {
+  const r = await fetch(path, { cache: "no-store" });
+  if (!r.ok) throw new Error(path + " " + r.status);
+  return r.json();
+}
+
+/* ---------- numbers strip ---------- */
+function renderStrip(s, subtasks, lessons, changes) {
+  const done = subtasks.filter(x => x.committed).length;
+  const adoptedL = lessons.filter(l => l.status === "adopted").length;
+  const ctx = changes.filter(c => c.kind === "context" || c.kind === "skill" || c.kind === "tool");
+  const adopted = ctx.filter(c => c.status === "adopted").length, rolled = ctx.filter(c => c.status === "rolled_back").length;
+  const a0 = s.heldout_accuracy_first, a1 = s.heldout_accuracy_last;
+  const dcls = a0 == null || a1 == null ? "same" : a1 > a0 ? "up" : a1 < a0 ? "down" : "same";
+  const darrow = dcls === "up" ? "▲" : dcls === "down" ? "▼" : "•";
+  const r0 = s.heldout_repeat_rate_first, r1 = s.heldout_repeat_rate_last;
+  const cells = [
+    ["Subtasks verified", `${done}<small>/ ${subtasks.length}</small>`, "committed from a verified run"],
+    ["Lessons", `${lessons.length}<small>${adoptedL} adopted</small>`, "written from failed runs' reasoning"],
+    ["Changes gated", `<span class="up">${adopted}</span><small>adopted</small> <span class="down">${rolled}</span><small>rolled back</small>`, "held-out decides, both are logged"],
+    ["Held-out accuracy", `${pct(a0)} <span class="${dcls}">→ ${pct(a1)}</span>`, `<span class="${dcls}">${darrow}</span> first gated change → last`],
+    ["Repeat-mistake rate", `${pct(r0)} → ${pct(r1)}`, "failures landing in a known failure region"],
+  ];
+  const html = cells.map(([k, v, d]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+  if (changed("strip", html)) $("strip").innerHTML = html;
+}
+
+/* ---------- subtask grouping from steps + lessons + changes ---------- */
+function groupSubtasks(steps, lessons, divs, changes) {
+  const order = []; const subs = {};
+  const runs = {};
+  for (const st of steps) {
+    if (!subs[st.subtask_id]) { subs[st.subtask_id] = { id: st.subtask_id, runs: {}, lessons: [] }; order.push(st.subtask_id); }
+    const key = st.run_id;
+    const r = runs[key] || (runs[key] = { id: key, agent: st.agent_id, subtask: st.subtask_id, steps: 0, failed: st.failed });
+    r.steps = Math.max(r.steps, (st.step_index ?? 0) + 1);
+    if (st.failed != null) r.failed = st.failed;
+    subs[st.subtask_id].runs[key] = r;
+  }
+  const chByRef = {}; for (const c of changes) if (c.ref_id) chByRef[c.ref_id] = c;
+  for (const l of lessons) {
+    const sid = (l.created_from || {}).subtask_id;
+    if (sid && subs[sid]) subs[sid].lessons.push({ ...l, change: chByRef[l.id] });
+  }
+  // a subtask is "committed" when at least one run is verified; a subtask whose every run failed is stalled
+  return order.map((id, i) => {
+    const rs = Object.values(subs[id].runs);
+    const verified = rs.filter(r => r.failed === false).length, failed = rs.filter(r => r.failed === true).length;
+    return { ...subs[id], index: i + 1, runs: rs, verified, failed, committed: verified > 0, stalled: rs.length > 0 && verified === 0 && failed === rs.length };
+  });
+}
+
+function renderSwarm(subtasks) {
+  if (!subtasks.length) return;
+  const html = subtasks.map(s => {
+    const state = s.committed ? `<span class="up">✓ verified, committed</span>` : s.stalled ? `<span class="down">✕ no verified run</span>` : `<span class="muted">running…</span>`;
+    const agents = s.runs.map(r => {
+      const cls = r.failed === true ? "bad" : r.failed === false ? "ok" : "run";
+      return `<div class="agent ${cls}" title="${esc(r.id)}"><span class="sq"></span>${esc(r.agent)}<span class="steps">${r.steps} steps</span></div>`;
+    }).join("");
+    const lessons = s.lessons.map(l => {
+      const st = l.change ? l.change.status : l.status;
+      const cf = l.created_from || {};
+      return `<div class="l ${esc(st)}"><div class="who">${esc(cf.agent_id || "")} · <span class="pill ${esc(st)}">${esc(st.replace("_", " "))}</span> · conf ${(l.confidence ?? 0).toFixed(2)}</div>${esc(short(l.text, 220))}</div>`;
+    }).join("") || `<div class="muted" style="font-size:13px">${s.failed ? "reflecting…" : "no failures, nothing to learn"}</div>`;
+    return `<div class="sub"><div class="name">Subtask ${s.index}<span class="id">${esc(s.id)}</span><span class="state">${state} <span class="muted">· ${s.verified} verified / ${s.failed} failed</span></span></div><div class="agents">${agents}</div><div class="lessons">${lessons}</div></div>`;
+  }).join("");
+  if (changed("swarm", html)) $("swarm").innerHTML = html;
+  $("swarm-n").textContent = `${subtasks.filter(s => s.committed).length} of ${subtasks.length} verified`;
+}
+
+/* ---------- held-out gate chart ---------- */
+function renderGate(changes) {
+  const gated = changes.filter(c => c.heldout_before && c.heldout_before.accuracy != null).slice().reverse(); // oldest first
+  $("gate-n").textContent = gated.length ? `${gated.length} gated` : "";
+  const svg = $("gate");
+  if (!gated.length) { svg.innerHTML = `<text x="400" y="120" fill="#5d6a7c" font-size="16" text-anchor="middle">no gated change yet</text>`; return; }
+  const W = 800, H = 230, L = 46, R = 10, T = 14, B = 44;
+  const n = gated.length, slot = (W - L - R) / n, bw = Math.min(34, slot * 0.32);
+  const y = v => T + (1 - v) * (H - T - B);
+  let out = "";
+  for (const g of [0, 0.25, 0.5, 0.75, 1]) out += `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" stroke="#232c3a" stroke-width="1"/><text x="${L - 6}" y="${y(g) + 4}" fill="#5d6a7c" font-size="11" text-anchor="end">${Math.round(g * 100)}%</text>`;
+  gated.forEach((c, i) => {
+    const b = c.heldout_before.accuracy, a = c.heldout_after.accuracy;
+    const x0 = L + slot * i + slot / 2 - bw - 3, x1 = L + slot * i + slot / 2 + 3;
+    const col = c.status === "adopted" ? "#35d07f" : c.status === "rolled_back" ? "#ff5c5c" : "#7b8798";
+    out += `<rect x="${x0}" y="${y(b)}" width="${bw}" height="${y(0) - y(b)}" fill="#7b8798" opacity=".55" rx="3"/>`;
+    out += `<rect x="${x1}" y="${y(a)}" width="${bw}" height="${y(0) - y(a)}" fill="${col}" rx="3"/>`;
+    out += `<text x="${x1 + bw / 2}" y="${y(a) - 5}" fill="${col}" font-size="11.5" text-anchor="middle" font-family="Menlo, monospace">${Math.round(a * 100)}</text>`;
+    out += `<text x="${x0 + bw / 2}" y="${y(b) - 5}" fill="#94a0b2" font-size="11" text-anchor="middle" font-family="Menlo, monospace">${Math.round(b * 100)}</text>`;
+    const label = short((c.description || "").replace(/^lesson:\s*/i, ""), Math.max(10, Math.floor(slot / 6.2)));
+    out += `<text x="${L + slot * i + slot / 2}" y="${H - 24}" fill="#94a0b2" font-size="11" text-anchor="middle">${esc(label)}</text>`;
+    out += `<text x="${L + slot * i + slot / 2}" y="${H - 9}" fill="${col}" font-size="11" text-anchor="middle" font-weight="700">${c.status === "adopted" ? "ADOPTED" : c.status === "rolled_back" ? "ROLLED BACK" : "CANDIDATE"}</text>`;
+  });
+  if (changed("gate", out)) svg.innerHTML = out;
+}
+
+/* ---------- root cause ---------- */
+let rcPick = 0;
+function renderRootCause(divs, lessons) {
+  $("rc-n").textContent = divs.length ? `${divs.length} failed run${divs.length > 1 ? "s" : ""} reflected` : "";
+  if (!divs.length) return;
+  if (rcPick >= divs.length) rcPick = 0;
+  const d = divs[rcPick];
+  const byRun = {}; for (const l of lessons) { const rid = (l.created_from || {}).run_id; if (rid) byRun[rid] = l; }
+  const lesson = byRun[d.run_id];
+  const probs = d.step_probabilities || {};
+  const keys = Object.keys(probs).sort((a, b) => (parseInt(a.replace(/\D/g, "")) || 0) - (parseInt(b.replace(/\D/g, "")) || 0));
+  const pickKey = `S${d.step_index}`;
+  const bars = keys.length ? `<div class="bars">${keys.map(k => { const p = probs[k] || 0; const pick = k === pickKey; return `<div class="lab ${pick ? "pick" : ""}">${esc(k)}</div><div class="trk ${pick ? "pick" : ""}"><i style="width:${Math.max(1, p * 100)}%"></i></div><div class="pct">${(p * 100).toFixed(1)}%</div>`; }).join("")}</div>` : `<div class="muted" style="font-size:13px;margin:8px 0">no SubQ probabilities for this run (path signal only)</div>`;
+  const sig = (d.signals || []).filter((s, i, a) => a.indexOf(s) === i).map(s => `<span class="pill sig ${s === "subq" ? "blue" : ""}">${esc(s)}</span>`).join(" ");
+  const bc = d.breaking_case || {};
+  const fmtO = (o) => !o ? "–" : o.timed_out ? "timed out" : o.ok === false ? `raised ${esc(o.exception)}` : esc(typeof o.value === "string" ? o.value : JSON.stringify(o.value));
+  const input = bc.source === "pytest" || bc.source === "regression" ? `${esc((bc.args || [])[0])}` : `${esc(bc.function || "")}(${esc(JSON.stringify(bc.args || []).slice(1, -1))})`;
+  const nav = divs.length > 1 ? `<nav>${divs.map((x, i) => `<button class="${i === rcPick ? "on" : ""}" onclick="rcPick=${i};refresh()">${esc(x.agent_id || x.run_id)}</button>`).join("")}</nav>` : "";
+  const html = `${nav}<div class="head"><span class="who">${esc(d.agent_id || d.run_id)} · subtask ${esc(short(d.subtask_id, 12))}</span>${sig}${d.confirmed ? `<span class="pill adopted">confirmed</span>` : `<span class="pill candidate">unconfirmed</span>`}${d.kind ? `<span class="pill kind">${esc(d.kind)}${d.kind_confidence != null ? " " + Math.round(d.kind_confidence * 100) + "%" : ""}</span>` : ""}</div>
+    <div class="muted" style="font-size:12.5px">P(this step holds the mistaken assumption), one bar per logged reasoning step</div>${bars}
+    <div class="step"><b>S${d.step_index}</b>${esc(d.step_text)}</div>
+    <div class="kv"><div class="k">breaking</div><div class="mono">${input}</div><div class="k">agent got</div><div class="mono down">${fmtO(d.failed_outcome)}</div><div class="k">expected</div><div class="mono up">${fmtO(d.majority_outcome)}</div></div>
+    ${lesson ? `<div class="lesson"><div class="t">lesson · ${esc(lesson.status.replace("_", " "))} · SubQ confidence ${(lesson.confidence ?? 0).toFixed(2)}</div>${esc(lesson.text)}</div>` : ""}`;
+  if (changed("rc", html)) $("rootcause").innerHTML = html;
+}
+
+/* ---------- trust ---------- */
+function renderTrust(ts) {
+  $("trust-n").textContent = ts.length ? `${ts.length} identities` : "";
+  if (!ts.length) return;
+  const html = ts.map(t => `<div class="row"><div class="id">${esc(t.agent_id)}</div><div class="trk"><i style="width:${(t.score * 100).toFixed(1)}%"></i></div><div class="sc">${t.score.toFixed(2)}</div><div class="rec">${t.agreements}✓ ${t.disagreements}✕</div></div>`).join("");
+  if (changed("trust", html)) $("trust").innerHTML = html;
+}
+
+/* ---------- changelog ---------- */
+function renderChanges(cs) {
+  $("changes-n").textContent = cs.length ? `${cs.length}` : "";
+  const rows = cs.map(c => {
+    const b = c.heldout_before || {}, a = c.heldout_after || {};
+    const ho = b.accuracy == null ? `<span class="muted">${c.kind === "routing" ? "applied" : "–"}</span>` : `${pct(b.accuracy)} → <span class="${a.accuracy > b.accuracy ? "up" : a.accuracy < b.accuracy ? "down" : "same"}">${pct(a.accuracy)}</span>`;
+    return `<tr><td><span class="pill ${esc(c.status)}">${esc(c.status.replace("_", " "))}</span></td><td class="mono">${esc(c.kind)}</td><td><span class="desc">${esc(short(c.description, 170))}</span><span class="why">${esc(c.reason || "")}</span></td><td class="num">${ho}</td></tr>`;
+  }).join("");
+  const html = rows || `<tr><td colspan="4" class="empty">no changes yet</td></tr>`;
+  if (changed("changes", html)) $("changes").querySelector("tbody").innerHTML = html;
+}
+
+/* ---------- reasoning map: PCA to 2-D ---------- */
+function pca2(X) {
+  const n = X.length, d = X[0].length;
+  const mean = new Float64Array(d);
+  for (const x of X) for (let j = 0; j < d; j++) mean[j] += x[j] / n;
+  const C = X.map(x => x.map((v, j) => v - mean[j]));
+  const comps = [];
+  for (let k = 0; k < 2; k++) {
+    let v = new Float64Array(d).map((_, j) => Math.sin(j * 12.9898 + k * 78.233) * 43758.5453 % 1);
+    for (let it = 0; it < 25; it++) {
+      const w = new Float64Array(d);
+      for (const x of C) { let dot = 0; for (let j = 0; j < d; j++) dot += x[j] * v[j]; for (let j = 0; j < d; j++) w[j] += dot * x[j]; }
+      for (const c of comps) { let dot = 0; for (let j = 0; j < d; j++) dot += w[j] * c[j]; for (let j = 0; j < d; j++) w[j] -= dot * c[j]; }
+      let norm = 0; for (let j = 0; j < d; j++) norm += w[j] * w[j]; norm = Math.sqrt(norm) || 1;
+      v = w.map(x => x / norm);
+    }
+    comps.push(v);
+  }
+  return C.map(x => comps.map(c => { let dot = 0; for (let j = 0; j < d; j++) dot += x[j] * c[j]; return dot; }));
+}
+let mapPts = [];
+function renderMap(steps, divs) {
+  const pts = steps.filter(s => Array.isArray(s.embedding) && s.embedding.length > 2);
+  $("map-n").textContent = pts.length ? `${pts.length} steps · ${new Set(pts.map(p => p.run_id)).size} runs` : "";
+  const cv = $("map"); const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * devicePixelRatio; cv.height = H * devicePixelRatio;
+  const ctx = cv.getContext("2d"); ctx.scale(devicePixelRatio, devicePixelRatio); ctx.clearRect(0, 0, W, H);
+  if (pts.length < 3) { mapPts = []; return; }
+  const key = pts.length + ":" + divs.length;
+  if (changed("map", key) || !mapPts.length) {
+    const P = pca2(pts.map(p => p.embedding));
+    const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+    const mnx = Math.min(...xs), mxx = Math.max(...xs), mny = Math.min(...ys), mxy = Math.max(...ys);
+    const divSet = new Set(divs.map(d => d.run_id + ":" + d.step_index));
+    mapPts = pts.map((p, i) => ({ x: 24 + (P[i][0] - mnx) / ((mxx - mnx) || 1) * (W - 48), y: 24 + (P[i][1] - mny) / ((mxy - mny) || 1) * (H - 48), p, div: divSet.has(p.run_id + ":" + p.step_index) }));
+  }
+  // draw: verified first, failed on top, divergence rings last
+  for (const pass of [0, 1, 2]) for (const m of mapPts) {
+    const failed = m.p.failed === true;
+    if (pass === 0 && failed) continue; if (pass === 1 && !failed) continue; if (pass === 2 && !m.div) continue;
+    ctx.beginPath();
+    if (pass === 2) { ctx.arc(m.x, m.y, 9, 0, Math.PI * 2); ctx.strokeStyle = "#ffb547"; ctx.lineWidth = 2.5; ctx.stroke(); continue; }
+    ctx.arc(m.x, m.y, failed ? 4.5 : 3.5, 0, Math.PI * 2); ctx.fillStyle = failed ? "rgba(255,92,92,.9)" : "rgba(123,135,152,.55)"; ctx.fill();
+  }
+}
+$("map").addEventListener("mousemove", (e) => {
+  const r = $("map").getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
+  let best = null, bd = 144;
+  for (const m of mapPts) { const d = (m.x - x) ** 2 + (m.y - y) ** 2; if (d < bd) { bd = d; best = m; } }
+  const tip = $("tip");
+  if (!best) { tip.style.display = "none"; return; }
+  tip.style.display = "block"; tip.style.left = Math.min(x + 14, r.width - 470) + "px"; tip.style.top = (y + 14) + "px";
+  tip.innerHTML = `<div class="mono" style="color:${best.p.failed ? "#ff5c5c" : "#94a0b2"}">${esc(best.p.agent_id)} · S${best.p.step_index}${best.div ? " · <span style='color:#ffb547'>divergence</span>" : ""}</div>${esc(short(best.p.text, 320))}`;
+});
+$("map").addEventListener("mouseleave", () => { $("tip").style.display = "none"; });
+
+/* ---------- refresh loop ---------- */
+let lastSig = "";
+async function refresh() {
+  try {
+    const [summary, trust, changes, lessons, divs, steps] = await Promise.all([
+      getJSON("/api/summary"), getJSON("/api/trust"), getJSON("/api/changes"), getJSON("/api/lessons"), getJSON("/api/divergences"), getJSON("/api/steps"),
+    ]);
+    const subtasks = groupSubtasks(steps, lessons, divs, changes);
+    renderStrip(summary, subtasks, lessons, changes);
+    renderSwarm(subtasks);
+    renderGate(changes);
+    renderRootCause(divs, lessons);
+    renderTrust(trust);
+    renderChanges(changes);
+    renderMap(steps, divs);
+    const sig = `${steps.length}:${lessons.length}:${changes.length}:${divs.length}`;
+    const dot = $("dot");
+    if (sig !== lastSig) { lastSig = sig; dot.className = "dot live"; $("livetxt").textContent = "live · new data"; }
+    else { dot.className = "dot live"; $("livetxt").textContent = "live"; }
+    $("updated").textContent = new Date().toLocaleTimeString();
+  } catch (e) {
+    $("dot").className = "dot"; $("livetxt").textContent = "server unreachable";
+  }
+}
+refresh();
+setInterval(refresh, REFRESH_MS);
+window.addEventListener("resize", () => { prev.map = null; refresh(); });
+</script>
+</body>
+</html>
