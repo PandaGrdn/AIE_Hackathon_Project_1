@@ -20,7 +20,8 @@
   /* top bar */
   .top { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
   .top h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; font-weight: 700; }
-  .top .sub { color: var(--muted); font-size: 15px; }
+  .top .sub { color: var(--muted); font-size: 15px; white-space: nowrap; }
+  @media (max-width: 1100px) { .top .sub { display: none; } }
   .top .right { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); display: inline-block; margin-right: 8px; vertical-align: middle; }
   .dot.live { background: var(--green); box-shadow: 0 0 0 0 rgba(53,208,127,.6); animation: pulse 1.6s infinite; }
@@ -49,6 +50,8 @@
   .card h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; display: flex; align-items: baseline; gap: 10px; }
   .card h2 .n { font-weight: 500; color: var(--dim); letter-spacing: 0; text-transform: none; font-size: 14px; }
   .card.span { grid-column: 1 / -1; }
+  .card.rc { grid-row: span 2; }
+  @media (max-width: 1180px) { .card.rc { grid-row: auto; } }
   .empty { color: var(--dim); padding: 18px 4px; font-size: 15px; }
   .mono { font-family: var(--mono); font-size: 14px; }
   .muted { color: var(--muted); }
@@ -157,7 +160,7 @@
       <div id="trust"><div class="empty">No verdicts yet.</div></div>
     </div>
 
-    <div class="card">
+    <div class="card span">
       <h2>Changelog, newest first <span class="n" id="changes-n"></span></h2>
       <div style="overflow:auto; max-height: 420px"><table id="changes"><thead><tr><th>status</th><th>kind</th><th>change</th><th>held-out</th></tr></thead><tbody></tbody></table></div>
     </div>
@@ -212,6 +215,7 @@ function groupSubtasks(steps, lessons, divs, changes) {
   const order = []; const subs = {};
   const runs = {};
   for (const st of steps) {
+    if (String(st.subtask_id || "").startsWith("heldout-")) continue;
     if (!subs[st.subtask_id]) { subs[st.subtask_id] = { id: st.subtask_id, runs: {}, lessons: [] }; order.push(st.subtask_id); }
     const key = st.run_id;
     const r = runs[key] || (runs[key] = { id: key, agent: st.agent_id, subtask: st.subtask_id, steps: 0, failed: st.failed });
@@ -232,6 +236,7 @@ function groupSubtasks(steps, lessons, divs, changes) {
   });
 }
 
+let heldoutRuns = 0;
 function renderSwarm(subtasks) {
   if (!subtasks.length) return;
   const html = subtasks.map(s => {
@@ -248,7 +253,7 @@ function renderSwarm(subtasks) {
     return `<div class="sub"><div class="name">Subtask ${s.index}<span class="id">${esc(s.id)}</span><span class="state">${state} <span class="muted">· ${s.verified} verified / ${s.failed} failed</span></span></div><div class="agents">${agents}</div><div class="lessons">${lessons}</div></div>`;
   }).join("");
   if (changed("swarm", html)) $("swarm").innerHTML = html;
-  $("swarm-n").textContent = `${subtasks.filter(s => s.committed).length} of ${subtasks.length} verified`;
+  $("swarm-n").textContent = `${subtasks.filter(s => s.committed).length} of ${subtasks.length} verified` + (heldoutRuns ? ` · ${heldoutRuns} held-out gate runs not shown` : "");
 }
 
 /* ---------- held-out gate chart ---------- */
@@ -386,6 +391,7 @@ async function refresh() {
       getJSON("/api/summary"), getJSON("/api/trust"), getJSON("/api/changes"), getJSON("/api/lessons"), getJSON("/api/divergences"), getJSON("/api/steps"),
     ]);
     const subtasks = groupSubtasks(steps, lessons, divs, changes);
+    heldoutRuns = new Set(steps.filter(s => String(s.subtask_id || "").startsWith("heldout-")).map(s => s.run_id)).size;
     renderStrip(summary, subtasks, lessons, changes);
     renderSwarm(subtasks);
     renderGate(changes);
