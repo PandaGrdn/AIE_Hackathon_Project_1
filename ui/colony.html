@@ -302,8 +302,19 @@ function adapt(B) {
     for (const r of team) { known[r.agent_id] = [...new Set(r.lessons_used.map(id => pitOfLesson[id]).filter(k => k && k !== pitKey))]; if (r.verdict === 'verified' && known[r.agent_id][0]) tempt[r.agent_id] = known[r.agent_id][0]; }
     ROUNDS.push({ sub: 'S' + subNum[at.sid] + (at.retry ? ' retry' : ''), title: titleOf(at.sid) || 'subtask ' + at.sid.slice(0, 6), sid: at.sid, retry: at.retry,
       pit: pitKey, fail, tempt, lessons: L, team: team.map(r => r.agent_id), runsData, known,
-      prompt: [...new Set(team.flatMap(r => r.lessons_used.map(id => lessonLabel[id]).filter(Boolean)))], promptN: new Set(team.flatMap(r => r.lessons_used)).size });
+      prompt: [...new Set(team.flatMap(r => r.lessons_used.map(id => lessonLabel[id]).filter(Boolean)))], promptN: new Set(team.flatMap(r => r.lessons_used)).size,
+      verifiedN: team.filter(r => r.verdict === 'verified').length, summary: (sfa.per_subtask || []).find(p => p.subtask_id === at.sid) || null });
   }
+  // all-fail → retry with lessons; a failed retry (or a summary row with committed: false and no retry left) is a stall: the run ends there
+  ROUNDS.forEach((r, i) => {
+    const nx = ROUNDS[i + 1];
+    r.allFail = r.verifiedN === 0;
+    r.retryNext = !!(r.allFail && nx && nx.sid === r.sid && nx.retry);
+    r.retryN = r.retryNext ? nx.promptN : 0;
+    r.stall = r.allFail && !r.retryNext && (r.retry || (r.summary && r.summary.committed === false));
+  });
+  const stallAt = ROUNDS.findIndex(r => r.stall);
+  if (stallAt >= 0) ROUNDS.length = stallAt + 1;
   return { AGENTS, PITS, ROUNDS, META: meta };
 }
 
@@ -484,6 +495,9 @@ ROUNDS.forEach((rd, ri) => {
     else EVENTS.push({ t: rise + .5, kind: 'amber', text: `${L.id} is provisional: not decided by the held-out gate` });
     if (L.adopt && rd.pit) adopted[rd.pit] = L.id;
   });
+  if (rd.retryNext) EVENTS.push({ t: T0 + P.END, kind: 'amber', text: `All ${runs.length} agents failed: retrying ${rd.sub} with ${rd.retryN} provisional lesson${rd.retryN === 1 ? '' : 's'} injected` });
+  else if (rd.allFail && !rd.stall) EVENTS.push({ t: T0 + P.END, kind: 'bad', text: `All ${runs.length} agents failed; no retry in this recording` });
+  if (rd.stall) EVENTS.push({ t: T0 + P.END, kind: 'bad', text: `${rd.retry ? 'Retry failed too' : 'No verified run'}: ${rd.sub} not advanced${rd.summary ? ` (retried: ${rd.summary.retried}, committed: ${rd.summary.committed})` : ''}. The run stops here.` });
   const fk = fallers.map(r => r.fork);
   const fork = fk.length ? { x: fk.reduce((a, q) => a + q.x, 0) / fk.length, y: fk.reduce((a, q) => a + q.y, 0) / fk.length, t: Math.min(...fallers.map(r => r.forkT)) } : null;
   R.push({ ...rd, T0, team, bench, runs, prompt, focus, cons, fork, winner: winner ? winner.id : null, verified: verified.length, updateT: T0 + P.TRUST });
@@ -590,6 +604,12 @@ function drawNestFood(t, ri) {
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 85, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = 'rgba(242,181,82,.5)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 62, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   label('NEST', NEST.x + 14, NEST.y + 80);
+  { const rr = R[clamp(ri, 0, R.length - 1)], lt0 = t - rr.T0;
+    if (ri >= 0 && ri < R.length && rr.retry && lt0 < P.VERIFY) {
+      const pu = .5 + .5 * Math.sin(t * 4);
+      ctx.strokeStyle = `rgba(242,181,82,${.4 + .4 * pu})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(NEST.x + 14, NEST.y, 70 + pu * 6, 0, Math.PI * 2); ctx.stroke();
+      label(`RETRY · ${rr.promptN} lesson${rr.promptN === 1 ? '' : 's'} injected`, NEST.x + 14, NEST.y - 82, '#f2b552', 'center', 11.5);
+    } }
   const r = R[clamp(ri, 0, R.length - 1)], lt = t - r.T0;
   const glow = ri >= 0 && ri < R.length && lt >= P.VERIFY && lt < P.VERIFY + 2 ? 1 - (lt - P.VERIFY) / 2 : 0;
   const fg = ctx.createRadialGradient(FOOD.x, FOOD.y, 4, FOOD.x, FOOD.y, 70 + glow * 30);
@@ -636,7 +656,8 @@ function drawFlags(t) {
       ctx.fillStyle = `rgba(255,107,94,${1 - ga})`;
       for (let i = 0; i < 9; i++) { const a = i * 2.3, sp = 6 + (i % 4) * 5; ctx.fillRect(fx + Math.cos(a) * sp * ga * 2, fy - 14 + Math.sin(a) * sp * ga + ga * ga * 30, 2, 2); }
     }
-    if (!gone || ga < 1) label(L.id + (L.gated ? '' : ' · provisional'), fx + 4, fy - h - 4, col, 'left', 10);
+    if (!gone || ga < 1) label(L.id, fx + 2, fy - h - 4 - (L.j % 2) * 11, col, 'left', 10);
+    if (!L.gated && L.j === 0) label('provisional', fx, fy + 12, col, 'left', 9.5);
     if (t >= L.g0 && t < L.g1 + .3) {
       const p = clamp((t - L.g0) / P.GATE_DUR);
       ctx.strokeStyle = '#f2b552'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx + 6, fy - h + 6, 18, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke();
@@ -727,6 +748,18 @@ function drawRound(r, t, alpha) {
       ctx.stroke(); ctx.globalAlpha = 1;
     }
   }
+}
+function drawNotice(r, t) {
+  const lt = t - r.T0; if (lt < P.END) return;
+  let title, line, col, bg;
+  if (r.stall) { title = 'STALLED · SUBTASK NOT ADVANCED'; line = r.summary ? `retried: ${r.summary.retried} · committed: ${r.summary.committed} · the run stops here` : 'retry failed · the run stops here'; col = '#ff6b5e'; bg = 'rgba(40,14,12,.94)'; }
+  else if (r.retryNext) { title = `ALL ${r.runs.length} AGENTS FAILED → RETRY`; line = `${r.retryN} provisional lesson${r.retryN === 1 ? '' : 's'} injected · the swarm leaves the nest again`; col = '#f2b552'; bg = 'rgba(36,28,14,.94)'; }
+  else return;
+  const e = ease(clamp((lt - P.END) / .5)), w = 470, h = 64, x = W / 2 - w / 2, y = 34;
+  ctx.globalAlpha = e; ctx.fillStyle = bg; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 9); ctx.fill(); ctx.stroke();
+  label(title, W / 2, y + 27, col, 'center', 15); label(line, W / 2, y + 48, '#e8dccb', 'center', 10.5);
+  ctx.globalAlpha = 1;
 }
 function drawOutro(t) {
   const e = ease(clamp((t - OUTRO_T) / 1.2));
@@ -936,7 +969,7 @@ function updateHeader(t) {
   else if (ri >= 0) {
     const r = R[ri], lt = t - r.T0;
     k = `Attempt ${ri + 1} of ${R.length}`; v = `${r.sub} · ${r.title}`;
-    ph = [PIPE[stageAt(t)][0].replace(' ↻', '').toLowerCase(), '#f2b552'];
+    ph = r.stall && lt >= P.END ? ['stalled', '#ff6b5e'] : r.retryNext && lt >= P.END ? ['retry', '#f2b552'] : [PIPE[stageAt(t)][0].replace(' ↻', '').toLowerCase(), '#f2b552'];
     ver = lt >= P.VERIFY ? `${r.verified}/${r.runs.length}` : '…';
   }
   $('roundK').textContent = k; $('roundV').textContent = v;
@@ -958,8 +991,8 @@ $('introP').innerHTML = `${esc2(taskName)}: ${nSubs} subtasks replayed as ${R.le
 {
   const f0 = R[0], fl = R[R.length - 1], g = LESSONS.filter(L => L.gated && L.before != null);
   const ad = LESSONS.filter(L => L.adopt).length, rb = LESSONS.filter(L => L.rolled).length, pv = LESSONS.filter(L => !L.gated).length;
-  $('outroH').textContent = `${f0.sub} → ${fl.sub}`;
-  $('outroP').textContent = META.simulated ? 'Simulated agents. The numbers below come from this snapshot.' : 'Real agents. The numbers below come from the recorded run.';
+  $('outroH').textContent = fl.stall ? `Stalled at ${fl.sub}` : `${f0.sub} → ${fl.sub}`;
+  $('outroP').textContent = (fl.stall ? `${fl.retry ? 'The retry with lessons also failed' : 'No run verified'}, so ${fl.title} was not advanced and the run stopped there. ` : '') + (META.simulated ? 'Simulated agents; numbers from this snapshot.' : 'Real agents; numbers from the recorded run.');
   const held = g.length ? `${g[0].before}% → <b class="up">${Math.round(heldAt(Infinity))}%</b>` : '—';
   $('outroGrid').innerHTML = `<span class="h">verified</span><span class="h">attempts</span><span class="h">held-out accuracy</span><span class="h">lessons</span>
     <span>${f0.verified}/${f0.runs.length} → <b class="up">${fl.verified}/${fl.runs.length}</b></span><span>${R.length}</span><span>${held}</span><span>${ad} adopted · ${rb} rolled back · ${pv} provisional</span>`;
@@ -982,11 +1015,11 @@ function render() {
   const ri = roundAt(T);
   focusId = focusAt(T)?.id ?? null;
   drawNestFood(T, ri);
-  if (T >= OUTRO_T) { drawPits(T); drawFlags(T); drawOutro(T); R.forEach(r => drawDivergence(r, T, .8, true)); }
+  if (T >= OUTRO_T) { drawPits(T); drawFlags(T); drawOutro(T); R.forEach(r => drawDivergence(r, T, .8, true)); if (R[R.length - 1].stall) drawNotice(R[R.length - 1], R[R.length - 1].T0 + RD); }
   else {
     for (let i = 0; i < Math.min(ri, R.length); i++) { drawRound(R[i], T, 1); drawDivergence(R[i], T, .55, true); }
     drawPits(T); drawFlags(T);
-    if (ri >= 0) { const lt = T - R[ri].T0, al = lt > P.END ? 1 - clamp((lt - P.END) / (RD - P.END)) : 1; drawRound(R[ri], T, al); drawDivergence(R[ri], T, al); }
+    if (ri >= 0) { const lt = T - R[ri].T0, al = lt > P.END ? 1 - clamp((lt - P.END) / (RD - P.END)) : 1; drawRound(R[ri], T, R[ri].stall ? 1 : al); drawDivergence(R[ri], T, R[ri].stall ? 1 : al); drawNotice(R[ri], T); }
   }
   $('intro').style.opacity = T < INTRO ? String(1 - clamp((T - INTRO + .8) / .8)) : '0';
   $('outro').style.opacity = String(ease(clamp((T - OUTRO_T - 1.5) / 1)));
