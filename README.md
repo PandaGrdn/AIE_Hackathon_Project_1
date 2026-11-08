@@ -4,7 +4,18 @@
 
 An autonomous coding system that completes a long, tightly coupled task subtask by subtask. Before any agent runs, an independent test author (Gemini) reads only the subtask spec, the pinned interface and the base repo and writes hidden acceptance tests and properties. SubQ Snap, a decision model, is the judge: it resolves disagreements between the test author and the swarm from the spec alone, confirms which reasoning step caused each failure, and scores every lesson. A swarm of independent agents then implements the subtask; a run is verified when it passes every hidden test and property, and the highest-trust verified implementation is committed. Agents' own tests play no role in the verdict. Each failed agent's reasoning path is compared with the swarm's consensus path in embedding space to find where its reasoning went wrong; a reflector writes a lesson for that error. Lessons, trust-based routing and generated tools are versioned changes that must prove themselves on held-out subtasks or get rolled back.
 
-Full design: [docs/PROJECT_OUTLINE.md](docs/PROJECT_OUTLINE.md)
+Full design: [docs/PROJECT_OUTLINE.md](docs/PROJECT_OUTLINE.md) · Recorded-run results: [docs/RESULTS.md](docs/RESULTS.md) · Metrics: [docs/METRICS.md](docs/METRICS.md) · Demo runbook: [docs/DEMO.md](docs/DEMO.md)
+
+## What happened in the recorded live run (Nov 7, 14:51–16:40 PT)
+
+Real agents (Gemini 3.8 Flash, Gemini 3.5 Flash-Lite, Claude Sonnet 5.5, Meta Muse Spark 1.3), 4 per subtask, on the MCP Python SDK at `77001c9`. Hidden spec tests were written by Gemini from the spec alone and calibrated against a reference; the full 2,389-test regression suite ran in every sandbox. SubQ Snap 1.1 (Decisions API) localized the root-cause reasoning step for every failed run.
+
+- **Task A** (per-tool rate limits, 7 subtasks): 4 of 7 subtasks verified and committed (S0 4/4, S1 3/4, S2 1/4, S3 4/4; S4 0/4 then 0/4 on the retry with 4 injected lessons, stalled). 62 agent runs, 18 lessons, 18 SubQ root-cause decisions (3 at P ≥ 0.7; 17 classified `bug`). The held-out gate rolled back every lesson it scored (no held-out signal with 1–2 agents per slice): 0 adopted.
+- **Retry with lessons rescues all-fail subtasks** (the loop learning inside a subtask): when a first attempt had 0 verified runs, the failures were reflected into lessons and the subtask retried once with them injected. Counts per phase are in [docs/RESULTS.md](docs/RESULTS.md) (`scripts/rescue_stats.py` computes them from the summaries).
+- **Task B** (held-out long task: tool timeouts → deprecation → resource size cap), run twice: baseline (no lessons) and with Task A's provisional lessons injected. The comparison is in `demo/results.json` and RESULTS.md. These lessons were mostly tool-use habits, not SDK semantics, so cross-task transfer is small; we say so.
+- Offline fake-agent run on the same 7 subtasks (`demo/mcp_fake_snapshot.json`, labelled simulated): 7/7, 2 lessons adopted by the gate, held-out 0.50 → 0.71, 1 rolled back.
+
+Snapshots for the UI are in `demo/` (`mcp_snapshot.dense.json` is the real Task A run with interpolated reasoning paths).
 
 ## Setup
 
