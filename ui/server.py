@@ -44,6 +44,25 @@ HERE = Path(__file__).resolve().parent
 INDEX_HTML = HERE / "index.html"
 CONCEPT_HTML = HERE / "concept.html"
 LIVE_HTML = HERE / "live.html"
+COLONY_HTML = HERE / "colony.html"
+DEFAULT_SUMMARY = HERE.parent / "demo" / "task_a_summary.json"
+_SIMULATED_MARKERS = ("fake", "pricing_snapshot")
+
+
+def snapshot_meta() -> dict:
+    """Which snapshot is being served, and whether its agents were simulated (fake swarm)."""
+    snap = os.environ.get("SWARM_SNAPSHOT") or ""
+    name = os.path.basename(snap)
+    return {"snapshot": name or None, "simulated": any(m in name for m in _SIMULATED_MARKERS)}
+
+
+def read_summary_file(path: str | os.PathLike | None = None) -> dict:
+    """The per-subtask run summary (record_demo.py output). {} when missing or unreadable."""
+    p = Path(path or os.environ.get("SWARM_SUMMARY") or DEFAULT_SUMMARY)
+    try:
+        return json.loads(p.read_text())
+    except (OSError, ValueError):
+        return {}
 SNAPSHOT_VERSION = 1
 
 
@@ -328,6 +347,18 @@ def make_app(store=None) -> FastAPI:
     def live():
         return FileResponse(LIVE_HTML, media_type="text/html")
 
+    @app.get("/colony", include_in_schema=False)
+    def colony():
+        return FileResponse(COLONY_HTML, media_type="text/html")
+
+    @app.get("/api/summary_file")
+    def summary_file():
+        return read_summary_file()
+
+    @app.get("/api/meta")
+    def meta():
+        return snapshot_meta()
+
     @app.get("/api/changes")
     def changes():
         cs = sorted(_list_changes(get()), key=lambda c: _ts(c.decided_at), reverse=True)
@@ -375,6 +406,7 @@ def make_app(store=None) -> FastAPI:
                 "text": _step_text(d),
                 "embedding": d.get("embedding"),
                 "failed": f,
+                "ts": d.get("ts"),
             })
         return jsonable_encoder(out)
 

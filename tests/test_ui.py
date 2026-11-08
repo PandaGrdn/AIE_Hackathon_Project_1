@@ -247,3 +247,22 @@ def test_concept_page_serves_terrain(client):
     r = client.get("/concept")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert "Reasoning terrain" in r.text and "/api/steps" in r.text
+
+
+def test_colony_page_and_meta(client, monkeypatch):
+    r = client.get("/colony")
+    assert r.status_code == 200 and "<title>Colony</title>" in r.text
+    monkeypatch.setenv("SWARM_SNAPSHOT", "demo/mcp_fake_snapshot.json")
+    from ui.server import snapshot_meta
+    assert snapshot_meta() == {"snapshot": "mcp_fake_snapshot.json", "simulated": True}
+    monkeypatch.setenv("SWARM_SNAPSHOT", "demo/mcp_snapshot.dense.json")
+    assert snapshot_meta()["simulated"] is False
+
+
+def test_summary_file(tmp_path, monkeypatch, client):
+    f = tmp_path / "s.json"
+    f.write_text('{"per_subtask": [{"subtask_id": "a", "verified": 1, "failed": 3}]}')
+    monkeypatch.setenv("SWARM_SUMMARY", str(f))
+    assert client.get("/api/summary_file").json()["per_subtask"][0]["verified"] == 1
+    monkeypatch.setenv("SWARM_SUMMARY", str(tmp_path / "missing.json"))
+    assert client.get("/api/summary_file").json() == {}
