@@ -127,6 +127,8 @@ aside{border-left:1px solid var(--line);background:var(--panel);display:flex;fle
 .cut.hot{border-top-color:var(--amber);color:var(--amber)}.cut.hot span{color:var(--amber)}
 .paused{position:absolute;top:14px;left:16px;font:600 12px var(--mono);color:var(--amber);background:rgba(36,30,18,.92);border:1px solid #5a4724;padding:6px 12px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
 #stepmode.on{border-color:var(--amber);color:var(--amber)}
+header{grid-row:1}.banner{grid-row:2}.pipe{grid-row:3}.stage{grid-row:4;grid-column:1}aside{grid-row:4;grid-column:2}footer{grid-row:5}
+@media (max-width:980px){header,.banner,.pipe,.stage,aside,footer{grid-row:auto;grid-column:auto}}
 .modes{display:flex;gap:6px;margin-left:8px}
 .modes button{font-size:11px;padding:6px 10px}
 .modes button.on{border-color:var(--amber);color:var(--amber);background:#241e12}
@@ -215,7 +217,9 @@ button:hover{border-color:#4a4334}
 <script>
 // ---------- run data: every agent, step, pit, lesson and number comes from /api/bundle ----------
 const W = 1000, H = 600;
-const INTRO = 5, RD = 40, OUTRO = 14;
+const INTRO = 4, OUTRO = 10;
+let RD = 40; // seconds per attempt; rescaled in main() so the whole replay fits the target length
+const TARGET_S = +(new URLSearchParams(location.search).get('len') || 120);
 const P = { TESTS: 0, ROUTE: 1.5, WALK: 3, VERIFY: 23, TRUST: 24.5, DIVERGE: 27, REFLECT: 29, GATE: 31, GATE_DUR: 2.6, GATE_GAP: 3, END: 37 };
 const NEST = { x: 82, y: 300 }, FOOD = { x: 928, y: 300 };
 const SNAP = new URLSearchParams(location.search).get('snap') === 'real' ? 'real' : 'fake';
@@ -313,6 +317,8 @@ try {
 }
 const { AGENTS, PITS, ROUNDS, META } = adapt(BUNDLE);
 if (!ROUNDS.length) { document.getElementById('mapwrap').insertAdjacentHTML('beforeend', '<div class="err">This snapshot has no judged runs to replay.</div>'); return; }
+RD = Math.max(8, Math.min(40, (TARGET_S - INTRO - OUTRO) / ROUNDS.length));
+const K = RD / 40; for (const k in P) P[k] *= K; // every phase scales with the attempt length
 const TOTAL = INTRO + RD * ROUNDS.length + OUTRO;
 
 // ---------- helpers ----------
@@ -397,7 +403,7 @@ function buildRun(id, k, rd, T0, cons) {
     const forkIdx = poly.length - 1;
     for (let j = 1; j <= 30; j++) { const u = j / 30; poly.push({ x: (1 - u) * (1 - u) * F.x + 2 * (1 - u) * u * ctl.x + u * u * end.x, y: (1 - u) * (1 - u) * F.y + 2 * (1 - u) * u * ctl.y + u * u * end.y }); }
     const cum = lengths(poly), len = cum[cum.length - 1], forkFrac = cum[forkIdx] / len;
-    const t0 = T0 + P.WALK + k * .13 + rnd() * .25, dur = len / (50 + rnd() * 9);
+    const t0 = T0 + P.WALK + (k * .13 + rnd() * .25) * K, dur = len / ((50 + rnd() * 9) / K);
     const steps = rd.runsData[id].steps.map((x, i, arr) => ({ a: x.a, do: x.do, idx: x.idx, bad: i === arr.length - 1 }));
     const pins = steps.map((_, i) => i < failStep - 1 ? (i + 1) / (failStep - 1) * forkFrac : 1);
     return { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep, pit: rd.pit, steps, pins, nSteps: steps.length,
@@ -418,8 +424,8 @@ function buildRun(id, k, rd, T0, cons) {
   const cum = [0];
   for (let i = 1; i < poly.length; i++) cum.push(cum[i - 1] + Math.hypot(poly[i].x - poly[i - 1].x, poly[i].y - poly[i - 1].y));
   const len = cum[cum.length - 1];
-  const t0 = T0 + P.WALK + k * .13 + rnd() * .25;
-  const dur = 16 + rnd() * 2.6;
+  const t0 = T0 + P.WALK + (k * .13 + rnd() * .25) * K;
+  const dur = (16 + rnd() * 2.6) * K;
   const run = { id, k, poly, cum, len, t0, dur, arrive: t0 + dur, fail: failStep || 0, pit: rd.pit,
     nSteps: failStep || 5 + Math.floor(rnd() * 3), avoid: [] };
   for (const [pk, amt] of Object.entries(push)) {
@@ -467,7 +473,7 @@ ROUNDS.forEach((rd, ri) => {
   EVENTS.push({ t: T0 + P.TRUST, kind: 'amber', text: `Trust updated: ${verified.length} up, ${fallers.length} down` });
   EVENTS.push({ t: T0 + P.TRUST + .4, kind: winner ? 'ok' : 'bad', text: winner ? `Verified run from ${winner.id} committed` : 'No run verified: nothing committed' });
   rd.lessons.forEach((L, j) => {
-    const rise = T0 + P.REFLECT + j * .9, g0 = L.gated ? T0 + P.GATE + j * P.GATE_GAP : Infinity, g1 = L.gated ? g0 + P.GATE_DUR : Infinity;
+    const rise = T0 + P.REFLECT + j * .9 * K, g0 = L.gated ? T0 + P.GATE + j * P.GATE_GAP : Infinity, g1 = L.gated ? g0 + P.GATE_DUR : Infinity;
     const lesson = { ...L, ri, pit: rd.pit, j, rise, g0, g1 };
     LESSONS.push(lesson);
     EVENTS.push({ t: rise, kind: 'amber', text: `Lesson ${L.id} written from ${L.from}'s mistake` });
@@ -666,7 +672,7 @@ function drawDivergence(r, t, alpha, ghost = false) {
   ctx.beginPath(); ctx.roundRect(bx, by, w, h, 7); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ff6b5e'; ctx.fillRect(bx, by, 4, h);
   ctx.beginPath(); ctx.moveTo(F.x, below ? F.y + 17 : F.y - 17); ctx.lineTo(F.x, below ? by : by + h); ctx.stroke();
-  label(`DIVERGENCE POINT · step ${steps}`, bx + 14, by + 16, '#ff6b5e', 'left', 11.5);
+  label(steps === '?' ? 'FAILED · no root-cause step located' : `DIVERGENCE POINT · step ${steps}`, bx + 14, by + 16, '#ff6b5e', 'left', 11.5);
   label(`${n} agent${n > 1 ? 's' : ''} failed${pit.p != null ? ` · SubQ P(root cause) ${Math.round(pit.p * 100)}%` : ''}${pit.kind ? ' · ' + pit.kind : ''}`, bx + 14, by + 31, '#e8dccb', 'left', 10);
   label(`blamed step: ${pit.short}`, bx + 14, by + 45, '#bba99a', 'left', 10);
   ctx.globalAlpha = 1;
@@ -825,7 +831,7 @@ function traceFor(t) {
   const left = run.steps.slice(0, vis).map((st, i) => {
     const last = i === vis - 1;
     let cls = st.heed ? 'heed' : ''; if (st.bad && fell) cls = 'bad'; if (last && p < 1 && !st.heed) cls += ' cur';
-    const tag = st.heed ? ` <b class="tag ok">used ${st.heed}</b>` : (st.bad && fell ? ` <b class="tag bad">${diverged ? 'divergence point' : 'fell here'}</b>` : '');
+    const tag = st.heed ? ` <b class="tag ok">used ${st.heed}</b>` : (st.bad && fell ? ` <b class="tag bad">${diverged && run.divStep != null ? 'divergence point' : 'last step before failing'}</b>` : '');
     const act = last || st.bad || st.heed ? `<div class="do">${md(st.do)}${tag}</div>` : '';
     return `<li class="${cls}"><span class="n">${st.idx ?? i}</span><div><div class="as">${md(st.a)}</div>${act}</div></li>`;
   }).join('') || '<li class="ph">Waiting at the nest…</li>';
