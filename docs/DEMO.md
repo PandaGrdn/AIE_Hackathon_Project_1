@@ -127,10 +127,14 @@ rolled-back row with its reason.
 **2:35 to 2:50, Window A (Trust leaderboard).** Say: "Agents earn trust by agreeing with verified
 outcomes. Trust weights votes and routes work, so the swarm shifts toward agents that are right."
 
-**2:50 to 3:00, Window A (numbers strip).** Say: "Seven subtasks on a real open-source repo,
-the existing 2,389-test suite kept green, N changes adopted, M rolled back, held-out accuracy X to Y.
-It finds where the reasoning broke, writes the fix, and keeps it only if held-out work proves it."
-Read N, M, X, Y off the screen, do not guess them.
+**2:50 to 3:00, Window A (numbers strip).** Say: "A real run on a real open-source repo: four of
+seven coupled subtasks verified and committed with the existing 2,389-test suite kept green, 62 agent
+runs, 18 lessons, every failed run localized by SubQ to a reasoning step with a probability. When a
+subtask failed on every agent, the loop reflected the failures into lessons and retried with them, and
+that retry rescued subtasks that had zero passing runs. The gate rolled back every lesson that could not
+prove itself on held-out work: selective by design. It finds where the reasoning broke, writes the fix,
+and keeps only what held-out work proves."
+Exact counts (rescues, B0 vs B1) are in docs/RESULTS.md; read them from there, do not guess.
 
 ## 3. Fallback matrix
 
