@@ -444,6 +444,7 @@ def cross_test(
         props_by_fn: dict[str, list] = defaultdict(list)
         for p in spec.properties:
             props_by_fn[p.function].append(p)
+        prop_satisfied: set[str] = set()  # property names that held for at least one run on at least one input
         for r in runs:
             for c in cases:
                 o = outcomes[r.id][c.id]
@@ -458,8 +459,11 @@ def cross_test(
                     fuzz_dis[r.id].append(c.id)
                 if o.ok and c.source in ("spec", "seed", "fuzz"):
                     for p in props_by_fn.get(c.function, []):
-                        if check_property(p, c.args, o.value) is False:
+                        ok = check_property(p, c.args, o.value)
+                        if ok is False:
                             prop_viol[r.id].append([c.id, p.name])
+                        elif ok:
+                            prop_satisfied.add(p.name)
         # a property every run violates is the author's problem (a wrong or unevaluable predicate), not six
         # independent agents' problem: flag it once and charge nobody — the same two-oracle rule as for cases
         if len(runs) >= 2:
@@ -467,11 +471,16 @@ def cross_test(
             for cid, pname in prop_viol[runs[0].id]:
                 if all([cid, pname] in prop_viol[r.id] for r in runs[1:]):
                     unanimous.add((cid, pname))
-            for pname in sorted({pn for _, pn in unanimous}):
+            # a property that never held for anyone on any input cannot be evaluated against the spec at all
+            # (e.g. it calls a name a single-call predicate cannot see); on inputs where some runs raise it is
+            # not unanimous per case, so judge it per property
+            violated_names = {pn for r in runs for _, pn in prop_viol[r.id]}
+            broken = {pn for pn in violated_names if pn not in prop_satisfied}
+            for pname in sorted({pn for _, pn in unanimous} | broken):
                 flags.append(AmbiguityFlag(case_id="", function=f"property:{pname}", args=[], expected="property holds for every input",
-                                           majority=Outcome(ok=False, exception="violated by every run"), agreement=1.0, resolution="majority"))
+                                           majority=Outcome(ok=False, exception="violated by every run" if pname not in broken else "never satisfied by any run"), agreement=1.0, resolution="majority"))
             for r in runs:
-                prop_viol[r.id] = [v for v in prop_viol[r.id] if (v[0], v[1]) not in unanimous]
+                prop_viol[r.id] = [v for v in prop_viol[r.id] if (v[0], v[1]) not in unanimous and v[1] not in broken]
         failed = sorted(r.id for r in runs if spec_misses[r.id] or regression[r.id] or prop_viol[r.id])
     elif runs and regression_ids:
         # no spec tests but a repo suite: regressions still fail a run; fuzz majority decides the rest
