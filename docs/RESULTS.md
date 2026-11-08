@@ -71,21 +71,37 @@ Real agents, real repo (MCP Python SDK), no `--fake`. Sources: `demo/task_a_summ
 - The summary's `first_pass_verified_share` for deprecation is 0.25 (computed over all 8 runs); the first-attempt block shows 0/4.
 - "No lessons" here means no lessons from Task A; the retry step uses provisional lessons from the subtask's own failed first attempt.
 
-### B1 (with provisional lessons): pending
+### B1 (with provisional lessons), `demo/task_b_with_lessons_summary.json`, compare in `demo/results.json`
 
-B1 injects Task A's provisional (ungated) lessons, because the gate adopted none. Caveat: this is not a gated-lessons comparison. Fill from `demo/results.json` when it exists:
+B1 injected Task A's provisional (ungated) lessons: 10 in play. Caveat: not a gated-lessons comparison. Result: B1 did **not** beat the baseline.
 
-| Field | B0 | B1 |
-|---|---|---|
-| subtasks_done | 2/3 | TBD |
-| verified_share | 0.15 (3/20) | TBD |
-| first_pass_verified_share, timeout | 0.25 | TBD |
-| first_pass_verified_share, deprecation | 0.00 (first attempt) | TBD |
-| first_pass_verified_share, size cap | 0.00 | TBD |
-| failed_runs | 9 | TBD |
-| lessons_needed (lessons created) | 15 | TBD |
+| Field | B0 (no lessons) | B1 (provisional lessons) | Delta |
+| --- | --- | --- | --- |
+| Subtasks verified and committed | 2 of 3 | 1 of 3 | -1 |
+| Verified share (verified runs / runs) | 3/20 = 15% | 1/16 = 6% | -9 pts |
+| Timeout: first attempt → retry | 1/4 (no retry) | 0/4 → 1/4 | first pass -1 run |
+| Deprecation: first attempt → retry | 0/4 → 2/4 | 0/4 → 0/4 (stalled) | -2 runs |
+| Size cap | 0/4 → 0/4 (stalled) | not reached | |
+| Failed runs | 9 | 7 | |
+| Lessons the phase had to create | 15 | 12 | -3 |
+| Repeat-mistake rate | 0.06 | 0.08 | +0.01 |
+| Wall time | 1,269 s | 2,345 s | |
 
-With 3 subtasks and 4 runs each, one run is 8 points of share; report counts next to shares.
+Reading: the lessons Task A produced were mostly tool-use habits ("read files in chunks", "do not use the test runner to inspect source"), not statements about the SDK's semantics, so they did not transfer to different features. With 4 runs per subtask one run moves a share by 25 points; the B0 vs B1 gap is within that noise, and the direction is against us.
+
+## 6b. Retry with lessons on the same subtask (the within-subtask effect)
+
+Every time a first attempt had zero verified runs, the loop reflected the failures into lessons and retried once with them injected (`scripts/rescue_stats.py`):
+
+| Phase | Subtask | First attempt | Retry with lessons | Lessons injected |
+| --- | --- | --- | --- | --- |
+| Task A | Session scope | 0/4 | 0/4 | 4 |
+| Task B baseline | Tool deprecation | 0/4 | **2/4** | 4 |
+| Task B baseline | Resource size cap | 0/4 | 0/4 | 4 |
+| Task B with lessons | Per-tool timeout | 0/4 | **1/4** | 4 |
+| Task B with lessons | Tool deprecation | 0/4 | 0/4 | 3 |
+
+5 all-fail subtasks, 2 rescued by the retry; verified share 0/20 = 0% before the retry, 3/20 = 15% after. A sixth case, Task A S2 in the 15:27 attempt (`runs/record_demo.log`), went 0/4 → 1/4 the same way before a harness rule mis-called it ambiguous; it is not in a summary file and is not counted above.
 
 ## 7. Engineering fixes made during the run
 

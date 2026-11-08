@@ -1,0 +1,281 @@
+{
+ "phase": "b1",
+ "label": "Task B with Task A lessons",
+ "task": "Tool timeouts, deprecation and resource size caps for MCPServer",
+ "task_id": "d213a589f574",
+ "started_at": "2026-11-08T00:07:29+00:00",
+ "finished_at": "2026-11-08T00:46:34+00:00",
+ "wall_s": 2345.0,
+ "error": null,
+ "reset": {
+  "previous_head": "f59bedf9a2de",
+  "kept_branch": "record-demo/pre-b1",
+  "stashed": false
+ },
+ "repo_head": "75a46c1",
+ "result_branch": "record-demo/b1",
+ "store_start": {
+  "snapshot": "demo/mcp_snapshot.json",
+  "trust_carried": true,
+  "provisional_lessons_injected": true,
+  "lessons": 18,
+  "lessons_adopted": 0,
+  "regions": 2
+ },
+ "snapshot": "demo/task_b_with_lessons.json",
+ "log": "demo/task_b_with_lessons.log",
+ "args": {
+  "phase": "b1",
+  "out": "demo/",
+  "swarm_size": 4,
+  "heldout_swarm_size": 1,
+  "agents": "gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5",
+  "n_fuzz": 10,
+  "agent_timeout": 480,
+  "max_turns": 40,
+  "token_budget": 3000000,
+  "start_subtask": 0,
+  "resume_branch": "record-demo/a",
+  "task_b": "/Users/ethan/Documents/Github/AIE_Hackathon_Project/demo_task/mcp_heldout/task.md",
+  "regression": "tests/server tests/shared",
+  "base_commit": null,
+  "lessons_snapshot": "demo/mcp_snapshot.json",
+  "b1_candidates": true,
+  "b1_no_trust": false,
+  "redo": true,
+  "dry_run": false,
+  "check_references": false
+ },
+ "settings": {
+  "regression_test_paths": [
+   "tests/server",
+   "tests/shared"
+  ],
+  "gate_kinds": [
+   "context",
+   "skill",
+   "tool"
+  ],
+  "agents": [
+   "gemini-t2",
+   "gemini-lite-t9-alt",
+   "claude-t2",
+   "meta-spark-t5"
+  ]
+ },
+ "subtasks_done": 1,
+ "stalled": [
+  "e64ee0b7cb7e"
+ ],
+ "lessons": 30,
+ "changes": 23,
+ "runs_failed": 7,
+ "per_subtask": [
+  {
+   "subtask_id": "a76b2c480918",
+   "title": "Per-tool call timeout",
+   "verified": 1,
+   "failed": 3,
+   "lessons": [
+    "2ee4beebc5d5",
+    "50878231b994",
+    "42cf19aecac5",
+    "bdfe0529c5d8",
+    "3ea1a36fb4c9",
+    "f31017947c23",
+    "74a8ed32b91e"
+   ],
+   "changes": [
+    "d8bd00a8b51a",
+    "f9ed92eb936a",
+    "f79b5e23a939",
+    "84de5439e9f2",
+    "b828240e7196",
+    "3e7127709581",
+    "4e6dcdfc129f",
+    "13c0bc80d1fd"
+   ],
+   "committed": true,
+   "failed_run_ids": [
+    "1ca3df12a27d",
+    "7cf3dd5aa4a0",
+    "c7798a6895e5",
+    "ced1f9a76369",
+    "1c2d66121a61",
+    "8662f5f4fa4f",
+    "beb622a4bb9a"
+   ],
+   "verified_run_ids": [
+    "23c2acf278f2"
+   ],
+   "first_attempt": {
+    "verified": 0,
+    "failed": 4,
+    "failed_run_ids": [
+     "1ca3df12a27d",
+     "7cf3dd5aa4a0",
+     "c7798a6895e5",
+     "ced1f9a76369"
+    ],
+    "verified_run_ids": [],
+    "lessons": [
+     "2ee4beebc5d5",
+     "50878231b994",
+     "42cf19aecac5",
+     "bdfe0529c5d8"
+    ]
+   },
+   "retried": true
+  },
+  {
+   "subtask_id": "e64ee0b7cb7e",
+   "title": "Tool deprecation flags and call warnings",
+   "verified": 0,
+   "failed": 4,
+   "lessons": [
+    "9a1cc4db1b13",
+    "69d4c5959983",
+    "1db2c2e1885c",
+    "f55d2a2116be",
+    "9a9791446faa",
+    "950be0c1764d"
+   ],
+   "changes": [],
+   "committed": false,
+   "failed_run_ids": [
+    "b3edc8191553",
+    "bbb028936cc1",
+    "c7cd1cd05c2e",
+    "d3c3128c9db6",
+    "3008aa93962b",
+    "7be8cd657b09",
+    "943f1b17168e",
+    "e0add36ca969"
+   ],
+   "verified_run_ids": [],
+   "first_attempt": {
+    "verified": 0,
+    "failed": 4,
+    "failed_run_ids": [
+     "b3edc8191553",
+     "bbb028936cc1",
+     "c7cd1cd05c2e",
+     "d3c3128c9db6"
+    ],
+    "verified_run_ids": [],
+    "lessons": [
+     "9a1cc4db1b13",
+     "69d4c5959983",
+     "1db2c2e1885c"
+    ]
+   },
+   "retried": true
+  }
+ ],
+ "snapshot_path": "demo/task_b_with_lessons.json",
+ "metrics": {
+  "subtasks_total": 3,
+  "subtasks_attempted": 2,
+  "subtasks_done": 1,
+  "stalled": [
+   "e64ee0b7cb7e"
+  ],
+  "per_subtask": [
+   {
+    "title": "Per-tool call timeout",
+    "subtask_id": "a76b2c480918",
+    "runs": 8,
+    "verified": 1,
+    "failed": 3,
+    "errored": 4,
+    "first_pass_verified_share": 0.125,
+    "committed": true,
+    "lessons_in_play": 5,
+    "lessons_used": [
+     "9672cfa99d7f",
+     "e3f4eb95b9b1",
+     "25eb5f17f94b",
+     "fca6bf100eed",
+     "439b34b17875"
+    ],
+    "agents": [
+     "claude-t2",
+     "gemini-t2",
+     "meta-spark-t5",
+     "gemini-lite-t9-alt"
+    ],
+    "lessons_created": [
+     "2ee4beebc5d5",
+     "50878231b994",
+     "42cf19aecac5",
+     "bdfe0529c5d8",
+     "3ea1a36fb4c9",
+     "f31017947c23",
+     "74a8ed32b91e"
+    ],
+    "ambiguity_flags": 0
+   },
+   {
+    "title": "Tool deprecation flags and call warnings",
+    "subtask_id": "e64ee0b7cb7e",
+    "runs": 8,
+    "verified": 0,
+    "failed": 4,
+    "errored": 4,
+    "first_pass_verified_share": 0.0,
+    "committed": false,
+    "lessons_in_play": 5,
+    "lessons_used": [
+     "3ea1a36fb4c9",
+     "42cf19aecac5",
+     "50878231b994",
+     "e3f4eb95b9b1",
+     "25eb5f17f94b"
+    ],
+    "agents": [
+     "claude-t2",
+     "gemini-t2",
+     "meta-spark-t5",
+     "gemini-lite-t9-alt"
+    ],
+    "lessons_created": [
+     "9a1cc4db1b13",
+     "69d4c5959983",
+     "1db2c2e1885c",
+     "f55d2a2116be",
+     "9a9791446faa",
+     "950be0c1764d"
+    ],
+    "ambiguity_flags": 0
+   }
+  ],
+  "runs": 16,
+  "verified": 1,
+  "failed": 7,
+  "errored": 8,
+  "verified_share": 0.0625,
+  "lessons_at_start_adopted": 0,
+  "lessons_created": 12,
+  "reflected_failures": 13,
+  "repeat_mistakes": 1,
+  "repeat_mistake_rate": 0.07692307692307693,
+  "changes": 11,
+  "changes_adopted": 3,
+  "changes_rolled_back": 0,
+  "changes_candidate": 8,
+  "changes_by_kind": {
+   "routing": {
+    "candidate": 1,
+    "adopted": 3
+   },
+   "context": {
+    "candidate": 7
+   }
+  },
+  "heldout_accuracy_first": null,
+  "heldout_accuracy_last": null,
+  "heldout_repeat_rate_first": null,
+  "heldout_repeat_rate_last": null,
+  "wall_s": 2345.0
+ }
+}

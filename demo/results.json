@@ -1,0 +1,401 @@
+{
+ "generated_at": "2026-11-08T00:46:35+00:00",
+ "phases": {
+  "a": {
+   "label": "Task A (rate limits, gated)",
+   "subtasks_total": 7,
+   "subtasks_attempted": 3,
+   "subtasks_done": 2,
+   "stalled": [
+    "c832b56c6b51"
+   ],
+   "per_subtask": [
+    {
+     "title": "Enforcement on call",
+     "subtask_id": "defde383cbc9",
+     "runs": 4,
+     "verified": 1,
+     "failed": 3,
+     "errored": 0,
+     "first_pass_verified_share": 0.25,
+     "committed": true,
+     "lessons_in_play": 0,
+     "lessons_used": [],
+     "agents": [
+      "claude-t2",
+      "gemini-t2",
+      "meta-spark-t5",
+      "gemini-lite-t9-alt"
+     ],
+     "lessons_created": [
+      "25eb5f17f94b",
+      "6ab7bbeaa05c",
+      "9672cfa99d7f"
+     ],
+     "ambiguity_flags": 0
+    },
+    {
+     "title": "Client-visible limit metadata and context helpers",
+     "subtask_id": "30328ed72809",
+     "runs": 4,
+     "verified": 4,
+     "failed": 0,
+     "errored": 0,
+     "first_pass_verified_share": 1.0,
+     "committed": true,
+     "lessons_in_play": 0,
+     "lessons_used": [],
+     "agents": [
+      "claude-t2",
+      "gemini-t2",
+      "meta-spark-t5",
+      "gemini-lite-t9-alt"
+     ],
+     "lessons_created": [],
+     "ambiguity_flags": 0
+    },
+    {
+     "title": "Session scope",
+     "subtask_id": "c832b56c6b51",
+     "runs": 8,
+     "verified": 0,
+     "failed": 4,
+     "errored": 4,
+     "first_pass_verified_share": 0.0,
+     "committed": false,
+     "lessons_in_play": 0,
+     "lessons_used": [],
+     "agents": [
+      "claude-t2",
+      "gemini-t2",
+      "meta-spark-t5",
+      "gemini-lite-t9-alt"
+     ],
+     "lessons_created": [
+      "297b77e03378",
+      "439b34b17875",
+      "84075c8ec65b",
+      "c5cf98621741",
+      "fca6bf100eed",
+      "e3f4eb95b9b1",
+      "c189fa747319",
+      "3608da84959b"
+     ],
+     "ambiguity_flags": 0
+    }
+   ],
+   "runs": 16,
+   "verified": 5,
+   "failed": 7,
+   "errored": 4,
+   "verified_share": 0.3125,
+   "lessons_at_start_adopted": 0,
+   "lessons_created": 11,
+   "reflected_failures": 11,
+   "repeat_mistakes": 0,
+   "repeat_mistake_rate": 0.0,
+   "changes": 7,
+   "changes_adopted": 4,
+   "changes_rolled_back": 3,
+   "changes_candidate": 0,
+   "changes_by_kind": {
+    "context": {
+     "rolled_back": 3
+    },
+    "routing": {
+     "adopted": 4
+    }
+   },
+   "heldout_accuracy_first": 0.0,
+   "heldout_accuracy_last": null,
+   "heldout_repeat_rate_first": 0.0,
+   "heldout_repeat_rate_last": null,
+   "wall_s": 2013.4,
+   "changes_note": "adopted / rolled back by the held-out gate (routing applied directly when not in GATE_KINDS)"
+  },
+  "b0": {
+   "label": "Task B baseline (no lessons)",
+   "subtasks_total": 3,
+   "subtasks_attempted": 3,
+   "subtasks_done": 2,
+   "stalled": [
+    "a95140bc3de6"
+   ],
+   "per_subtask": [
+    {
+     "title": "Per-tool call timeout",
+     "subtask_id": "d7791ac1e10f",
+     "runs": 4,
+     "verified": 1,
+     "failed": 3,
+     "errored": 0,
+     "first_pass_verified_share": 0.25,
+     "committed": true,
+     "lessons_in_play": 0,
+     "lessons_used": [],
+     "agents": [
+      "gemini-t2",
+      "gemini-lite-t9-alt",
+      "claude-t2",
+      "meta-spark-t5"
+     ],
+     "lessons_created": [
+      "09b634e134ef",
+      "7c912e5e192a",
+      "84e7dcf71fa0"
+     ],
+     "ambiguity_flags": 0
+    },
+    {
+     "title": "Tool deprecation flags and call warnings",
+     "subtask_id": "c327806ad352",
+     "runs": 8,
+     "verified": 2,
+     "failed": 2,
+     "errored": 4,
+     "first_pass_verified_share": 0.25,
+     "committed": true,
+     "lessons_in_play": 0,
+     "lessons_used": [],
+     "agents": [
+      "claude-t2",
+      "gemini-t2",
+      "gemini-lite-t9-alt",
+      "meta-spark-t5"
+     ],
+     "lessons_created": [
+      "4b830102e8b3",
+      "eef927abaaae",
+      "f0595813e96d",
+      "e412ce4dfad6",
+      "007380ff8dc9",
+      "84e7dcf71fa0"
+     ],
+     "ambiguity_flags": 0
+    },
+    {
+     "title": "Resource size cap",
+     "subtask_id": "a95140bc3de6",
+     "runs": 8,
+     "verified": 0,
+     "failed": 4,
+     "errored": 4,
+     "first_pass_verified_share": 0.0,
+     "committed": false,
+     "lessons_in_play": 0,
+     "lessons_used": [],
+     "agents": [
+      "claude-t2",
+      "gemini-lite-t9-alt",
+      "gemini-t2",
+      "meta-spark-t5"
+     ],
+     "lessons_created": [
+      "841b7544a1f2",
+      "953173a91b85",
+      "9821be497f1d",
+      "84f943a1c220",
+      "225ee5ebdec9",
+      "77a38da4c4a0",
+      "f6ff783759d1"
+     ],
+     "ambiguity_flags": 0
+    }
+   ],
+   "runs": 20,
+   "verified": 3,
+   "failed": 9,
+   "errored": 8,
+   "verified_share": 0.15,
+   "lessons_at_start_adopted": 0,
+   "lessons_created": 15,
+   "reflected_failures": 16,
+   "repeat_mistakes": 1,
+   "repeat_mistake_rate": 0.0625,
+   "changes": 13,
+   "changes_adopted": 3,
+   "changes_rolled_back": 0,
+   "changes_candidate": 10,
+   "changes_by_kind": {
+    "context": {
+     "candidate": 8
+    },
+    "routing": {
+     "adopted": 3,
+     "candidate": 2
+    }
+   },
+   "heldout_accuracy_first": null,
+   "heldout_accuracy_last": null,
+   "heldout_repeat_rate_first": null,
+   "heldout_repeat_rate_last": null,
+   "wall_s": 1268.9
+  },
+  "b1": {
+   "label": "Task B with Task A lessons",
+   "subtasks_total": 3,
+   "subtasks_attempted": 2,
+   "subtasks_done": 1,
+   "stalled": [
+    "e64ee0b7cb7e"
+   ],
+   "per_subtask": [
+    {
+     "title": "Per-tool call timeout",
+     "subtask_id": "a76b2c480918",
+     "runs": 8,
+     "verified": 1,
+     "failed": 3,
+     "errored": 4,
+     "first_pass_verified_share": 0.125,
+     "committed": true,
+     "lessons_in_play": 5,
+     "lessons_used": [
+      "9672cfa99d7f",
+      "e3f4eb95b9b1",
+      "25eb5f17f94b",
+      "fca6bf100eed",
+      "439b34b17875"
+     ],
+     "agents": [
+      "claude-t2",
+      "gemini-t2",
+      "meta-spark-t5",
+      "gemini-lite-t9-alt"
+     ],
+     "lessons_created": [
+      "2ee4beebc5d5",
+      "50878231b994",
+      "42cf19aecac5",
+      "bdfe0529c5d8",
+      "3ea1a36fb4c9",
+      "f31017947c23",
+      "74a8ed32b91e"
+     ],
+     "ambiguity_flags": 0
+    },
+    {
+     "title": "Tool deprecation flags and call warnings",
+     "subtask_id": "e64ee0b7cb7e",
+     "runs": 8,
+     "verified": 0,
+     "failed": 4,
+     "errored": 4,
+     "first_pass_verified_share": 0.0,
+     "committed": false,
+     "lessons_in_play": 5,
+     "lessons_used": [
+      "3ea1a36fb4c9",
+      "42cf19aecac5",
+      "50878231b994",
+      "e3f4eb95b9b1",
+      "25eb5f17f94b"
+     ],
+     "agents": [
+      "claude-t2",
+      "gemini-t2",
+      "meta-spark-t5",
+      "gemini-lite-t9-alt"
+     ],
+     "lessons_created": [
+      "9a1cc4db1b13",
+      "69d4c5959983",
+      "1db2c2e1885c",
+      "f55d2a2116be",
+      "9a9791446faa",
+      "950be0c1764d"
+     ],
+     "ambiguity_flags": 0
+    }
+   ],
+   "runs": 16,
+   "verified": 1,
+   "failed": 7,
+   "errored": 8,
+   "verified_share": 0.0625,
+   "lessons_at_start_adopted": 0,
+   "lessons_created": 12,
+   "reflected_failures": 13,
+   "repeat_mistakes": 1,
+   "repeat_mistake_rate": 0.07692307692307693,
+   "changes": 11,
+   "changes_adopted": 3,
+   "changes_rolled_back": 0,
+   "changes_candidate": 8,
+   "changes_by_kind": {
+    "routing": {
+     "candidate": 1,
+     "adopted": 3
+    },
+    "context": {
+     "candidate": 7
+    }
+   },
+   "heldout_accuracy_first": null,
+   "heldout_accuracy_last": null,
+   "heldout_repeat_rate_first": null,
+   "heldout_repeat_rate_last": null,
+   "wall_s": 2345.0
+  }
+ },
+ "missing_phases": [],
+ "b0_vs_b1": {
+  "subtasks_done": {
+   "b0": 2,
+   "b1": 1,
+   "delta": -1
+  },
+  "verified_share": {
+   "b0": 0.15,
+   "b1": 0.0625,
+   "delta": -0.0875
+  },
+  "first_pass_verified_share": [
+   {
+    "title": "Per-tool call timeout",
+    "b0": 0.25,
+    "b1": 0.125,
+    "delta": -0.125
+   },
+   {
+    "title": "Tool deprecation flags and call warnings",
+    "b0": 0.25,
+    "b1": 0.0,
+    "delta": -0.25
+   },
+   {
+    "title": "Resource size cap",
+    "b0": 0.0,
+    "b1": null,
+    "delta": null
+   }
+  ],
+  "failed_runs": {
+   "b0": 9,
+   "b1": 7,
+   "delta": -2
+  },
+  "lessons_needed": {
+   "b0": 15,
+   "b1": 12,
+   "delta": -3
+  },
+  "repeat_mistake_rate": {
+   "b0": 0.0625,
+   "b1": 0.07692307692307693,
+   "delta": 0.014423076923076927
+  },
+  "lessons_in_play_b1": 10,
+  "lessons_carried_into_b1": 0,
+  "wall_s": {
+   "b0": 1268.9,
+   "b1": 2345.0
+  }
+ },
+ "caveats": [
+  "Task B is built from the same three slices Task A's held-out gate scores lessons on, so B1 vs B0 measures whether gate-selected lessons help a long task on those features, not transfer to unseen work.",
+  "Small n: 3 subtasks x swarm-size runs per phase; a difference of one run is noise. Report counts next to shares.",
+  "run_task stops at the first subtask that does not verify; compare subtasks_done and per-subtask shares only for subtasks both phases attempted.",
+  "B1 also carries Task A's trust scores (vote weights, winner choice); rerun b1 with --b1-no-trust to isolate lessons."
+ ]
+}

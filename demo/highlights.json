@@ -92,6 +92,13 @@
    "first": "0/4",
    "after_retry": "2/4",
    "lessons_injected": 4
+  },
+  {
+   "phase": "task_b_with_lessons",
+   "subtask": "Per-tool call timeout",
+   "first": "0/4",
+   "after_retry": "1/4",
+   "lessons_injected": 4
   }
  ],
  "per_phase": {
@@ -160,6 +167,87 @@
     }
    ],
    "wall_s": 1268.9
+  },
+  "task_b_with_lessons": {
+   "subtasks_done": 1,
+   "per_subtask": [
+    {
+     "title": "Per-tool call timeout",
+     "verified": 1,
+     "failed": 3,
+     "committed": true,
+     "lessons": 7,
+     "first_attempt": {
+      "verified": 0,
+      "failed": 4
+     }
+    },
+    {
+     "title": "Tool deprecation flags and call warnings",
+     "verified": 0,
+     "failed": 4,
+     "committed": false,
+     "lessons": 6,
+     "first_attempt": {
+      "verified": 0,
+      "failed": 4
+     }
+    }
+   ],
+   "wall_s": 2345.0
+  }
+ },
+ "b0_vs_b1": {
+  "subtasks_done": {
+   "b0": 2,
+   "b1": 1,
+   "delta": -1
+  },
+  "verified_share": {
+   "b0": 0.15,
+   "b1": 0.0625,
+   "delta": -0.0875
+  },
+  "first_pass_verified_share": [
+   {
+    "title": "Per-tool call timeout",
+    "b0": 0.25,
+    "b1": 0.125,
+    "delta": -0.125
+   },
+   {
+    "title": "Tool deprecation flags and call warnings",
+    "b0": 0.25,
+    "b1": 0.0,
+    "delta": -0.25
+   },
+   {
+    "title": "Resource size cap",
+    "b0": 0.0,
+    "b1": null,
+    "delta": null
+   }
+  ],
+  "failed_runs": {
+   "b0": 9,
+   "b1": 7,
+   "delta": -2
+  },
+  "lessons_needed": {
+   "b0": 15,
+   "b1": 12,
+   "delta": -3
+  },
+  "repeat_mistake_rate": {
+   "b0": 0.0625,
+   "b1": 0.07692307692307693,
+   "delta": 0.014423076923076927
+  },
+  "lessons_in_play_b1": 10,
+  "lessons_carried_into_b1": 0,
+  "wall_s": {
+   "b0": 1268.9,
+   "b1": 2345.0
   }
  }
 }

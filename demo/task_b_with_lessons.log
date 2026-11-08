@@ -1,0 +1,122 @@
+─────────────── record_demo phase b1: Task B with Task A lessons ───────────────
+command: python scripts/record_demo.py --swarm-size 4 --agents 
+gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5 --agent-timeout 480 --out 
+demo/ --phase b1 --redo --b1-candidates --lessons-snapshot 
+demo/mcp_snapshot.json
+started 2026-11-08T00:07:28+00:00; swarm size 4, held-out swarm size 1, n_fuzz 
+10, regression tests/server tests/shared, gate kinds context,skill,tool
+roster: gemini-t2 (gemini/gemini-3.8-flash), gemini-lite-t9-alt 
+(gemini/gemini-3.5-flash-lite), claude-t2 (anthropic/claude-sonnet-5-5), 
+meta-spark-t5 (meta/muse-spark-1.3)
+reset /Users/ethan/Documents/Github/AIE_Hackathon_Project/demo_task/mcp/repo to 
+77001c9 on branch swarm (previous HEAD f59bedf9a2de kept as record-demo/pre-b1)
+store from demo/mcp_snapshot.json: 0 adopted lessons (of 18), 2 failure regions,
+trust carried
+warning: no adopted lessons in the snapshot; b1 will match b0 except for trust
+held-out gate: off; spec tests = the slices' verified hidden tests
+─────────────────────── Subtask 0: Per-tool call timeout ───────────────────────
+spec tests: 1 hidden module(s) / 24 tests, 0 cases, 0 properties
+lessons in play: 5
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 62.4s 16 steps 539.3k in / 10.5k out tokens 1 rejected ok
+ 150.3s 26 steps 242.4k in / 10.1k out tokens 2 rejected ok
+ 158.6s 16 steps 498.1k in / 18.0k out tokens 1 rejected ok
+ 174.3s 7 steps 535.3k in / 15.4k out tokens 0 rejected ok
+verified: 0  failed: 4  cases: 1855
+root cause (claude-t2): step 11 via subq p=0.13, kind=bug (0.24)
+lesson (claude-t2 @ step 11): Avoid modifying source code using blind regex 
+replacements in scripts; after any automated file modification, immediately 
+verify the file's syntax and run the full existing test suite to ensure no 
+collateral damage or syntax errors were introduced.
+root cause (gemini-t2): step 6 via subq p=0.26, kind=bug (0.92)
+lesson (gemini-t2 @ step 6): When a specification lists API changes across 
+multiple files or classes, verify each listed method against your implementation
+before concluding, ensuring no required parameter updates or delegating wrappers
+are missed.
+root cause (meta-spark-t5): step 0 via subq p=0.13, kind=bug (0.93)
+lesson (meta-spark-t5 @ step 0): When the task specification explicitly provides
+the target method signatures and changes, implement them directly instead of 
+spending turns probing and dumping existing signatures. If code inspection is 
+necessary, read specific line ranges rather than writing throwaway probe tests 
+that consume the turn budget.
+root cause (gemini-lite-t9-alt): step 11 via subq p=0.62, kind=bug (0.93)
+lesson (gemini-lite-t9-alt @ step 11): When edits introduce syntax or import 
+errors, inspect `git diff` against the base file immediately to identify the 
+exact corruption instead of making speculative repairs that introduce further 
+breakage.
+no verified run; retrying once with 4 provisional lesson(s) from these failures
+─────────────────────── Subtask 0: Per-tool call timeout ───────────────────────
+spec tests: 1 hidden module(s) / 24 tests, 0 cases, 0 properties
+lessons in play: 7 (2 provisional from the previous attempt)
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 93.3s 5 steps 597.3k in / 1.2k out tokens 2 rejected ok
+ 139.3s 22 steps 257.6k in / 9.0k out tokens 2 rejected ok
+ 190.4s 23 steps 585.3k in / 19.5k out tokens 1 rejected ok
+ 351.3s 11 steps 493.4k in / 3.6k out tokens 0 rejected ok
+verified: 1  failed: 3  cases: 1851
+committed implementation from claude-t2
+root cause (gemini-t2): step 0 via path p=0.05, kind=bug (0.89)
+lesson (gemini-t2 @ step 0): Inspect and edit specified target files directly 
+using standard file tools rather than wasting turns probing the codebase or 
+viewing source code through test runner executions. When API changes are 
+explicitly detailed across multiple files, prioritize implementing the 
+signatures and validation across all designated targets.
+root cause (meta-spark-t5): step 21 via path p=0.03, kind=bug (0.97)
+lesson (meta-spark-t5 @ step 21): Do not use test runs or probe scripts as a 
+roundabout way to inspect source code; use direct file reading and search tools 
+so you do not exhaust turns in an inspection loop before implementing changes.
+root cause (gemini-lite-t9-alt): step 7 via subq p=0.44, kind=bug (0.98)
+lesson (gemini-lite-t9-alt @ step 7): Before finishing, verify every method 
+specified in the public API requirement—such as by inspecting their signatures 
+or running a minimal invocation test—to ensure all required file changes were 
+actually applied.
+───────────── Subtask 1: Tool deprecation flags and call warnings ──────────────
+spec tests: 1 hidden module(s) / 24 tests, 0 cases, 0 properties
+lessons in play: 5
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 74.0s 17 steps 658.9k in / 12.6k out tokens 0 rejected ok
+ 84.9s 0 steps 653.5k in / 1.2k out tokens 0 rejected ok
+ 137.3s 18 steps 478.0k in / 11.6k out tokens 0 rejected ok
+ 194.9s 20 steps 284.6k in / 14.2k out tokens 1 rejected ok
+verified: 0  failed: 4  cases: 1744
+root cause (claude-t2): step 0 via subq p=0.20, kind=bug (0.97)
+lesson (claude-t2 @ step 0): Never use test runners or failing tests to inspect 
+source code; use direct file-reading tools, line offsets, or shell commands like
+grep and sed to inspect files efficiently without exhausting your turn budget.
+root cause (meta-spark-t5): step 1 via subq p=0.33, kind=bug (0.93)
+lesson (meta-spark-t5 @ step 1): Inspect codebase files directly using file 
+reading, line-range paging, or search tools instead of dumping source code 
+through test runner assertion messages.
+root cause (gemini-lite-t9-alt): step 13 via subq p=0.41, kind=bug (0.81)
+lesson (gemini-lite-t9-alt @ step 13): When modifying registration decorators, 
+test both invocation styles (bare `@dec` and parameterized `@dec(...)`) and 
+assert that the underlying registered objects actually store the new attributes.
+no verified run; retrying once with 3 provisional lesson(s) from these failures
+───────────── Subtask 1: Tool deprecation flags and call warnings ──────────────
+spec tests: 1 hidden module(s) / 24 tests, 0 cases, 0 properties
+lessons in play: 7 (2 provisional from the previous attempt)
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 106.5s 15 steps 815.2k in / 36.7k out tokens 0 rejected ok
+ 173.0s 22 steps 659.5k in / 17.3k out tokens 0 rejected ok
+ 225.2s 26 steps 259.7k in / 16.4k out tokens 2 rejected ok
+ 1269.6s 0 steps 482.0k in / 1.0k out tokens 0 rejected ERROR timeout: agent 
+exceeded 480s
+verified: 0  failed: 4  cases: 1740
+root cause (claude-t2): step 3 via subq p=0.35, kind=bug (0.96)
+lesson (claude-t2 @ step 3): When file inspection tools truncate output, use 
+direct shell commands (such as grep, sed, or head/tail) to view specific line 
+ranges rather than wasting iterations probing file contents via the test runner.
+root cause (meta-spark-t5): step 0 via subq p=0.33, kind=bug (0.96)
+lesson (meta-spark-t5 @ step 0): Use standard file-reading tools with line 
+ranges and offsets to inspect code instead of running probe tests or triggering 
+assertion failures to dump file contents.
+root cause (gemini-lite-t9-alt): step 3 via subq p=0.70, kind=bug (0.94)
+lesson (gemini-lite-t9-alt @ step 3): When modifying a function that uses 
+`@overload`, ensure new parameters are added to every overload signature as well
+as the runtime implementation definition. Updating only an overload signature 
+leaves the runtime function unchanged and causes a TypeError.
+ambiguous — no verified majority; not advancing
+phase b1: 1/3 subtasks, 1/16 runs verified, 12 lessons, 3 adopted / 0 rolled 
+back, 2345s
+wrote demo/task_b_with_lessons_summary.json, demo/task_b_with_lessons.json, 
+demo/task_b_with_lessons.log; repo result on branch record-demo/b1 (75a46c1)
