@@ -1,0 +1,134 @@
+─────────────── record_demo phase a: Task A (rate limits, gated) ───────────────
+command: python scripts/record_demo.py --swarm-size 4 --heldout-swarm-size 1 
+--agents gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5 --agent-timeout 
+480 --out demo/ --phase a --start-subtask 2
+started 2026-11-07T23:31:37+00:00; swarm size 4, held-out swarm size 1, n_fuzz 
+10, regression tests/server tests/shared, gate kinds context,skill,tool
+roster: gemini-t2 (gemini/gemini-3.8-flash), gemini-lite-t9-alt 
+(gemini/gemini-3.5-flash-lite), claude-t2 (anthropic/claude-sonnet-5-5), 
+meta-spark-t5 (meta/muse-spark-1.3)
+resume Task A at subtask 2: 
+/Users/ethan/Documents/Github/AIE_Hackathon_Project/demo_task/mcp/repo on branch
+swarm = record-demo/a (315b673); no reset
+held-out gate: mcp_resource_size_cap, mcp_tool_deprecation, mcp_tool_timeout via
+/Users/ethan/Documents/Github/AIE_Hackathon_Project/runs/record_demo/heldout_mcp
+──────────────────────── Subtask 2: Enforcement on call ────────────────────────
+spec tests: 2 hidden module(s) / 17 tests, 0 cases, 0 properties
+lessons in play: 0
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 61.5s 13 steps 621.4k in / 9.8k out tokens 0 rejected ok
+ 109.4s 23 steps 376.7k in / 9.5k out tokens 0 rejected ok
+ 135.6s 2 steps 732.0k in / 6.4k out tokens 0 rejected ok
+ 223.3s 14 steps 761.0k in / 23.4k out tokens 0 rejected ok
+verified: 1  failed: 3  cases: 1881
+committed implementation from claude-t2
+root cause (gemini-t2): step 0 via subq p=0.42, kind=bug (0.61)
+lesson (gemini-t2 @ step 0): When a task spans multiple files across different 
+layers, implement and verify foundational dependencies first before updating 
+higher-level consumers, rather than modifying all files in a single pass.
+root cause (meta-spark-t5): step 1 via subq p=0.36, kind=bug (0.91)
+lesson (meta-spark-t5 @ step 1): When a file read is truncated, inspect it in 
+chunks using line ranges rather than abusing test runners to dump contents, 
+which wastes steps and avoids writing code.
+root cause (gemini-lite-t9-alt): step 4 via subq p=0.63, kind=bug (0.98)
+lesson (gemini-lite-t9-alt @ step 6): When modifying files that exceed tool read
+or display limits, locate the target definitions using targeted searches or 
+offset-based reads rather than relying on truncated views. Always include tests 
+that directly invoke each modified signature to confirm the changes took effect.
+ 89.4s 2 steps 653.8k in / 1.3k out tokens 1 rejected ok
+ 104.1s 3 steps 531.9k in / 1.1k out tokens 0 rejected ok
+ 113.3s 4 steps 559.8k in / 1.2k out tokens 1 rejected ok
+ 84.2s 4 steps 546.1k in / 1.2k out tokens 2 rejected ok
+ 95.8s 3 steps 585.2k in / 1.3k out tokens 0 rejected ok
+ 115.8s 0 steps 740.1k in / 1.6k out tokens 0 rejected ok
+rolled_back context: lesson: When a task spans multiple files across different 
+layers, implement and verify foundational dependencies first before updating 
+higher-level consumers, rather than modifying all files in a single pass. — no 
+held-out improvement
+ 87.7s 2 steps 473.7k in / 1.1k out tokens 1 rejected ok
+ 119.8s 3 steps 553.1k in / 1.3k out tokens 0 rejected ok
+ 126.9s 3 steps 601.7k in / 7.3k out tokens 0 rejected ok
+rolled_back context: lesson: When a file read is truncated, inspect it in chunks
+using line ranges rather than abusing test runners to dump contents, which 
+wastes steps and avoids writing code. — no held-out improvement
+ 92.2s 3 steps 377.6k in / 1.0k out tokens 1 rejected ok
+ 123.7s 4 steps 535.9k in / 1.1k out tokens 1 rejected ok
+ 429.9s 6 steps 469.5k in / 66.1k out tokens 0 rejected ok
+rolled_back context: lesson: When modifying files that exceed tool read or 
+display limits, locate the target definitions using targeted searches or 
+offset-based reads rather than relying on truncated views. Always include tests 
+that directly invoke each modified signature to confirm the changes took effect.
+— no held-out improvement
+applied (not gated) routing: trust: claude-t2 0.67→0.71, gemini-t2 0.50→0.43, 
+meta-spark-t5 0.50→0.43, gemini
+───────── Subtask 3: Client-visible limit metadata and context helpers ─────────
+spec tests: 1 hidden module(s) / 22 tests, 0 cases, 0 properties
+lessons in play: 0
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 41.0s 11 steps 496.7k in / 1.5k out tokens 0 rejected ok
+ 120.6s 15 steps 294.9k in / 8.6k out tokens 1 rejected ok
+ 183.4s 12 steps 489.0k in / 14.3k out tokens 1 rejected ok
+ 206.5s 9 steps 848.7k in / 20.3k out tokens 0 rejected ok
+verified: 4  failed: 0  cases: 1735
+committed implementation from claude-t2
+applied (not gated) routing: trust: claude-t2 0.71→0.75, gemini-t2 0.43→0.50, 
+meta-spark-t5 0.43→0.50, gemini
+─────────────────────────── Subtask 4: Session scope ───────────────────────────
+spec tests: 2 hidden module(s) / 17 tests, 0 cases, 0 properties
+lessons in play: 0
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 96.5s 13 steps 474.3k in / 5.8k out tokens 0 rejected ok
+ 110.8s 16 steps 320.7k in / 7.9k out tokens 1 rejected ok
+ 121.3s 4 steps 530.4k in / 1.7k out tokens 0 rejected ok
+ 284.9s 10 steps 673.2k in / 22.5k out tokens 0 rejected ok
+verified: 0  failed: 4  cases: 1740
+root cause (claude-t2): step 3 via subq p=0.76, kind=bug (0.89)
+lesson (claude-t2 @ step 3): Never guess internal attribute names or object 
+relationships on framework classes; always inspect the referenced source files 
+to verify how objects are actually linked and exposed.
+root cause (gemini-t2): step 0 via subq p=0.23, kind=bug (0.98)
+lesson (gemini-t2 @ step 0): Do not assume the existing test suite is fully 
+green before implementing a feature, as pre-written acceptance tests may already
+be present and failing. Focus first on implementing the explicitly specified 
+interfaces and contracts rather than expecting a clean baseline run.
+root cause (meta-spark-t5): step 1 via subq p=0.69, kind=bug (0.97)
+lesson (meta-spark-t5 @ step 1): When a file reader truncates or elides output, 
+inspect specific sections using offset and limit parameters or targeted searches
+rather than hijacking test execution to dump source files.
+root cause (gemini-lite-t9-alt): step 6 via subq p=0.27, kind=bug (0.79)
+lesson (gemini-lite-t9-alt @ step 6): Before guessing private attribute paths to
+navigate framework objects, inspect existing functions in the same module that 
+already access those objects and reuse their navigation logic.
+no verified run; retrying once with 4 provisional lesson(s) from these failures
+─────────────────────────── Subtask 4: Session scope ───────────────────────────
+spec tests: 2 hidden module(s) / 17 tests, 0 cases, 0 properties
+lessons in play: 4 (4 provisional from the previous attempt)
+agents: claude-t2, gemini-t2, meta-spark-t5, gemini-lite-t9-alt
+ 82.8s 9 steps 590.6k in / 17.4k out tokens 0 rejected ok
+ 97.1s 1 steps 615.9k in / 1.2k out tokens 0 rejected ok
+ 155.8s 16 steps 329.8k in / 7.8k out tokens 2 rejected ok
+ 192.3s 5 steps 635.5k in / 20.3k out tokens 0 rejected ok
+verified: 0  failed: 4  cases: 1744
+root cause (claude-t2): step 3 via subq p=0.29, kind=bug (0.80)
+lesson (claude-t2 @ step 3): Make targeted, surgical edits to existing modules 
+instead of full-file rewrites, which risk clobbering existing helper 
+implementations and subtle logic.
+root cause (gemini-t2): step 0 via subq p=0.82, kind=bug (0.91)
+lesson (gemini-t2 @ step 0): When a specification explicitly requires adding new
+methods or endpoints to existing classes, inventory every specified method and 
+verify they are implemented before finishing.
+root cause (meta-spark-t5): step 0 via subq p=0.33, kind=bug (0.98)
+lesson (meta-spark-t5 @ step 0): Do not use the test runner as an ad-hoc file 
+inspection tool; use standard file reading or search tools, and begin 
+implementing the explicitly specified interfaces rather than rabbit-holing on 
+dumping source code.
+root cause (gemini-lite-t9-alt): step 6 via subq p=0.48, 
+kind=acceptable_variation (0.49)
+lesson (gemini-lite-t9-alt @ step 6): Always run the entire existing test suite 
+rather than only newly created test files to catch broken imports, syntax 
+errors, and regressions across modified modules.
+ambiguous — no verified majority; not advancing
+phase a: 2/7 subtasks, 5/16 runs verified, 11 lessons, 4 adopted / 3 rolled 
+back, 2013s
+wrote demo/task_a_summary.json, demo/mcp_snapshot.json, demo/task_a.log; repo 
+result on branch record-demo/a (f59bedf)

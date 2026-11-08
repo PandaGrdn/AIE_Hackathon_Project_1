@@ -1,0 +1,272 @@
+{
+ "phase": "a",
+ "label": "Task A (rate limits, gated)",
+ "task": "Per-tool rate limits and quotas for MCPServer",
+ "task_id": "7bfbb15ab64d",
+ "started_at": "2026-11-07T23:31:38+00:00",
+ "finished_at": "2026-11-08T00:05:11+00:00",
+ "wall_s": 2013.4,
+ "error": null,
+ "reset": null,
+ "repo_head": "f59bedf",
+ "result_branch": "record-demo/a",
+ "store_start": {
+  "snapshot": "demo/mcp_snapshot.json",
+  "trust_carried": true,
+  "resumed_at_subtask": 2,
+  "lessons": 7,
+  "lessons_adopted": 0,
+  "regions": 0
+ },
+ "snapshot": "demo/mcp_snapshot.json",
+ "log": "demo/task_a.log",
+ "args": {
+  "phase": "a",
+  "out": "demo/",
+  "swarm_size": 4,
+  "heldout_swarm_size": 1,
+  "agents": "gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5",
+  "n_fuzz": 10,
+  "agent_timeout": 480,
+  "max_turns": 40,
+  "token_budget": 3000000,
+  "start_subtask": 2,
+  "resume_branch": "record-demo/a",
+  "task_b": "/Users/ethan/Documents/Github/AIE_Hackathon_Project/demo_task/mcp_heldout/task.md",
+  "regression": "tests/server tests/shared",
+  "base_commit": null,
+  "lessons_snapshot": null,
+  "b1_no_trust": false,
+  "redo": false,
+  "dry_run": false,
+  "check_references": false
+ },
+ "settings": {
+  "regression_test_paths": [
+   "tests/server",
+   "tests/shared"
+  ],
+  "gate_kinds": [
+   "context",
+   "skill",
+   "tool"
+  ],
+  "agents": [
+   "gemini-t2",
+   "gemini-lite-t9-alt",
+   "claude-t2",
+   "meta-spark-t5"
+  ]
+ },
+ "subtasks_done": 2,
+ "stalled": [
+  "c832b56c6b51"
+ ],
+ "lessons": 18,
+ "changes": 12,
+ "runs_failed": 7,
+ "per_subtask": [
+  {
+   "subtask_id": "defde383cbc9",
+   "title": "Enforcement on call",
+   "verified": 1,
+   "failed": 3,
+   "lessons": [
+    "25eb5f17f94b",
+    "6ab7bbeaa05c",
+    "9672cfa99d7f"
+   ],
+   "changes": [
+    "f5aae287905f",
+    "c9a4769ac45b",
+    "d39c809ffd8a",
+    "4313d039ba2a"
+   ],
+   "committed": true,
+   "failed_run_ids": [
+    "67aadf2db3f0",
+    "9bed8fdd3b10",
+    "d1eb69a01ef5"
+   ],
+   "verified_run_ids": [
+    "1d4d628aa165"
+   ]
+  },
+  {
+   "subtask_id": "30328ed72809",
+   "title": "Client-visible limit metadata and context helpers",
+   "verified": 4,
+   "failed": 0,
+   "lessons": [],
+   "changes": [
+    "a609b015e5b9"
+   ],
+   "committed": true,
+   "failed_run_ids": [],
+   "verified_run_ids": [
+    "4ee86ddd098e",
+    "595038a0ca15",
+    "6596a3217520",
+    "1f8d0445dc23"
+   ]
+  },
+  {
+   "subtask_id": "c832b56c6b51",
+   "title": "Session scope",
+   "verified": 0,
+   "failed": 4,
+   "lessons": [
+    "297b77e03378",
+    "439b34b17875",
+    "84075c8ec65b",
+    "c5cf98621741",
+    "fca6bf100eed",
+    "e3f4eb95b9b1",
+    "c189fa747319",
+    "3608da84959b"
+   ],
+   "changes": [],
+   "committed": false,
+   "failed_run_ids": [
+    "24579fcc95ee",
+    "b1fc52b87e7f",
+    "c20b96505c9d",
+    "fda673f951e8",
+    "8d2b3d5783a5",
+    "a2f8750ff867",
+    "beea2a4f56f6",
+    "fa01001a3a3a"
+   ],
+   "verified_run_ids": [],
+   "first_attempt": {
+    "verified": 0,
+    "failed": 4,
+    "failed_run_ids": [
+     "24579fcc95ee",
+     "b1fc52b87e7f",
+     "c20b96505c9d",
+     "fda673f951e8"
+    ],
+    "verified_run_ids": [],
+    "lessons": [
+     "297b77e03378",
+     "439b34b17875",
+     "84075c8ec65b",
+     "c5cf98621741"
+    ]
+   },
+   "retried": true
+  }
+ ],
+ "snapshot_path": "demo/mcp_snapshot.json",
+ "metrics": {
+  "subtasks_total": 7,
+  "subtasks_attempted": 3,
+  "subtasks_done": 2,
+  "stalled": [
+   "c832b56c6b51"
+  ],
+  "per_subtask": [
+   {
+    "title": "Enforcement on call",
+    "subtask_id": "defde383cbc9",
+    "runs": 4,
+    "verified": 1,
+    "failed": 3,
+    "errored": 0,
+    "first_pass_verified_share": 0.25,
+    "committed": true,
+    "lessons_in_play": 0,
+    "lessons_used": [],
+    "agents": [
+     "claude-t2",
+     "gemini-t2",
+     "meta-spark-t5",
+     "gemini-lite-t9-alt"
+    ],
+    "lessons_created": [
+     "25eb5f17f94b",
+     "6ab7bbeaa05c",
+     "9672cfa99d7f"
+    ],
+    "ambiguity_flags": 0
+   },
+   {
+    "title": "Client-visible limit metadata and context helpers",
+    "subtask_id": "30328ed72809",
+    "runs": 4,
+    "verified": 4,
+    "failed": 0,
+    "errored": 0,
+    "first_pass_verified_share": 1.0,
+    "committed": true,
+    "lessons_in_play": 0,
+    "lessons_used": [],
+    "agents": [
+     "claude-t2",
+     "gemini-t2",
+     "meta-spark-t5",
+     "gemini-lite-t9-alt"
+    ],
+    "lessons_created": [],
+    "ambiguity_flags": 0
+   },
+   {
+    "title": "Session scope",
+    "subtask_id": "c832b56c6b51",
+    "runs": 8,
+    "verified": 0,
+    "failed": 4,
+    "errored": 4,
+    "first_pass_verified_share": 0.0,
+    "committed": false,
+    "lessons_in_play": 0,
+    "lessons_used": [],
+    "agents": [
+     "claude-t2",
+     "gemini-t2",
+     "meta-spark-t5",
+     "gemini-lite-t9-alt"
+    ],
+    "lessons_created": [
+     "297b77e03378",
+     "439b34b17875",
+     "84075c8ec65b",
+     "c5cf98621741",
+     "fca6bf100eed",
+     "e3f4eb95b9b1",
+     "c189fa747319",
+     "3608da84959b"
+    ],
+    "ambiguity_flags": 0
+   }
+  ],
+  "runs": 16,
+  "verified": 5,
+  "failed": 7,
+  "errored": 4,
+  "verified_share": 0.3125,
+  "lessons_at_start_adopted": 0,
+  "lessons_created": 11,
+  "reflected_failures": 11,
+  "repeat_mistakes": 0,
+  "repeat_mistake_rate": 0.0,
+  "changes": 7,
+  "changes_adopted": 4,
+  "changes_rolled_back": 3,
+  "changes_candidate": 0,
+  "changes_by_kind": {
+   "context": {
+    "rolled_back": 3
+   },
+   "routing": {
+    "adopted": 4
+   }
+  },
+  "heldout_accuracy_first": 0.0,
+  "heldout_accuracy_last": null,
+  "heldout_repeat_rate_first": 0.0,
+  "heldout_repeat_rate_last": null,
+  "wall_s": 2013.4
+ }
+}

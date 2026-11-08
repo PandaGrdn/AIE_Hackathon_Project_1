@@ -1,0 +1,316 @@
+{
+ "phase": "b0",
+ "label": "Task B baseline (no lessons)",
+ "task": "Tool timeouts, deprecation and resource size caps for MCPServer",
+ "task_id": "d0afee7da1e8",
+ "started_at": "2026-11-07T23:31:40+00:00",
+ "finished_at": "2026-11-07T23:52:49+00:00",
+ "wall_s": 1268.9,
+ "error": null,
+ "reset": {
+  "previous_head": "77001c96f950",
+  "kept_branch": null,
+  "stashed": false
+ },
+ "repo_head": "43b55c0",
+ "result_branch": "record-demo/b0",
+ "store_start": {
+  "snapshot": null,
+  "trust_carried": false,
+  "lessons": 0,
+  "lessons_adopted": 0,
+  "regions": 0
+ },
+ "snapshot": "demo/task_b_baseline.json",
+ "log": "demo/task_b_baseline.log",
+ "args": {
+  "phase": "b0",
+  "out": "demo/",
+  "swarm_size": 4,
+  "heldout_swarm_size": 1,
+  "agents": "gemini-t2,gemini-lite-t9-alt,claude-t2,meta-spark-t5",
+  "n_fuzz": 10,
+  "agent_timeout": 480,
+  "max_turns": 40,
+  "token_budget": 3000000,
+  "start_subtask": 0,
+  "resume_branch": "record-demo/a",
+  "task_b": "demo_task/mcp_heldout_b0/task.md",
+  "regression": "tests/server tests/shared",
+  "base_commit": null,
+  "lessons_snapshot": null,
+  "b1_no_trust": false,
+  "redo": true,
+  "dry_run": false,
+  "check_references": false
+ },
+ "settings": {
+  "regression_test_paths": [
+   "tests/server",
+   "tests/shared"
+  ],
+  "gate_kinds": [
+   "context",
+   "skill",
+   "tool"
+  ],
+  "agents": [
+   "gemini-t2",
+   "gemini-lite-t9-alt",
+   "claude-t2",
+   "meta-spark-t5"
+  ]
+ },
+ "subtasks_done": 2,
+ "stalled": [
+  "a95140bc3de6"
+ ],
+ "lessons": 15,
+ "changes": 13,
+ "runs_failed": 9,
+ "per_subtask": [
+  {
+   "subtask_id": "d7791ac1e10f",
+   "title": "Per-tool call timeout",
+   "verified": 1,
+   "failed": 3,
+   "lessons": [
+    "09b634e134ef",
+    "7c912e5e192a",
+    "84e7dcf71fa0"
+   ],
+   "changes": [
+    "07412c69080c",
+    "bbda9d98db0d",
+    "7809a07f1c3c",
+    "c0e5e849e9c7"
+   ],
+   "committed": true,
+   "failed_run_ids": [
+    "418a7b5ba92f",
+    "654643b04862",
+    "d3fab0a648ee"
+   ],
+   "verified_run_ids": [
+    "829f23619353"
+   ]
+  },
+  {
+   "subtask_id": "c327806ad352",
+   "title": "Tool deprecation flags and call warnings",
+   "verified": 2,
+   "failed": 2,
+   "lessons": [
+    "4b830102e8b3",
+    "eef927abaaae",
+    "f0595813e96d",
+    "e412ce4dfad6",
+    "007380ff8dc9",
+    "84e7dcf71fa0"
+   ],
+   "changes": [
+    "fe8a3a62f9a2",
+    "c304868b7b68",
+    "c106148c16b1",
+    "fab3e5206561",
+    "90665c1df56b",
+    "49ae7b6083e1"
+   ],
+   "committed": true,
+   "failed_run_ids": [
+    "1ea2406e1894",
+    "453f1dbafc7f",
+    "48db392fd1c7",
+    "e7862e404d0e",
+    "54a62aebdaa0",
+    "df3b2d9655fd"
+   ],
+   "verified_run_ids": [
+    "b2468ac83c47",
+    "467d9e84ed88"
+   ],
+   "first_attempt": {
+    "verified": 0,
+    "failed": 4,
+    "failed_run_ids": [
+     "1ea2406e1894",
+     "453f1dbafc7f",
+     "48db392fd1c7",
+     "e7862e404d0e"
+    ],
+    "verified_run_ids": [],
+    "lessons": [
+     "4b830102e8b3",
+     "eef927abaaae",
+     "f0595813e96d",
+     "e412ce4dfad6"
+    ]
+   },
+   "retried": true
+  },
+  {
+   "subtask_id": "a95140bc3de6",
+   "title": "Resource size cap",
+   "verified": 0,
+   "failed": 4,
+   "lessons": [
+    "841b7544a1f2",
+    "953173a91b85",
+    "9821be497f1d",
+    "84f943a1c220",
+    "225ee5ebdec9",
+    "77a38da4c4a0",
+    "f6ff783759d1"
+   ],
+   "changes": [],
+   "committed": false,
+   "failed_run_ids": [
+    "195c39b2692f",
+    "71489087561f",
+    "842299281669",
+    "ded86fcbbc58",
+    "19dd495719b1",
+    "6685011b737e",
+    "9f2f1bf97a47",
+    "dfe67caa645a"
+   ],
+   "verified_run_ids": [],
+   "first_attempt": {
+    "verified": 0,
+    "failed": 4,
+    "failed_run_ids": [
+     "195c39b2692f",
+     "71489087561f",
+     "842299281669",
+     "ded86fcbbc58"
+    ],
+    "verified_run_ids": [],
+    "lessons": [
+     "841b7544a1f2",
+     "953173a91b85",
+     "9821be497f1d",
+     "84f943a1c220"
+    ]
+   },
+   "retried": true
+  }
+ ],
+ "snapshot_path": "demo/task_b_baseline.json",
+ "metrics": {
+  "subtasks_total": 3,
+  "subtasks_attempted": 3,
+  "subtasks_done": 2,
+  "stalled": [
+   "a95140bc3de6"
+  ],
+  "per_subtask": [
+   {
+    "title": "Per-tool call timeout",
+    "subtask_id": "d7791ac1e10f",
+    "runs": 4,
+    "verified": 1,
+    "failed": 3,
+    "errored": 0,
+    "first_pass_verified_share": 0.25,
+    "committed": true,
+    "lessons_in_play": 0,
+    "lessons_used": [],
+    "agents": [
+     "gemini-t2",
+     "gemini-lite-t9-alt",
+     "claude-t2",
+     "meta-spark-t5"
+    ],
+    "lessons_created": [
+     "09b634e134ef",
+     "7c912e5e192a",
+     "84e7dcf71fa0"
+    ],
+    "ambiguity_flags": 0
+   },
+   {
+    "title": "Tool deprecation flags and call warnings",
+    "subtask_id": "c327806ad352",
+    "runs": 8,
+    "verified": 2,
+    "failed": 2,
+    "errored": 4,
+    "first_pass_verified_share": 0.25,
+    "committed": true,
+    "lessons_in_play": 0,
+    "lessons_used": [],
+    "agents": [
+     "claude-t2",
+     "gemini-t2",
+     "gemini-lite-t9-alt",
+     "meta-spark-t5"
+    ],
+    "lessons_created": [
+     "4b830102e8b3",
+     "eef927abaaae",
+     "f0595813e96d",
+     "e412ce4dfad6",
+     "007380ff8dc9",
+     "84e7dcf71fa0"
+    ],
+    "ambiguity_flags": 0
+   },
+   {
+    "title": "Resource size cap",
+    "subtask_id": "a95140bc3de6",
+    "runs": 8,
+    "verified": 0,
+    "failed": 4,
+    "errored": 4,
+    "first_pass_verified_share": 0.0,
+    "committed": false,
+    "lessons_in_play": 0,
+    "lessons_used": [],
+    "agents": [
+     "claude-t2",
+     "gemini-lite-t9-alt",
+     "gemini-t2",
+     "meta-spark-t5"
+    ],
+    "lessons_created": [
+     "841b7544a1f2",
+     "953173a91b85",
+     "9821be497f1d",
+     "84f943a1c220",
+     "225ee5ebdec9",
+     "77a38da4c4a0",
+     "f6ff783759d1"
+    ],
+    "ambiguity_flags": 0
+   }
+  ],
+  "runs": 20,
+  "verified": 3,
+  "failed": 9,
+  "errored": 8,
+  "verified_share": 0.15,
+  "lessons_at_start_adopted": 0,
+  "lessons_created": 15,
+  "reflected_failures": 16,
+  "repeat_mistakes": 1,
+  "repeat_mistake_rate": 0.0625,
+  "changes": 13,
+  "changes_adopted": 3,
+  "changes_rolled_back": 0,
+  "changes_candidate": 10,
+  "changes_by_kind": {
+   "context": {
+    "candidate": 8
+   },
+   "routing": {
+    "adopted": 3,
+    "candidate": 2
+   }
+  },
+  "heldout_accuracy_first": null,
+  "heldout_accuracy_last": null,
+  "heldout_repeat_rate_first": null,
+  "heldout_repeat_rate_last": null,
+  "wall_s": 1268.9
+ }
+}
