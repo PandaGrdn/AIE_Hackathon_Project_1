@@ -167,12 +167,34 @@ def repo_test_files(repo: Path | None) -> list[str]:
     tests/ tree has parts that only run under its own CI setup."""
     if repo is None:
         return []
+    tracked = _tracked_at_base(repo)
     out: set[str] = set()
     for d in settings.regression_test_paths:
         base = repo / d
         if base.is_dir():
             out |= {str(p.relative_to(repo)) for p in base.rglob("test_*.py")}
+    if tracked is not None:
+        # agents' tests (copied into the repo by the orchestrator's commit of a verified run) are never
+        # part of the verdict: keep only files that existed at the base commit
+        out &= tracked
     return sorted(out)
+
+
+def _tracked_at_base(repo: Path) -> set[str] | None:
+    """Repo-relative paths tracked at the task's base commit (`<repo>/../base_commit`, else HEAD).
+    None when the repo is not inside a git work tree (then the on-disk listing stands)."""
+    rev = "HEAD"
+    bc = repo.parent / "base_commit"
+    if bc.is_file() and bc.read_text().strip():
+        rev = bc.read_text().strip()
+    try:
+        r = subprocess.run(["git", "-C", str(repo), "ls-tree", "-r", "--name-only", rev, "--", "."],
+                           capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    return {line.strip() for line in r.stdout.splitlines() if line.strip()}
 
 
 def run_pytest(sandbox: str, modules: dict[str, str], repo_tests: list[str], timeout: float = PYTEST_TIMEOUT_S, base_repo: Path | None = None) -> dict[str, tuple[bool, str]]:

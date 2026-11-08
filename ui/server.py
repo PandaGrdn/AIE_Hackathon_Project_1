@@ -295,6 +295,21 @@ def make_app(store=None) -> FastAPI:
     state: dict[str, Any] = {"store": store}
 
     def get() -> Any:
+        snap = os.environ.get("SWARM_SNAPSHOT") if store is None else None
+        if snap:
+            # live demo: `swarm run --snapshot <file>` rewrites the file after every subtask; pick it up
+            try:
+                mtime = os.path.getmtime(snap)
+            except OSError:
+                mtime = None
+            if state["store"] is None or (mtime is not None and mtime != state.get("snap_mtime")):
+                try:
+                    state["store"] = load_snapshot(snap)
+                    state["snap_mtime"] = mtime
+                except (OSError, ValueError):  # mid-write: keep the last good store
+                    if state["store"] is None:
+                        raise
+            return state["store"]
         if state["store"] is None:
             state["store"] = _default_store()
         return state["store"]
