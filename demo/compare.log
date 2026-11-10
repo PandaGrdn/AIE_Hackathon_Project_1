@@ -1,0 +1,38 @@
+                                 demo recording                                 
+┏━━━━━━━━┳━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━━┓
+┃        ┃      ┃         ┃       ┃        ┃ lesso… ┃ repeat  ┃ adopt… ┃       ┃
+┃ phase  ┃ done ┃ verifi… ┃ share ┃ failed ┃ new    ┃ rate    ┃ back   ┃ wall  ┃
+┡━━━━━━━━╇━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━━┩
+│ Task A │ 2/7  │ 5/16    │ 31%   │ 7      │ 11     │ 0%      │ 4/3    │ 2013s │
+│ (rate  │      │         │       │        │        │         │        │       │
+│ limit… │      │         │       │        │        │         │        │       │
+│ gated) │      │         │       │        │        │         │        │       │
+│ Task B │ 2/3  │ 3/20    │ 15%   │ 9      │ 15     │ 6%      │ -      │ 1269s │
+│ basel… │      │         │       │        │        │         │        │       │
+│ (no    │      │         │       │        │        │         │        │       │
+│ lesso… │      │         │       │        │        │         │        │       │
+│ Task B │ 1/3  │ 1/16    │ 6%    │ 7      │ 12     │ 8%      │ -      │ 2345s │
+│ with   │      │         │       │        │        │         │        │       │
+│ Task A │      │         │       │        │        │         │        │       │
+│ lesso… │      │         │       │        │        │         │        │       │
+└────────┴──────┴─────────┴───────┴────────┴────────┴─────────┴────────┴───────┘
+  Task B: baseline vs with lessons (first-pass verified share)   
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━━━━┓
+┃ subtask                                  ┃ b0  ┃ b1  ┃ delta  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━━━━┩
+│ Per-tool call timeout                    │ 25% │ 12% │ -12 pt │
+│ Tool deprecation flags and call warnings │ 25% │ 0%  │ -25 pt │
+│ Resource size cap                        │ 0%  │ -   │ -      │
+└──────────────────────────────────────────┴─────┴─────┴────────┘
+verified share 15% -> 6%; failed runs 9 -> 7; lessons needed 15 -> 12; 0 adopted
+lessons carried, 10 injected
+caveat: Task B is built from the same three slices Task A's held-out gate scores
+lessons on, so B1 vs B0 measures whether gate-selected lessons help a long task 
+on those features, not transfer to unseen work.
+caveat: Small n: 3 subtasks x swarm-size runs per phase; a difference of one run
+is noise. Report counts next to shares.
+caveat: run_task stops at the first subtask that does not verify; compare 
+subtasks_done and per-subtask shares only for subtasks both phases attempted.
+caveat: B1 also carries Task A's trust scores (vote weights, winner choice); 
+rerun b1 with --b1-no-trust to isolate lessons.
+wrote demo/results.json
